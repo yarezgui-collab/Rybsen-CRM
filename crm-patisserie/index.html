@@ -783,6 +783,10 @@ function Labo({ products, clients, drivers, deliveries, returns, currency, setti
   const [returnQty,   setReturnQty]   = useState(1);
   const [returnReason,setReturnReason]= useState("");
   const [returnError, setReturnError] = useState("");
+  const [expandedDetails, setExpandedDetails] = useState(new Set());
+  const toggleDetail = (key) => setExpandedDetails(prev => {
+    const next = new Set(prev); next.has(key) ? next.delete(key) : next.add(key); return next;
+  });
 
   const startEditLine = (d) => {
     setEditingId(d.id); setReturningId(null);
@@ -1207,7 +1211,10 @@ function Labo({ products, clients, drivers, deliveries, returns, currency, setti
           const dayTotal = rows.reduce((s,r)=>s+lineTotal(r),0);
           // Regrouper par client pour ce jour
           const byClient = {};
-          rows.forEach(r=>{ (byClient[r.clientId]=byClient[r.clientId]||{clientName:r.clientName,driver:r.driver,rows:[]}).rows.push(r); });
+          rows.forEach(r=>{
+            if (!byClient[r.clientId]) byClient[r.clientId]={clientId:r.clientId,clientName:r.clientName,driver:r.driver,rows:[]};
+            byClient[r.clientId].rows.push(r);
+          });
           return (
             <div key={day} style={{marginBottom:20}}>
               <div style={{display:"flex",justifyContent:"space-between",alignItems:"baseline",borderBottom:"2px solid var(--wheat)",paddingBottom:6,marginBottom:10}}>
@@ -1217,8 +1224,22 @@ function Labo({ products, clients, drivers, deliveries, returns, currency, setti
               {Object.values(byClient).map(g => {
                 const clientTotal = g.rows.reduce((s,r)=>s+lineTotal(r),0);
                 const drName = driverLabel(g.driver,drivers);
+                const detailKey = `${day}-${g.clientId}`;
+                const showDetail = expandedDetails.has(detailKey);
+
+                // Agrégation par produit
+                const aggMap = {};
+                g.rows.forEach(r => {
+                  if (!aggMap[r.productId]) aggMap[r.productId] = { productName:r.productName, totalQty:0, totalNet:0, totalReturned:0, totalValue:0 };
+                  aggMap[r.productId].totalQty      += Number(r.quantity)||0;
+                  aggMap[r.productId].totalNet      += netQty(r);
+                  aggMap[r.productId].totalReturned += Number(r.returnedQty)||0;
+                  aggMap[r.productId].totalValue    += lineTotal(r);
+                });
+                const aggRows = Object.values(aggMap);
+
                 return (
-                  <div key={g.clientName} style={{border:"1px solid var(--line)",borderRadius:12,marginBottom:10,overflow:"hidden"}}>
+                  <div key={g.clientId} style={{border:"1px solid var(--line)",borderRadius:12,marginBottom:10,overflow:"hidden"}}>
                     {/* Entête client */}
                     <div style={{background:"var(--chalk)",padding:"10px 12px",display:"flex",justifyContent:"space-between",alignItems:"center"}}>
                       <div>
@@ -1227,14 +1248,35 @@ function Labo({ products, clients, drivers, deliveries, returns, currency, setti
                       </div>
                       <div style={{display:"flex",alignItems:"center",gap:8}}>
                         <span style={{fontWeight:700,color:"var(--ink)"}}>{money(clientTotal,currency)}</span>
+                        <button style={{...btnGhost,fontSize:12,padding:"5px 8px",color:showDetail?"var(--wheat)":"var(--muted)",border:"1px solid var(--line)",borderRadius:8}}
+                          onClick={()=>toggleDetail(detailKey)} title={showDetail?"Masquer le détail":"Modifier / voir le détail"}>
+                          <Settings size={13}/> {showDetail ? "Fermer" : "Modifier"}
+                        </button>
                         <button style={{...btn,padding:"7px 10px",fontSize:12,background:"var(--wheat)",color:"#fff"}}
                           onClick={()=>openBon(g.clientName,drName,g.rows)}>
                           <FileText size={14}/> Bon
                         </button>
                       </div>
                     </div>
-                    {/* Lignes produits */}
-                    {g.rows.map(r=>{
+
+                    {/* Vue agrégée (par défaut) */}
+                    {!showDetail && aggRows.map((agg, i) => (
+                      <div key={agg.productName} style={{display:"flex",alignItems:"center",gap:8,padding:"8px 12px",borderTop:"1px solid var(--line)"}}>
+                        <div style={{flex:1,fontSize:13,color:"var(--ink)"}}>
+                          {agg.productName}
+                          <span style={{color:"var(--muted)",marginLeft:4}}>× {agg.totalQty}</span>
+                          {agg.totalReturned > 0 && (
+                            <span style={{color:"var(--coral)",fontSize:12,marginLeft:6}}>
+                              − {agg.totalReturned} retourné{agg.totalReturned>1?"s":""} → net {agg.totalNet}
+                            </span>
+                          )}
+                        </div>
+                        <div style={{fontSize:13,fontWeight:600,color:"var(--ink)",whiteSpace:"nowrap"}}>{money(agg.totalValue,currency)}</div>
+                      </div>
+                    ))}
+
+                    {/* Vue détaillée (lignes individuelles avec actions) */}
+                    {showDetail && g.rows.map(r=>{
                       const isEditing = editingId === r.id;
                       const isReturning = returningId === r.id;
                       const net = netQty(r);
@@ -1242,7 +1284,7 @@ function Labo({ products, clients, drivers, deliveries, returns, currency, setti
                       const remaining = Math.max(0, (Number(r.quantity)||0) - (Number(r.returnedQty)||0));
                       const lineReturns = returnsFor(r.id);
                       return (
-                        <div key={r.id} style={{borderTop:"1px solid var(--line)"}}>
+                        <div key={r.id} style={{borderTop:"1px solid var(--line)",background:"rgba(245,242,235,0.5)"}}>
                           {!isEditing && !isReturning && (
                             <div style={{display:"flex",alignItems:"center",gap:8,padding:"8px 12px"}}>
                               <div style={{flex:1,minWidth:0}}>
@@ -1264,7 +1306,6 @@ function Labo({ products, clients, drivers, deliveries, returns, currency, setti
                             </div>
                           )}
 
-                          {/* Confirmation de suppression */}
                           {confirmDelId === r.id && (
                             <div style={{padding:"10px 12px",background:"var(--coral-lt)",borderTop:"1px solid rgba(200,75,60,.2)"}}>
                               <p style={{fontSize:13,color:"var(--coral)",fontWeight:600,margin:"0 0 8px"}}>Supprimer cette ligne ({r.productName} × {r.quantity}) ?</p>
@@ -1275,7 +1316,6 @@ function Labo({ products, clients, drivers, deliveries, returns, currency, setti
                             </div>
                           )}
 
-                          {/* Formulaire de modification */}
                           {isEditing && (
                             <div style={{padding:"12px",background:"var(--chalk)"}}>
                               <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:10,marginBottom:10}}>
@@ -1301,7 +1341,6 @@ function Labo({ products, clients, drivers, deliveries, returns, currency, setti
                             </div>
                           )}
 
-                          {/* Formulaire de retour */}
                           {isReturning && (
                             <div style={{padding:"12px",background:"var(--coral-lt)"}}>
                               <p style={{fontSize:13,color:"var(--ink)",margin:"0 0 8px"}}>
@@ -1325,7 +1364,6 @@ function Labo({ products, clients, drivers, deliveries, returns, currency, setti
                             </div>
                           )}
 
-                          {/* Historique des retours déjà enregistrés sur cette ligne */}
                           {lineReturns.length>0 && !isReturning && (
                             <div style={{padding:"6px 12px 8px",background:"var(--coral-lt)"}}>
                               {lineReturns.map(ret=>(
@@ -1555,8 +1593,9 @@ function Owner({ deliveries, payments, products, clients, drivers, settings, rep
   const alerts = perClient.filter(x=>x.manque>0.0001);
 
   /* ---- Onglet Commandes : édition d'une livraison existante ou nouvelle ---- */
-  const [orderFilter, setOrderFilter] = useState("all");
-  const [editingId,   setEditingId]   = useState(null);
+  const [orderFilter,         setOrderFilter]         = useState("all");
+  const [selectedPriceClient, setSelectedPriceClient] = useState("");
+  const [editingId,           setEditingId]           = useState(null);
   const [editDraft,   setEditDraft]   = useState(null);
   const [confirmDel,  setConfirmDel]  = useState(null);
   const [newOrder,    setNewOrder]    = useState({ date:today(), clientId:"", productId:"", quantity:1 });
@@ -1957,37 +1996,98 @@ function Owner({ deliveries, payments, products, clients, drivers, settings, rep
 
           {/* ---- Tarifs spéciaux par client ---- */}
           <Section title="Tarifs spéciaux par client" icon={<Users size={18}/>}>
-            <p style={{fontSize:13,color:"var(--muted)",margin:"0 0 12px"}}>
+            <p style={{fontSize:13,color:"var(--muted)",margin:"0 0 16px"}}>
               Laissez vide (ou 0) pour utiliser le prix catalogue. Les livraisons déjà enregistrées conservent leur prix d'origine.
             </p>
-            {clients.map(c => {
-              const drName = driverLabel(c.driver, drivers);
+
+            {/* Sélecteur client */}
+            <div style={{display:"flex",alignItems:"center",gap:10,marginBottom:16}}>
+              <label style={{fontSize:13,fontWeight:600,color:"var(--ink)",whiteSpace:"nowrap"}}>Client :</label>
+              <select
+                style={{...input,flex:1,fontSize:14}}
+                value={selectedPriceClient}
+                onChange={e => setSelectedPriceClient(e.target.value)}
+              >
+                <option value="">— Sélectionnez un client —</option>
+                {clients.map(c => {
+                  const count = (clientPrices||[]).filter(pc => pc.clientId===c.id).length;
+                  return (
+                    <option key={c.id} value={c.id}>
+                      {c.name}{count > 0 ? ` (${count} tarif${count>1?"s":""} spécial${count>1?"x":""})` : ""}
+                    </option>
+                  );
+                })}
+              </select>
+            </div>
+
+            {/* Tableau produits pour le client sélectionné */}
+            {selectedPriceClient ? (() => {
+              const selClient = clients.find(c => c.id === selectedPriceClient);
+              const drName = selClient ? driverLabel(selClient.driver, drivers) : "";
               return (
-                <div key={c.id} style={{border:"1px solid var(--line)",borderRadius:12,marginBottom:12,overflow:"hidden"}}>
-                  <div style={{background:"var(--chalk)",padding:"10px 14px",fontWeight:700,color:"var(--ink)",fontSize:14}}>
-                    {c.name} <span style={{fontSize:12,fontWeight:400,color:"var(--muted)"}}>· {drName}</span>
+                <div style={{border:"1px solid var(--line)",borderRadius:12,overflow:"hidden"}}>
+                  {/* En-tête client */}
+                  <div style={{background:"var(--chalk)",padding:"10px 16px",display:"flex",alignItems:"center",gap:8}}>
+                    <span style={{fontWeight:700,fontSize:14,color:"var(--ink)"}}>{selClient?.name}</span>
+                    <span style={{fontSize:12,color:"var(--muted)"}}>· {drName}</span>
+                    {(clientPrices||[]).filter(pc=>pc.clientId===selectedPriceClient).length > 0 && (
+                      <span style={{marginLeft:"auto",fontSize:11,background:"var(--wheat)",color:"#7a5c00",padding:"2px 8px",borderRadius:20,fontWeight:600}}>
+                        {(clientPrices||[]).filter(pc=>pc.clientId===selectedPriceClient).length} tarif{(clientPrices||[]).filter(pc=>pc.clientId===selectedPriceClient).length>1?"s":""} spécial{(clientPrices||[]).filter(pc=>pc.clientId===selectedPriceClient).length>1?"x":""}
+                      </span>
+                    )}
                   </div>
-                  <div style={{padding:"8px 14px"}}>
-                    {products.map(p => {
-                      const specific = (clientPrices||[]).find(pc => pc.clientId===c.id && pc.productId===p.id);
-                      return (
-                        <div key={p.id} style={{display:"flex",alignItems:"center",gap:8,padding:"5px 0",borderBottom:"1px solid var(--line)"}}>
-                          <div style={{flex:2,fontSize:13,color:"var(--ink)"}}>{p.name}</div>
-                          <div style={{fontSize:12,color:"var(--muted)",whiteSpace:"nowrap"}}>cat. {money(p.price,currency)}</div>
-                          <input
-                            type="number" step="0.001" min="0"
-                            placeholder={fmt(p.price)}
-                            style={{...input,width:100,padding:"6px 8px",fontSize:13,borderColor:specific?"var(--wheat)":"var(--line)"}}
-                            value={specific ? specific.prix : ""}
-                            onChange={e => setClientPrices(c.id, p.id, e.target.value)}
-                          />
-                        </div>
-                      );
-                    })}
-                  </div>
+
+                  {/* Tableau */}
+                  <table style={{width:"100%",borderCollapse:"collapse"}}>
+                    <thead>
+                      <tr style={{background:"var(--chalk)"}}>
+                        <th style={{padding:"8px 16px",textAlign:"left",fontSize:12,color:"var(--muted)",fontWeight:600,borderBottom:"1px solid var(--line)"}}>Produit</th>
+                        <th style={{padding:"8px 16px",textAlign:"right",fontSize:12,color:"var(--muted)",fontWeight:600,borderBottom:"1px solid var(--line)"}}>Prix catalogue</th>
+                        <th style={{padding:"8px 16px",textAlign:"right",fontSize:12,color:"var(--muted)",fontWeight:600,borderBottom:"1px solid var(--line)"}}>Prix spécial</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {products.map((p, i) => {
+                        const specific = (clientPrices||[]).find(pc => pc.clientId===selectedPriceClient && pc.productId===p.id);
+                        const isLast = i === products.length - 1;
+                        return (
+                          <tr key={p.id} style={{background: specific ? "rgba(218,165,32,0.04)" : "transparent"}}>
+                            <td style={{padding:"10px 16px",fontSize:13,color:"var(--ink)",borderBottom:isLast?"none":"1px solid var(--line)"}}>
+                              {p.name}
+                            </td>
+                            <td style={{padding:"10px 16px",fontSize:13,color:"var(--muted)",textAlign:"right",borderBottom:isLast?"none":"1px solid var(--line)",whiteSpace:"nowrap"}}>
+                              {money(p.price, currency)}
+                            </td>
+                            <td style={{padding:"6px 16px 6px",textAlign:"right",borderBottom:isLast?"none":"1px solid var(--line)"}}>
+                              <input
+                                type="number" step="0.001" min="0"
+                                placeholder={fmt(p.price)}
+                                style={{
+                                  ...input,
+                                  width:110,
+                                  padding:"6px 8px",
+                                  fontSize:13,
+                                  textAlign:"right",
+                                  borderColor: specific ? "var(--wheat)" : "var(--line)",
+                                  background: specific ? "rgba(218,165,32,0.06)" : "var(--card)",
+                                  fontWeight: specific ? 600 : 400,
+                                }}
+                                value={specific ? specific.prix : ""}
+                                onChange={e => setClientPrices(selectedPriceClient, p.id, e.target.value)}
+                              />
+                            </td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
                 </div>
               );
-            })}
+            })() : (
+              <div style={{textAlign:"center",padding:"24px 0",color:"var(--muted)",fontSize:13}}>
+                Sélectionnez un client pour configurer ses tarifs spéciaux.
+              </div>
+            )}
           </Section>
         </>
       )}
