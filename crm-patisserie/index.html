@@ -664,49 +664,89 @@ const CATEGORY_META = {
   "Autres":          { emoji:"📦", color:"#7A8A96" },
 };
 
-function ProductPicker({ products, currency, value, onChange, getPrice }) {
-  const groups = useMemo(() => groupProductsByBase(products), [products]);
-  const catGroups = useMemo(() => groupByCategory(groups), [groups]);
-  const selected = products.find(p => p.id === value) || null;
+const SUFFIX_COLORS = {
+  "60/40":      { border:"#C17A2A", bg:"rgba(193,122,42,0.10)", text:"#8a5200" },
+  "Margarine":  { border:"#7A5C9A", bg:"rgba(122,92,154,0.10)", text:"#4a2d6a" },
+  "Pur beurre": { border:"#B8860B", bg:"rgba(184,134,11,0.10)", text:"#7a5800" },
+  "Classique":  { border:"#3B82F6", bg:"rgba(59,130,246,0.10)", text:"#1d4ed8" },
+};
 
-  // Retrouve la catégorie et le groupe du produit sélectionné
+function ProductPicker({ products, currency, value, onChange, getPrice }) {
+  const groups    = useMemo(() => groupProductsByBase(products), [products]);
+  const catGroups = useMemo(() => groupByCategory(groups), [groups]);
+  const selected  = products.find(p => p.id === value) || null;
+
   const selectedGroup = useMemo(() => {
     if (!selected) return null;
     return groups.find(g => g.single?.id === selected.id || g.variants.some(v => v.product.id === selected.id)) || null;
   }, [groups, selected]);
 
-  const [activeCat,  setActiveCat]  = useState(selectedGroup ? selectedGroup.category : "");
-  const [baseChoice, setBaseChoice] = useState(selectedGroup ? selectedGroup.base : "");
+  const [activeCat,    setActiveCat]    = useState(selectedGroup ? selectedGroup.category : "");
+  const [activeSuffix, setActiveSuffix] = useState(() => {
+    if (!selectedGroup || !selected) return "";
+    const v = selectedGroup.variants.find(v => v.product.id === selected.id);
+    return v ? v.suffix : (selectedGroup.single?.id === selected.id ? "Classique" : "");
+  });
+  const [baseChoice,   setBaseChoice]   = useState(selectedGroup ? selectedGroup.base : "");
 
   useEffect(() => {
-    setActiveCat(selectedGroup ? selectedGroup.category : "");
+    const cat = selectedGroup ? selectedGroup.category : "";
+    setActiveCat(cat);
     setBaseChoice(selectedGroup ? selectedGroup.base : "");
+    if (selectedGroup && selected) {
+      const v = selectedGroup.variants.find(v => v.product.id === selected.id);
+      setActiveSuffix(v ? v.suffix : "Classique");
+    } else {
+      setActiveSuffix("");
+    }
   }, [selectedGroup?.base]);
 
-  const filteredGroups = catGroups.find(c => c.category === activeCat)?.groups || [];
+  const isViennoiserie = activeCat === "Viennoiserie";
+  const catGroupItems  = catGroups.find(c => c.category === activeCat)?.groups || [];
+
+  // Pour Viennoiserie : quels mélanges existent dans le catalogue ?
+  const availableSuffixes = VARIANT_SUFFIXES.filter(s =>
+    catGroupItems.some(g => g.variants.some(v => v.suffix === s))
+  );
+  const hasClassique = catGroupItems.some(g => g.single && g.variants.length === 0);
+
+  // Filtrer les produits selon le mélange choisi
+  const filteredForSuffix = !activeSuffix ? [] :
+    activeSuffix === "Classique"
+      ? catGroupItems.filter(g => g.single && g.variants.length === 0)
+      : catGroupItems.filter(g => g.variants.some(v => v.suffix === activeSuffix));
+
   const currentGroup = groups.find(g => g.base === baseChoice) || null;
 
   const pickCat = (cat) => {
-    if (activeCat === cat) { setActiveCat(""); setBaseChoice(""); onChange(""); return; }
-    setActiveCat(cat);
-    setBaseChoice("");
-    onChange("");
+    if (activeCat === cat) { setActiveCat(""); setActiveSuffix(""); setBaseChoice(""); onChange(""); return; }
+    setActiveCat(cat); setActiveSuffix(""); setBaseChoice(""); onChange("");
+  };
+
+  const pickSuffix = (suffix) => {
+    if (activeSuffix === suffix) { setActiveSuffix(""); setBaseChoice(""); onChange(""); return; }
+    setActiveSuffix(suffix); setBaseChoice(""); onChange("");
   };
 
   const pickBase = (base) => {
     setBaseChoice(base);
     const g = groups.find(x => x.base === base);
     if (!g) { onChange(""); return; }
-    if (g.single && g.variants.length === 0) { onChange(g.single.id); }
-    else onChange("");
+    if (isViennoiserie && activeSuffix) {
+      if (activeSuffix === "Classique") { onChange(g.single ? g.single.id : ""); }
+      else { const v = g.variants.find(v => v.suffix === activeSuffix); onChange(v ? v.product.id : ""); }
+    } else {
+      if (g.single && g.variants.length === 0) onChange(g.single.id);
+      else onChange("");
+    }
   };
 
   return (
     <div>
-      {/* ── Étape 1 : 4 boutons icônes de catégorie ── */}
+      {/* ── Étape 1 : boutons catégorie ── */}
       <div style={{display:"flex",gap:8,flexWrap:"wrap",marginBottom:10}}>
         {catGroups.map(({category}) => {
-          const meta = CATEGORY_META[category] || CATEGORY_META["Autres"];
+          const meta   = CATEGORY_META[category] || CATEGORY_META["Autres"];
           const active = activeCat === category;
           return (
             <button key={category} type="button" onClick={()=>pickCat(category)}
@@ -726,21 +766,74 @@ function ProductPicker({ products, currency, value, onChange, getPrice }) {
         })}
       </div>
 
-      {/* ── Étape 2 : menu déroulant filtré sur la catégorie choisie ── */}
-      {activeCat && (
-        <select style={{...input, marginBottom: currentGroup && currentGroup.variants.length > 0 ? 10 : 0}}
-          value={baseChoice} onChange={e=>pickBase(e.target.value)}>
-          <option value="">— {activeCat} : choisir un produit —</option>
-          {filteredGroups.map(g => (
-            <option key={g.base} value={g.base}>
-              {g.base}{g.single && g.variants.length===0 ? ` (${money(getPrice ? getPrice(g.single.id) : g.single.price, currency)})` : ""}
-            </option>
-          ))}
+      {/* ── Étape 2a (Viennoiserie) : choisir le mélange en premier ── */}
+      {isViennoiserie && (
+        <div style={{display:"flex",gap:8,flexWrap:"wrap",marginBottom:10}}>
+          {availableSuffixes.map(s => {
+            const sc = SUFFIX_COLORS[s] || { border:"var(--wheat)", bg:"var(--wheat-lt)", text:"var(--ink)" };
+            const active = activeSuffix === s;
+            return (
+              <button key={s} type="button" onClick={()=>pickSuffix(s)}
+                style={{
+                  flex:"1 1 auto", minWidth:86, padding:"10px 12px", borderRadius:10, minHeight:44,
+                  border: active ? `2px solid ${sc.border}` : "1.5px solid var(--line)",
+                  background: active ? sc.bg : "var(--surface)",
+                  color: active ? sc.text : "var(--ink)",
+                  fontWeight: active ? 700 : 500, fontSize:14, cursor:"pointer", transition:"all .15s",
+                }}>
+                {s}
+              </button>
+            );
+          })}
+          {hasClassique && (() => {
+            const sc = SUFFIX_COLORS["Classique"];
+            const active = activeSuffix === "Classique";
+            return (
+              <button type="button" onClick={()=>pickSuffix("Classique")}
+                style={{
+                  flex:"1 1 auto", minWidth:86, padding:"10px 12px", borderRadius:10, minHeight:44,
+                  border: active ? `2px solid ${sc.border}` : "1.5px solid var(--line)",
+                  background: active ? sc.bg : "var(--surface)",
+                  color: active ? sc.text : "var(--ink)",
+                  fontWeight: active ? 700 : 500, fontSize:14, cursor:"pointer", transition:"all .15s",
+                }}>
+                Classique
+              </button>
+            );
+          })()}
+        </div>
+      )}
+
+      {/* ── Étape 2b / 3 : menu déroulant produit ── */}
+      {(isViennoiserie ? !!activeSuffix : !!activeCat) && (
+        <select
+          style={{...input, marginBottom: (!isViennoiserie && currentGroup && currentGroup.variants.length > 0) ? 10 : 0}}
+          value={baseChoice}
+          onChange={e => pickBase(e.target.value)}>
+          <option value="">
+            {isViennoiserie ? `— ${activeSuffix} : choisir un produit —` : `— ${activeCat} : choisir un produit —`}
+          </option>
+          {(isViennoiserie ? filteredForSuffix : catGroupItems).map(g => {
+            let price = null;
+            if (isViennoiserie && activeSuffix) {
+              const prod = activeSuffix === "Classique"
+                ? g.single
+                : (g.variants.find(v => v.suffix === activeSuffix) || {}).product;
+              if (prod) price = getPrice ? getPrice(prod.id) : prod.price;
+            } else if (g.single && g.variants.length === 0) {
+              price = getPrice ? getPrice(g.single.id) : g.single.price;
+            }
+            return (
+              <option key={g.base} value={g.base}>
+                {g.base}{price !== null ? ` (${money(price, currency)})` : ""}
+              </option>
+            );
+          })}
         </select>
       )}
 
-      {/* ── Étape 3 : boutons Margarine / 60-40 / Pur beurre si applicable ── */}
-      {currentGroup && currentGroup.variants.length > 0 && (
+      {/* ── Étape 3b (autres catégories uniquement) : variantes ── */}
+      {!isViennoiserie && currentGroup && currentGroup.variants.length > 0 && (
         <div style={{display:"flex",gap:8,flexWrap:"wrap"}}>
           {currentGroup.variants.map(v => {
             const active = value === v.product.id;
@@ -852,7 +945,8 @@ function Labo({ products, clients, drivers, deliveries, returns, currency, setti
     const last = refOrderByClient[cid];
     if (!last) return;
     const qtys = {};
-    last.lines.forEach(l => { qtys[l.productId] = l.quantity; });
+    // Somme les quantités si le même produit apparaît plusieurs fois (deux saisies distinctes)
+    last.lines.forEach(l => { qtys[l.productId] = (qtys[l.productId] || 0) + (Number(l.quantity) || 0); });
     setReorderQtys(prev => ({ ...prev, [cid]: qtys }));
   };
 
@@ -1084,60 +1178,71 @@ function Labo({ products, clients, drivers, deliveries, returns, currency, setti
       <div>
 
       {/* ---------- COMMANDES RAPIDES ---------- */}
-      {clients.some(c => refOrderByClient[c.id]) && (
-        <Section title="Commandes rapides" icon={<RotateCcw size={18}/>}>
-          <p style={{fontSize:13,color:"var(--muted)",margin:"0 0 10px"}}>
-            Reprend la commande du même jour J-7 (ou J-14 si aucune commande la semaine dernière). Ajustez les quantités puis ajoutez au brouillon.
-          </p>
-          {clients.filter(c => refOrderByClient[c.id]).map(c => {
-            const last  = refOrderByClient[c.id];
-            const open  = !!reorderQtys[c.id];
-            const drName = driverLabel(c.driver, drivers);
-            return (
-              <div key={c.id} style={{border:"1px solid var(--line)",borderRadius:12,marginBottom:10,overflow:"hidden"}}>
-                {/* Entête client */}
-                <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",padding:"10px 12px",background:"var(--chalk)"}}>
-                  <div>
-                    <div style={{fontWeight:700,color:"var(--ink)"}}>{c.name}</div>
-                    <div style={{fontSize:12,color:"var(--muted)"}}>{drName} · réf. {dateFR(last.date)}{last.date === (()=>{const d=new Date(date+"T00:00:00");d.setDate(d.getDate()-14);return d.toISOString().slice(0,10);})() ? " (J-14)" : " (J-7)"}</div>
-                  </div>
-                  <button style={{...btn,padding:"7px 12px",fontSize:12,background:open?C.muted:C.wheat}}
-                    onClick={() => open ? setReorderQtys(p=>{const n={...p};delete n[c.id];return n;}) : openReorder(c.id)}>
-                    <RotateCcw size={13}/> {open ? "Annuler" : "Reprendre"}
-                  </button>
+      <Section title="Commandes rapides J-7" icon={<RotateCcw size={18}/>}>
+        <p style={{fontSize:13,color:"var(--muted)",margin:"0 0 10px"}}>
+          Reprend automatiquement la commande du même jour il y a 7 jours (ou 14 si aucune commande la semaine dernière). Ajustez les quantités puis ajoutez au brouillon.
+        </p>
+        {!clients.some(c => refOrderByClient[c.id]) ? (
+          <div style={{textAlign:"center",padding:"20px 12px",background:"var(--chalk)",borderRadius:10,color:"var(--muted)",fontSize:13}}>
+            Aucune commande trouvée le {(()=>{const d=new Date(date+"T00:00:00");d.setDate(d.getDate()-7);return dateFR(d.toISOString().slice(0,10));})()}
+            {" "}ni le {(()=>{const d=new Date(date+"T00:00:00");d.setDate(d.getDate()-14);return dateFR(d.toISOString().slice(0,10));})()}.
+            <br/>Cette section se remplira automatiquement une fois que vous aurez 7 jours d'historique.
+          </div>
+        ) : clients.filter(c => refOrderByClient[c.id]).map(c => {
+          const last  = refOrderByClient[c.id];
+          const open  = !!reorderQtys[c.id];
+          const drName = driverLabel(c.driver, drivers);
+          const t14 = (()=>{const d=new Date(date+"T00:00:00");d.setDate(d.getDate()-14);return d.toISOString().slice(0,10);})();
+          // Dédupliquer les lignes par produit (somme des quantités)
+          const dedupLines = Object.values(
+            last.lines.reduce((acc, l) => {
+              if (!acc[l.productId]) acc[l.productId] = {...l, quantity: 0};
+              acc[l.productId].quantity += Number(l.quantity) || 0;
+              return acc;
+            }, {})
+          );
+          return (
+            <div key={c.id} style={{border:"1px solid var(--line)",borderRadius:12,marginBottom:10,overflow:"hidden"}}>
+              <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",padding:"10px 12px",background:"var(--chalk)"}}>
+                <div>
+                  <div style={{fontWeight:700,color:"var(--ink)"}}>{c.name}</div>
+                  <div style={{fontSize:12,color:"var(--muted)"}}>{drName} · réf. {dateFR(last.date)}{last.date === t14 ? " (J-14)" : " (J-7)"}</div>
                 </div>
-                {/* Lignes avec quantités éditables */}
-                {open && (
-                  <div style={{padding:"10px 12px"}}>
-                    {last.lines.map(l => {
-                      const unitPr = getUnitPrice(c.id, l.productId, clientPrices, products);
-                      const q = reorderQtys[c.id]?.[l.productId] ?? l.quantity;
-                      const tot = (Number(q)||0)*unitPr;
-                      return (
-                        <div key={l.productId} style={{display:"flex",alignItems:"center",gap:10,padding:"7px 0",borderBottom:"1px solid var(--line)"}}>
-                          <div style={{flex:1,fontSize:14,color:"var(--ink)"}}>
-                            {l.productName}
-                            <span style={{fontSize:12,color:"var(--muted)",marginLeft:6}}>({money(unitPr,currency)})</span>
-                          </div>
-                          <input type="number" min="0" style={{...input,width:72,padding:"7px 8px",textAlign:"center"}}
-                            value={q}
-                            onChange={e=>setReorderQtys(prev=>({...prev,[c.id]:{...prev[c.id],[l.productId]:e.target.value}}))}/>
-                          <span style={{fontWeight:600,color:"var(--ink)",minWidth:64,textAlign:"right"}}>{money(tot,currency)}</span>
-                        </div>
-                      );
-                    })}
-                    <div style={{display:"flex",justifyContent:"flex-end",marginTop:10}}>
-                      <button style={{...btn,background:"var(--sage)"}} onClick={()=>addReorder(c.id)}>
-                        <Plus size={15}/> Ajouter au brouillon
-                      </button>
-                    </div>
-                  </div>
-                )}
+                <button style={{...btn,padding:"7px 12px",fontSize:12,background:open?C.muted:C.wheat}}
+                  onClick={() => open ? setReorderQtys(p=>{const n={...p};delete n[c.id];return n;}) : openReorder(c.id)}>
+                  <RotateCcw size={13}/> {open ? "Annuler" : "Reprendre"}
+                </button>
               </div>
-            );
-          })}
-        </Section>
-      )}
+              {open && (
+                <div style={{padding:"10px 12px"}}>
+                  {dedupLines.map(l => {
+                    const unitPr = getUnitPrice(c.id, l.productId, clientPrices, products);
+                    const q = reorderQtys[c.id]?.[l.productId] ?? l.quantity;
+                    const tot = (Number(q)||0)*unitPr;
+                    return (
+                      <div key={l.productId} style={{display:"flex",alignItems:"center",gap:10,padding:"7px 0",borderBottom:"1px solid var(--line)"}}>
+                        <div style={{flex:1,fontSize:14,color:"var(--ink)"}}>
+                          {l.productName}
+                          <span style={{fontSize:12,color:"var(--muted)",marginLeft:6}}>({money(unitPr,currency)})</span>
+                        </div>
+                        <input type="number" min="0" style={{...input,width:72,padding:"7px 8px",textAlign:"center"}}
+                          value={q}
+                          onChange={e=>setReorderQtys(prev=>({...prev,[c.id]:{...prev[c.id],[l.productId]:e.target.value}}))}/>
+                        <span style={{fontWeight:600,color:"var(--ink)",minWidth:64,textAlign:"right"}}>{money(tot,currency)}</span>
+                      </div>
+                    );
+                  })}
+                  <div style={{display:"flex",justifyContent:"flex-end",marginTop:10}}>
+                    <button style={{...btn,background:"var(--sage)"}} onClick={()=>addReorder(c.id)}>
+                      <Plus size={15}/> Ajouter au brouillon
+                    </button>
+                  </div>
+                </div>
+              )}
+            </div>
+          );
+        })}
+      </Section>
 
       {/* ---------- SAISIE MANUELLE ---------- */}
       <Section title="Nouvelle sortie de viennoiserie" icon={<Plus size={18}/>}>
@@ -1641,7 +1746,7 @@ function Owner({ deliveries, payments, products, clients, drivers, settings, rep
   };
 
   /* ---- Réglages locaux ---- */
-  const [np, setNp] = useState({name:"",price:""});
+  const [np, setNp] = useState({name:"",price:"",category:"Viennoiserie"});
   const [nc, setNc] = useState({name:"",driver:drivers[0]?.id||""});
   const [nd, setNd] = useState("");  // nouveau chauffeur
 
@@ -1961,16 +2066,22 @@ function Owner({ deliveries, payments, products, clients, drivers, settings, rep
           {/* ---- Produits ---- */}
           <Section title="Produits & prix" icon={<Package size={18}/>}>
             {products.map(p=>(
-              <div key={p.id} style={{display:"flex",gap:8,alignItems:"center",padding:"6px 0",borderBottom:"1px solid var(--line)"}}>
-                <input style={{...input,flex:2}} value={p.name} onChange={e=>setProducts(products.map(x=>x.id===p.id?{...x,name:e.target.value}:x))}/>
-                <input type="number" step="0.001" style={{...input,flex:1}} value={p.price} onChange={e=>setProducts(products.map(x=>x.id===p.id?{...x,price:parseFloat(e.target.value)||0}:x))}/>
+              <div key={p.id} style={{display:"flex",gap:8,alignItems:"center",padding:"6px 0",borderBottom:"1px solid var(--line)",flexWrap:"wrap"}}>
+                <input style={{...input,flex:"2 1 120px"}} value={p.name} onChange={e=>setProducts(products.map(x=>x.id===p.id?{...x,name:e.target.value}:x))}/>
+                <input type="number" step="0.001" style={{...input,flex:"1 1 70px"}} value={p.price} onChange={e=>setProducts(products.map(x=>x.id===p.id?{...x,price:parseFloat(e.target.value)||0}:x))}/>
+                <select style={{...input,flex:"1 1 110px",fontSize:12}} value={p.category||"Autres"} onChange={e=>setProducts(products.map(x=>x.id===p.id?{...x,category:e.target.value}:x))}>
+                  {Object.keys(CATEGORY_META).map(c=><option key={c} value={c}>{CATEGORY_META[c].emoji} {c}</option>)}
+                </select>
                 <button style={btnGhost} onClick={()=>setProducts(products.filter(x=>x.id!==p.id))}><Trash2 size={16}/></button>
               </div>
             ))}
-            <div style={{display:"flex",gap:8,marginTop:10}}>
-              <input placeholder="Nouveau produit" style={{...input,flex:2}} value={np.name} onChange={e=>setNp({...np,name:e.target.value})}/>
-              <input placeholder="Prix" type="number" step="0.001" style={{...input,flex:1}} value={np.price} onChange={e=>setNp({...np,price:e.target.value})}/>
-              <button style={btn} onClick={()=>{ if(!np.name)return; setProducts([...products,{id:uid(),name:np.name,price:parseFloat(np.price)||0}]); setNp({name:"",price:""}); }}><Plus size={16}/></button>
+            <div style={{display:"flex",gap:8,marginTop:10,flexWrap:"wrap"}}>
+              <input placeholder="Nouveau produit" style={{...input,flex:"2 1 120px"}} value={np.name} onChange={e=>setNp({...np,name:e.target.value})}/>
+              <input placeholder="Prix" type="number" step="0.001" style={{...input,flex:"1 1 70px"}} value={np.price} onChange={e=>setNp({...np,price:e.target.value})}/>
+              <select style={{...input,flex:"1 1 110px",fontSize:12}} value={np.category} onChange={e=>setNp({...np,category:e.target.value})}>
+                {Object.keys(CATEGORY_META).map(c=><option key={c} value={c}>{CATEGORY_META[c].emoji} {c}</option>)}
+              </select>
+              <button style={btn} onClick={()=>{ if(!np.name)return; setProducts([...products,{id:uid(),name:np.name,price:parseFloat(np.price)||0,category:np.category}]); setNp({name:"",price:"",category:"Viennoiserie"}); }}><Plus size={16}/></button>
             </div>
           </Section>
 
@@ -2479,8 +2590,8 @@ function App() {
     setProductsS(next); // optimiste
     const prevIds = new Set(products.map(p=>p.id));
     for (const p of next) {
-      if (!prevIds.has(p.id) || products.find(x=>x.id===p.id && (x.name!==p.name || x.price!==p.price))) {
-        await apiCall("save_product", { id:p.id, nom:p.name, prix:p.price }).catch(()=>{});
+      if (!prevIds.has(p.id) || products.find(x=>x.id===p.id && (x.name!==p.name || x.price!==p.price || x.category!==p.category))) {
+        await apiCall("save_product", { id:p.id, nom:p.name, prix:p.price, categorie:p.category||"Autres" }).catch(()=>{});
       }
     }
     const nextIds = new Set(next.map(p=>p.id));
