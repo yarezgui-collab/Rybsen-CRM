@@ -588,7 +588,10 @@ function BonLivraison({ bon, settings, currency, onClose }) {
                 {lines.map((l,i)=>(
                   <tr key={i} style={{background:i%2===0?C.card:C.cream}}>
                     <td style={{padding:"9px 12px",fontSize:14,color:"var(--ink)",fontWeight:500}}>{l.productName}</td>
-                    <td style={{padding:"9px 12px",fontSize:14,color:"var(--ink)",textAlign:"right"}}>{l.quantity} pcs</td>
+                    <td style={{padding:"9px 12px",fontSize:14,color:"var(--ink)",textAlign:"right"}}>
+                      {netQty(l)} pcs
+                      {(Number(l.returnedQty)||0)>0 && <span style={{display:"block",fontSize:11,color:"var(--coral)"}}>(−{l.returnedQty} retour)</span>}
+                    </td>
                     <td style={{padding:"9px 12px",fontSize:13,color:"var(--muted)",textAlign:"right"}}>{money(l.unitPrice,currency)}</td>
                     <td style={{padding:"9px 12px",fontSize:14,color:"var(--ink)",fontWeight:600,textAlign:"right"}}>{money(lineTotal(l),currency)}</td>
                   </tr>
@@ -866,6 +869,8 @@ function Labo({ products, clients, drivers, deliveries, returns, currency, setti
   const [qty,       setQty]       = useState("");
   const [draft,     setDraft]     = useState([]);
   const [bon,       setBon]       = useState(null);
+  const [validating, setValidating] = useState(false);
+  const qtyRef = useRef(null);
 
   // Modification d'une commande déjà enregistrée
   const [editingId, setEditingId] = useState(null);
@@ -881,6 +886,7 @@ function Labo({ products, clients, drivers, deliveries, returns, currency, setti
   const toggleDetail = (key) => setExpandedDetails(prev => {
     const next = new Set(prev); next.has(key) ? next.delete(key) : next.add(key); return next;
   });
+  useEffect(() => { if (productId && qtyRef.current) { qtyRef.current.focus(); qtyRef.current.select(); } }, [productId]);
 
   const startEditLine = (d) => {
     setEditingId(d.id); setReturningId(null);
@@ -984,10 +990,12 @@ function Labo({ products, clients, drivers, deliveries, returns, currency, setti
   };
 
   const draftTotal = draft.reduce((s,l) => s+lineTotal(l), 0);
-  const validate   = () => {
-    if (!draft.length) return;
-    onAddMany(draft.map(({tmpId,...rest}) => ({id:uid(),...rest})));
+  const validate = async () => {
+    if (!draft.length || validating) return;
+    setValidating(true);
+    try { await onAddMany(draft.map(({tmpId,...rest}) => ({id:uid(),...rest}))); } catch(e) {}
     setDraft([]);
+    setValidating(false);
   };
 
   const openBon = (clientName, driverName, rows) => {
@@ -1273,8 +1281,10 @@ function Labo({ products, clients, drivers, deliveries, returns, currency, setti
           <div>
             <label style={label}>Quantité</label>
             <input
+              ref={qtyRef}
               type="number" min="1" style={input} value={qty}
               onChange={e=>setQty(e.target.value)}
+              onFocus={e=>e.target.select()}
               onKeyDown={e=>{ if(e.key==="Enter"){ e.preventDefault(); addLine(); } }}
               placeholder="Qté puis Entrée ↵"
             />
@@ -1304,8 +1314,8 @@ function Labo({ products, clients, drivers, deliveries, returns, currency, setti
               <span style={{...serif,fontSize:17,color:"var(--ink)",fontWeight:600}}>Total à valider</span>
               <span style={{...serif,fontSize:22,fontWeight:800,color:"var(--wheat)"}}>{money(draftTotal,currency)}</span>
             </div>
-            <button style={{...btn,width:"100%",padding:"14px",fontSize:16,background:"var(--sage)"}} onClick={validate}>
-              <Check size={18}/> Valider les sorties
+            <button style={{...btn,width:"100%",padding:"14px",fontSize:16,background:"var(--sage)",opacity:validating?0.6:1}} onClick={validate} disabled={validating}>
+              <Check size={18}/> {validating?"Validation…":"Valider les sorties"}
             </button>
           </div>
         )}
@@ -1537,6 +1547,7 @@ function Chauffeur({ driver, drivers, deliveries, payments, settings, currency, 
   }, {exp:0,col:0});
   const ecartTot = totals.col - totals.exp;
   const exactTot = Math.abs(ecartTot)<=0.0001;
+  const regledCount = groups.filter(g => amts[g.clientId]!==undefined && amts[g.clientId]!=="").length;
 
   const validateTour = () => {
     const others = payments.filter(p=>!(p.date===date&&p.driver===driver));
@@ -1558,6 +1569,22 @@ function Chauffeur({ driver, drivers, deliveries, payments, settings, currency, 
           <KPI label="Récupéré"       value={money(totals.col,currency)} tone="green"/>
           <KPI label="Écart" value={`${ecartTot>=0?"+":"−"}${money(Math.abs(ecartTot),currency)}`} tone={exactTot?"green":"red"}/>
         </div>
+        {groups.length > 0 && (
+          <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginTop:10,paddingTop:10,borderTop:"1px solid var(--line)"}}>
+            <span style={{fontSize:13,color:regledCount===groups.length?"var(--sage)":"var(--muted)",fontWeight:regledCount===groups.length?700:400}}>
+              {regledCount===groups.length ? "✅ Tous les clients réglés" : `${regledCount}/${groups.length} clients réglés`}
+            </span>
+            <button style={{...btn,padding:"7px 14px",fontSize:12,background:"var(--sage)"}}
+              onClick={()=>{
+                const next={};
+                groups.forEach(g=>{next[g.clientId]=String(g.rows.reduce((s,r)=>s+lineTotal(r),0).toFixed(3));});
+                setAmts(prev=>({...prev,...next}));
+                setSaved(false);
+              }}>
+              ✓ Tout régler
+            </button>
+          </div>
+        )}
       </Section>
 
       {!groups.length ? (
@@ -1670,8 +1697,16 @@ function Owner({ deliveries, payments, products, clients, drivers, settings, rep
   const [filter, setFilter] = useState("all");
 
   const allDates = useMemo(()=>[...new Set(deliveries.map(d=>d.date))].sort((a,b)=>a<b?1:-1),[deliveries]);
-  const fd = filter==="all"?deliveries:deliveries.filter(d=>d.date===filter);
-  const fp = filter==="all"?payments:payments.filter(p=>p.date===filter);
+  const getWeekStart  = () => { const d=new Date(); d.setDate(d.getDate()-((d.getDay()+6)%7)); return d.toISOString().slice(0,10); };
+  const getMonthStart = () => new Date().toISOString().slice(0,8)+"01";
+  const applyFilter = (items, key) => {
+    if (filter==="all")   return items;
+    if (filter==="week")  return items.filter(x=>x[key]>=getWeekStart());
+    if (filter==="month") return items.filter(x=>x[key]>=getMonthStart());
+    return items.filter(x=>x[key]===filter);
+  };
+  const fd = applyFilter(deliveries,"date");
+  const fp = applyFilter(payments,"date");
 
   // CORRECTION : qtyOut utilise netQty (quantité livrée − retournée), pas la quantité brute
   const qtyOut    = fd.reduce((s,d)=>s+netQty(d),0);
@@ -1700,8 +1735,9 @@ function Owner({ deliveries, payments, products, clients, drivers, settings, rep
 
   /* ---- Onglet Commandes : édition d'une livraison existante ou nouvelle ---- */
   const [orderFilter,         setOrderFilter]         = useState("all");
-  const [selectedPriceClient, setSelectedPriceClient] = useState("");
-  const [editingId,           setEditingId]           = useState(null);
+  const [selectedPriceClient,  setSelectedPriceClient]  = useState("");
+  const [showAllPriceProducts, setShowAllPriceProducts] = useState(false);
+  const [editingId,            setEditingId]            = useState(null);
   const [editDraft,   setEditDraft]   = useState(null);
   const [confirmDel,  setConfirmDel]  = useState(null);
   const [newOrder,    setNewOrder]    = useState({ date:today(), clientId:"", productId:"", quantity:1 });
@@ -1764,10 +1800,17 @@ function Owner({ deliveries, payments, products, clients, drivers, settings, rep
       {tab==="dash" && (
         <>
           <Section title="Vue d'ensemble" icon={<Crown size={18}/>}
-            right={<select style={{...input,width:"auto",padding:"8px 10px"}} value={filter} onChange={e=>setFilter(e.target.value)}>
-              <option value="all">Toutes les dates</option>
-              {allDates.map(d=><option key={d} value={d}>{dateFR(d)}</option>)}
-            </select>}>
+            right={<div style={{display:"flex",gap:6,alignItems:"center",flexWrap:"wrap"}}>
+              {[["all","Tout"],["week","Semaine"],["month","Mois"]].map(([v,lab])=>(
+                <button key={v} onClick={()=>setFilter(v)} style={{padding:"6px 10px",borderRadius:8,border:"none",background:filter===v?"var(--ink)":"var(--chalk)",color:filter===v?"#fff":"var(--muted)",fontSize:11,fontWeight:700,cursor:"pointer",whiteSpace:"nowrap"}}>
+                  {lab}
+                </button>
+              ))}
+              <select style={{...input,width:"auto",padding:"7px 10px",fontSize:12}} value={["all","week","month"].includes(filter)?"all":filter} onChange={e=>setFilter(e.target.value)}>
+                <option value="all">Date…</option>
+                {allDates.map(d=><option key={d} value={d}>{dateFR(d)}</option>)}
+              </select>
+            </div>}>
             <div style={{display:"flex",gap:10,flexWrap:"wrap"}}>
               <KPI label="Quantité nette sortie" value={qtyOut} sub={qtyReturned>0?`dont ${qtyReturned} retourné${qtyReturned>1?"s":""}`:undefined}/>
               <KPI label="Valeur nette labo" value={money(valueOut,currency)} sub={qtyReturned>0?"retours déduits":undefined}/>
@@ -1823,6 +1866,29 @@ function Owner({ deliveries, payments, products, clients, drivers, settings, rep
               </div>
             ))}
           </Section>
+
+          {fd.length > 0 && (() => {
+            const bySell = {};
+            fd.forEach(d => {
+              if (!bySell[d.productId]) bySell[d.productId] = { name:d.productName, qty:0, value:0 };
+              bySell[d.productId].qty   += netQty(d);
+              bySell[d.productId].value += lineTotal(d);
+            });
+            const sorted = Object.values(bySell).filter(p=>p.qty>0).sort((a,b)=>b.qty-a.qty).slice(0,8);
+            if (!sorted.length) return null;
+            return (
+              <Section title="Produits les plus vendus" icon={<Package size={18}/>}>
+                {sorted.map((p,i)=>(
+                  <div key={p.name} style={{display:"flex",alignItems:"center",gap:10,padding:"7px 0",borderBottom:"1px solid var(--line)"}}>
+                    <span style={{fontWeight:800,fontSize:12,color:"var(--muted)",minWidth:22,textAlign:"right"}}>#{i+1}</span>
+                    <div style={{flex:1,fontSize:13,color:"var(--ink)",fontWeight:500}}>{p.name}</div>
+                    <span style={{background:"var(--wheat)",color:"#fff",borderRadius:20,padding:"2px 10px",fontSize:12,fontWeight:700}}>{p.qty} pcs</span>
+                    <span style={{fontWeight:600,color:"var(--ink)",fontSize:13,minWidth:72,textAlign:"right"}}>{money(p.value,currency)}</span>
+                  </div>
+                ))}
+              </Section>
+            );
+          })()}
         </>
       )}
 
@@ -1867,71 +1933,83 @@ function Owner({ deliveries, payments, products, clients, drivers, settings, rep
               {orderDates.map(d=><option key={d} value={d}>{dateFR(d)}</option>)}
             </select>}>
             {!filteredOrders.length && <p style={{color:"var(--muted)",margin:0}}>Aucune commande pour ce filtre.</p>}
-            {filteredOrders.map(d => {
-              const isEditing = editingId === d.id;
-              return (
-                <div key={d.id} style={{border:"1px solid var(--line)",borderRadius:12,marginBottom:10,overflow:"hidden"}}>
-                  {!isEditing ? (
-                    <div style={{display:"flex",alignItems:"center",gap:10,padding:"10px 12px"}}>
-                      <div style={{flex:1,minWidth:0}}>
-                        <div style={{fontWeight:700,color:"var(--ink)"}}>{d.clientName}</div>
-                        <div style={{fontSize:12,color:"var(--muted)"}}>
-                          {dateFR(d.date)} · {d.productName} × {netQty(d)}
-                          {(Number(d.returnedQty)||0)>0 && <span style={{color:"var(--coral)",fontWeight:600}}> (−{d.returnedQty} retour)</span>}
-                          {" "}· {driverLabel(d.driver,drivers)}
-                        </div>
-                        {returnsFor(d.id).map(rt=>(
-                          <div key={rt.id} style={{fontSize:11,color:"var(--coral)",marginTop:2}}>
-                            ↩ {rt.quantity} retourné{rt.quantity>1?"s":""}{rt.reason?` · ${rt.reason}`:""} · {dateFR(rt.date)}
+            {(() => {
+              const byDate = {};
+              filteredOrders.forEach(d => { (byDate[d.date]=byDate[d.date]||[]).push(d); });
+              return Object.keys(byDate).sort((a,b)=>a<b?1:-1).map(day => (
+                <div key={day} style={{marginBottom:16}}>
+                  <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",paddingBottom:6,marginBottom:8,borderBottom:"2px solid var(--wheat)"}}>
+                    <span style={{...serif,fontSize:14,color:"var(--wheat)",fontWeight:600,textTransform:"capitalize"}}>{dateFR(day)}</span>
+                    <span style={{fontSize:12,color:"var(--muted)"}}>{byDate[day].length} ligne{byDate[day].length>1?"s":""} · {money(byDate[day].reduce((s,d)=>s+lineTotal(d),0),currency)}</span>
+                  </div>
+                  {byDate[day].map(d => {
+                    const isEditing = editingId === d.id;
+                    return (
+                      <div key={d.id} style={{border:"1px solid var(--line)",borderRadius:12,marginBottom:8,overflow:"hidden"}}>
+                        {!isEditing ? (
+                          <div style={{display:"flex",alignItems:"center",gap:10,padding:"10px 12px"}}>
+                            <div style={{flex:1,minWidth:0}}>
+                              <div style={{fontWeight:700,color:"var(--ink)"}}>{d.clientName}</div>
+                              <div style={{fontSize:12,color:"var(--muted)"}}>
+                                {d.productName} × {netQty(d)}
+                                {(Number(d.returnedQty)||0)>0 && <span style={{color:"var(--coral)",fontWeight:600}}> (−{d.returnedQty} retour)</span>}
+                                {" "}· {driverLabel(d.driver,drivers)}
+                              </div>
+                              {returnsFor(d.id).map(rt=>(
+                                <div key={rt.id} style={{fontSize:11,color:"var(--coral)",marginTop:2}}>
+                                  ↩ {rt.quantity} retourné{rt.quantity>1?"s":""}{rt.reason?` · ${rt.reason}`:""} · {dateFR(rt.date)}
+                                </div>
+                              ))}
+                            </div>
+                            <div style={{fontWeight:700,color:"var(--ink)",whiteSpace:"nowrap"}}>{money(lineTotal(d),currency)}</div>
+                            <button style={btnGhost} onClick={()=>startEdit(d)} title="Modifier"><Settings size={15}/></button>
+                            <button style={btnGhost} onClick={()=>setConfirmDel(d.id)} title="Supprimer"><Trash2 size={15}/></button>
                           </div>
-                        ))}
+                        ) : (
+                          <div style={{padding:"12px 14px",background:"var(--chalk)"}}>
+                            <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:10,marginBottom:10}}>
+                              <div style={{gridColumn:"1 / -1"}}>
+                                <label style={label}>Jour</label>
+                                <input type="date" style={input} value={editDraft.date} onChange={e=>setEditDraft({...editDraft,date:e.target.value})}/>
+                              </div>
+                              <div style={{gridColumn:"1 / -1"}}>
+                                <label style={label}>Client</label>
+                                <select style={input} value={editDraft.clientId} onChange={e=>setEditDraft({...editDraft,clientId:e.target.value})}>
+                                  {clients.map(c=><option key={c.id} value={c.id}>{c.name} · {driverLabel(c.driver,drivers)}</option>)}
+                                </select>
+                              </div>
+                              <div style={{gridColumn:"1 / -1"}}>
+                                <label style={label}>Produit</label>
+                                <ProductPicker products={products} currency={currency} value={editDraft.productId} onChange={pid=>setEditDraft({...editDraft,productId:pid})}/>
+                              </div>
+                              <div>
+                                <label style={label}>Quantité</label>
+                                <input type="number" min="1" style={input} value={editDraft.quantity} onChange={e=>setEditDraft({...editDraft,quantity:e.target.value})}/>
+                              </div>
+                            </div>
+                            <div style={{display:"flex",gap:8}}>
+                              <button style={{...btn,flex:1,background:"var(--sage)"}} onClick={()=>saveEdit(d)}><Check size={15}/> Enregistrer</button>
+                              <button style={{...btn,flex:1,background:"#fff",color:"var(--ink)",border:"1px solid var(--line)"}} onClick={cancelEdit}>Annuler</button>
+                            </div>
+                          </div>
+                        )}
+                        {confirmDel===d.id && (
+                          <div style={{padding:"10px 14px",background:"var(--coral-lt)",borderTop:"1px solid rgba(200,75,60,.2)"}}>
+                            <p style={{fontSize:13,color:"var(--coral)",fontWeight:600,margin:"0 0 8px"}}>
+                              Supprimer cette commande ({d.productName} × {d.quantity} pour {d.clientName}) ?
+                            </p>
+                            <div style={{display:"flex",gap:8}}>
+                              <button style={{...btn,flex:1,background:"var(--coral)"}} onClick={()=>removeOrder(d.id)}><Trash2 size={15}/> Confirmer la suppression</button>
+                              <button style={{...btn,flex:1,background:"#fff",color:"var(--ink)",border:"1px solid var(--line)"}} onClick={()=>setConfirmDel(null)}>Annuler</button>
+                            </div>
+                          </div>
+                        )}
                       </div>
-                      <div style={{fontWeight:700,color:"var(--ink)",whiteSpace:"nowrap"}}>{money(lineTotal(d),currency)}</div>
-                      <button style={btnGhost} onClick={()=>startEdit(d)} title="Modifier"><Settings size={15}/></button>
-                      <button style={btnGhost} onClick={()=>setConfirmDel(d.id)} title="Supprimer"><Trash2 size={15}/></button>
-                    </div>
-                  ) : (
-                    <div style={{padding:"12px 14px",background:"var(--chalk)"}}>
-                      <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:10,marginBottom:10}}>
-                        <div style={{gridColumn:"1 / -1"}}>
-                          <label style={label}>Jour</label>
-                          <input type="date" style={input} value={editDraft.date} onChange={e=>setEditDraft({...editDraft,date:e.target.value})}/>
-                        </div>
-                        <div style={{gridColumn:"1 / -1"}}>
-                          <label style={label}>Client</label>
-                          <select style={input} value={editDraft.clientId} onChange={e=>setEditDraft({...editDraft,clientId:e.target.value})}>
-                            {clients.map(c=><option key={c.id} value={c.id}>{c.name} · {driverLabel(c.driver,drivers)}</option>)}
-                          </select>
-                        </div>
-                        <div style={{gridColumn:"1 / -1"}}>
-                          <label style={label}>Produit</label>
-                          <ProductPicker products={products} currency={currency} value={editDraft.productId} onChange={pid=>setEditDraft({...editDraft,productId:pid})}/>
-                        </div>
-                        <div>
-                          <label style={label}>Quantité</label>
-                          <input type="number" min="1" style={input} value={editDraft.quantity} onChange={e=>setEditDraft({...editDraft,quantity:e.target.value})}/>
-                        </div>
-                      </div>
-                      <div style={{display:"flex",gap:8}}>
-                        <button style={{...btn,flex:1,background:"var(--sage)"}} onClick={()=>saveEdit(d)}><Check size={15}/> Enregistrer</button>
-                        <button style={{...btn,flex:1,background:"#fff",color:"var(--ink)",border:"1px solid var(--line)"}} onClick={cancelEdit}>Annuler</button>
-                      </div>
-                    </div>
-                  )}
-                  {confirmDel===d.id && (
-                    <div style={{padding:"10px 14px",background:"var(--coral-lt)",borderTop:"1px solid rgba(200,75,60,.2)"}}>
-                      <p style={{fontSize:13,color:"var(--coral)",fontWeight:600,margin:"0 0 8px"}}>
-                        Supprimer cette commande ({d.productName} × {d.quantity} pour {d.clientName}) ?
-                      </p>
-                      <div style={{display:"flex",gap:8}}>
-                        <button style={{...btn,flex:1,background:"var(--coral)"}} onClick={()=>removeOrder(d.id)}><Trash2 size={15}/> Confirmer la suppression</button>
-                        <button style={{...btn,flex:1,background:"#fff",color:"var(--ink)",border:"1px solid var(--line)"}} onClick={()=>setConfirmDel(null)}>Annuler</button>
-                      </div>
-                    </div>
-                  )}
+                    );
+                  })}
                 </div>
-              );
-            })}
+              ));
+            })()}
           </Section>
         </>
       )}
@@ -2118,7 +2196,7 @@ function Owner({ deliveries, payments, products, clients, drivers, settings, rep
               <select
                 style={{...input,flex:1,fontSize:14}}
                 value={selectedPriceClient}
-                onChange={e => setSelectedPriceClient(e.target.value)}
+                onChange={e => { setSelectedPriceClient(e.target.value); setShowAllPriceProducts(false); }}
               >
                 <option value="">— Sélectionnez un client —</option>
                 {clients.map(c => {
@@ -2136,14 +2214,22 @@ function Owner({ deliveries, payments, products, clients, drivers, settings, rep
             {selectedPriceClient ? (() => {
               const selClient = clients.find(c => c.id === selectedPriceClient);
               const drName = selClient ? driverLabel(selClient.driver, drivers) : "";
+              const orderedPids = new Set(deliveries.filter(d=>d.clientId===selectedPriceClient).map(d=>d.productId));
+              const productsToShow = (showAllPriceProducts || orderedPids.size===0) ? products : products.filter(p=>orderedPids.has(p.id));
               return (
                 <div style={{border:"1px solid var(--line)",borderRadius:12,overflow:"hidden"}}>
                   {/* En-tête client */}
-                  <div style={{background:"var(--chalk)",padding:"10px 16px",display:"flex",alignItems:"center",gap:8}}>
+                  <div style={{background:"var(--chalk)",padding:"10px 16px",display:"flex",alignItems:"center",gap:8,flexWrap:"wrap"}}>
                     <span style={{fontWeight:700,fontSize:14,color:"var(--ink)"}}>{selClient?.name}</span>
                     <span style={{fontSize:12,color:"var(--muted)"}}>· {drName}</span>
+                    {orderedPids.size>0 && (
+                      <button onClick={()=>setShowAllPriceProducts(v=>!v)}
+                        style={{marginLeft:"auto",fontSize:11,padding:"3px 10px",borderRadius:20,border:"1px solid var(--line)",background:"var(--surface)",cursor:"pointer",color:"var(--muted)",fontWeight:600}}>
+                        {showAllPriceProducts ? `Commandés seulement (${orderedPids.size})` : `Voir tous les produits (${products.length})`}
+                      </button>
+                    )}
                     {(clientPrices||[]).filter(pc=>pc.clientId===selectedPriceClient).length > 0 && (
-                      <span style={{marginLeft:"auto",fontSize:11,background:"var(--wheat)",color:"#7a5c00",padding:"2px 8px",borderRadius:20,fontWeight:600}}>
+                      <span style={{fontSize:11,background:"var(--wheat)",color:"#7a5c00",padding:"2px 8px",borderRadius:20,fontWeight:600}}>
                         {(clientPrices||[]).filter(pc=>pc.clientId===selectedPriceClient).length} tarif{(clientPrices||[]).filter(pc=>pc.clientId===selectedPriceClient).length>1?"s":""} spécial{(clientPrices||[]).filter(pc=>pc.clientId===selectedPriceClient).length>1?"x":""}
                       </span>
                     )}
@@ -2159,9 +2245,9 @@ function Owner({ deliveries, payments, products, clients, drivers, settings, rep
                       </tr>
                     </thead>
                     <tbody>
-                      {products.map((p, i) => {
+                      {productsToShow.map((p, i) => {
                         const specific = (clientPrices||[]).find(pc => pc.clientId===selectedPriceClient && pc.productId===p.id);
-                        const isLast = i === products.length - 1;
+                        const isLast = i === productsToShow.length - 1;
                         return (
                           <tr key={p.id} style={{background: specific ? "rgba(218,165,32,0.04)" : "transparent"}}>
                             <td style={{padding:"10px 16px",fontSize:13,color:"var(--ink)",borderBottom:isLast?"none":"1px solid var(--line)"}}>
@@ -2536,6 +2622,13 @@ function App() {
   const [reports,      setReportsS]    = useState([]);
   const [settings,     setSettingsS]   = useState(seedSettings);
   const [clientPrices, setClientPricesS] = useState([]);
+  const [toast,    setToast]    = useState(null);
+  const toastTimer = useRef(null);
+  const showToast = (msg) => {
+    if (toastTimer.current) clearTimeout(toastTimer.current);
+    setToast(msg);
+    toastTimer.current = setTimeout(()=>setToast(null), 2500);
+  };
 
   useEffect(()=>{
     const l = document.createElement("link"); l.rel="stylesheet";
@@ -2586,34 +2679,48 @@ function App() {
   const drivers  = settings.drivers || seedSettings.drivers;
   const currency = settings.currency || "DT";
 
-  // ---- Produits ----
-  const setProducts = async (next) => {
-    setProductsS(next); // optimiste
-    const prevIds = new Set(products.map(p=>p.id));
-    for (const p of next) {
-      if (!prevIds.has(p.id) || products.find(x=>x.id===p.id && (x.name!==p.name || x.price!==p.price || x.category!==p.category))) {
-        await apiCall("save_product", { id:p.id, nom:p.name, prix:p.price, categorie:p.category||"Autres" }).catch(()=>{});
+  // ---- Produits (debounce 600ms pour éviter un appel API à chaque frappe) ----
+  const saveProductsTimer = useRef(null);
+  const lastSavedProducts = useRef(null);
+  const setProducts = (next) => {
+    setProductsS(next);
+    if (saveProductsTimer.current) clearTimeout(saveProductsTimer.current);
+    saveProductsTimer.current = setTimeout(async () => {
+      const prev = lastSavedProducts.current ?? products;
+      const prevIds = new Set(prev.map(p=>p.id));
+      const nextIds = new Set(next.map(p=>p.id));
+      for (const p of next) {
+        if (!prevIds.has(p.id) || prev.find(x=>x.id===p.id && (x.name!==p.name || x.price!==p.price || x.category!==p.category))) {
+          await apiCall("save_product", { id:p.id, nom:p.name, prix:p.price, categorie:p.category||"Autres" }).catch(()=>{});
+        }
       }
-    }
-    const nextIds = new Set(next.map(p=>p.id));
-    for (const p of products) {
-      if (!nextIds.has(p.id)) await apiCall("delete_product", { id:p.id }).catch(()=>{});
-    }
+      for (const p of prev) {
+        if (!nextIds.has(p.id)) await apiCall("delete_product", { id:p.id }).catch(()=>{});
+      }
+      lastSavedProducts.current = next;
+    }, 600);
   };
 
-  // ---- Clients ----
-  const setClients = async (next) => {
+  // ---- Clients (debounce 600ms) ----
+  const saveClientsTimer = useRef(null);
+  const lastSavedClients = useRef(null);
+  const setClients = (next) => {
     setClientsS(next);
-    const prevIds = new Set(clients.map(c=>c.id));
-    for (const c of next) {
-      if (!prevIds.has(c.id) || clients.find(x=>x.id===c.id && (x.name!==c.name || x.driver!==c.driver))) {
-        await apiCall("save_client", { id:c.id, nom:c.name, chauffeur_id:c.driver }).catch(()=>{});
+    if (saveClientsTimer.current) clearTimeout(saveClientsTimer.current);
+    saveClientsTimer.current = setTimeout(async () => {
+      const prev = lastSavedClients.current ?? clients;
+      const prevIds = new Set(prev.map(c=>c.id));
+      const nextIds = new Set(next.map(c=>c.id));
+      for (const c of next) {
+        if (!prevIds.has(c.id) || prev.find(x=>x.id===c.id && (x.name!==c.name || x.driver!==c.driver))) {
+          await apiCall("save_client", { id:c.id, nom:c.name, chauffeur_id:c.driver }).catch(()=>{});
+        }
       }
-    }
-    const nextIds = new Set(next.map(c=>c.id));
-    for (const c of clients) {
-      if (!nextIds.has(c.id)) await apiCall("delete_client", { id:c.id }).catch(()=>{});
-    }
+      for (const c of prev) {
+        if (!nextIds.has(c.id)) await apiCall("delete_client", { id:c.id }).catch(()=>{});
+      }
+      lastSavedClients.current = next;
+    }, 600);
   };
 
   // ---- Chauffeurs (vivent dans settings.drivers) ----
@@ -2726,6 +2833,7 @@ function App() {
       return prix > 0 ? [...filtered, { clientId, productId, prix }] : filtered;
     });
     await apiCall("save_client_price", { clientId, produitId:productId, prix }).catch(()=>{});
+    showToast(prix > 0 ? "Tarif spécial sauvegardé ✓" : "Tarif supprimé ✓");
   };
 
   // ---- Rapports journaliers ----
@@ -2885,6 +2993,11 @@ function App() {
           {drivers.length} chauffeur{drivers.length>1?"s":""} · {reports.length} rapport{reports.length>1?"s":""} sauvegardé{reports.length>1?"s":""} · monnaie : {currency} · connecté à la base de données
         </p>
       </main>
+      {toast && (
+        <div style={{position:"fixed",bottom:96,left:"50%",transform:"translateX(-50%)",background:"var(--sage)",color:"#fff",padding:"10px 22px",borderRadius:24,fontSize:14,fontWeight:700,zIndex:9999,boxShadow:"0 4px 20px rgba(0,0,0,.2)",whiteSpace:"nowrap",pointerEvents:"none",transition:"opacity .2s"}}>
+          {toast}
+        </div>
+      )}
     </div>
   );
 }
