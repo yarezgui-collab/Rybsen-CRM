@@ -1206,8 +1206,8 @@ function Labo({ products, clients, drivers, deliveries, returns, currency, setti
       </Section>
 
       <Section title="Sorties enregistrées" icon={<ChefHat size={18}/>}>
-        {!byDay.length && <p style={{color:"var(--muted)",margin:0}}>Aucune sortie enregistrée.</p>}
-        {byDay.map(({day,rows}) => {
+        {!byDay.some(({day}) => day === date) && <p style={{color:"var(--muted)",margin:0}}>Aucune sortie enregistrée pour cette date.</p>}
+        {byDay.filter(({day}) => day === date).map(({day,rows}) => {
           const dayTotal = rows.reduce((s,r)=>s+lineTotal(r),0);
           // Regrouper par client pour ce jour
           const byClient = {};
