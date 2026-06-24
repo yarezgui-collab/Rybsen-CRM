@@ -690,14 +690,15 @@ function ProductPicker({ products, currency, value, onChange, getPrice }) {
   const [baseChoice,   setBaseChoice]   = useState(selectedGroup ? selectedGroup.base : "");
 
   useEffect(() => {
-    const cat = selectedGroup ? selectedGroup.category : "";
-    setActiveCat(cat);
-    setBaseChoice(selectedGroup ? selectedGroup.base : "");
     if (selectedGroup && selected) {
+      // Synchroniser avec le produit sélectionné
+      setActiveCat(selectedGroup.category);
+      setBaseChoice(selectedGroup.base);
       const v = selectedGroup.variants.find(v => v.product.id === selected.id);
       setActiveSuffix(v ? v.suffix : "Classique");
     } else {
-      setActiveSuffix("");
+      // Produit vidé (après Ajouter) : garder catégorie + mélange, réinitialiser seulement le produit
+      setBaseChoice("");
     }
   }, [selectedGroup?.base]);
 
