@@ -852,7 +852,8 @@ function Labo({ products, clients, drivers, deliveries, returns, currency, setti
     const last = refOrderByClient[cid];
     if (!last) return;
     const qtys = {};
-    last.lines.forEach(l => { qtys[l.productId] = l.quantity; });
+    // Somme les quantités si le même produit apparaît plusieurs fois (deux saisies distinctes)
+    last.lines.forEach(l => { qtys[l.productId] = (qtys[l.productId] || 0) + (Number(l.quantity) || 0); });
     setReorderQtys(prev => ({ ...prev, [cid]: qtys }));
   };
 
@@ -1084,60 +1085,71 @@ function Labo({ products, clients, drivers, deliveries, returns, currency, setti
       <div>
 
       {/* ---------- COMMANDES RAPIDES ---------- */}
-      {clients.some(c => refOrderByClient[c.id]) && (
-        <Section title="Commandes rapides" icon={<RotateCcw size={18}/>}>
-          <p style={{fontSize:13,color:"var(--muted)",margin:"0 0 10px"}}>
-            Reprend la commande du même jour J-7 (ou J-14 si aucune commande la semaine dernière). Ajustez les quantités puis ajoutez au brouillon.
-          </p>
-          {clients.filter(c => refOrderByClient[c.id]).map(c => {
-            const last  = refOrderByClient[c.id];
-            const open  = !!reorderQtys[c.id];
-            const drName = driverLabel(c.driver, drivers);
-            return (
-              <div key={c.id} style={{border:"1px solid var(--line)",borderRadius:12,marginBottom:10,overflow:"hidden"}}>
-                {/* Entête client */}
-                <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",padding:"10px 12px",background:"var(--chalk)"}}>
-                  <div>
-                    <div style={{fontWeight:700,color:"var(--ink)"}}>{c.name}</div>
-                    <div style={{fontSize:12,color:"var(--muted)"}}>{drName} · réf. {dateFR(last.date)}{last.date === (()=>{const d=new Date(date+"T00:00:00");d.setDate(d.getDate()-14);return d.toISOString().slice(0,10);})() ? " (J-14)" : " (J-7)"}</div>
-                  </div>
-                  <button style={{...btn,padding:"7px 12px",fontSize:12,background:open?C.muted:C.wheat}}
-                    onClick={() => open ? setReorderQtys(p=>{const n={...p};delete n[c.id];return n;}) : openReorder(c.id)}>
-                    <RotateCcw size={13}/> {open ? "Annuler" : "Reprendre"}
-                  </button>
+      <Section title="Commandes rapides J-7" icon={<RotateCcw size={18}/>}>
+        <p style={{fontSize:13,color:"var(--muted)",margin:"0 0 10px"}}>
+          Reprend automatiquement la commande du même jour il y a 7 jours (ou 14 si aucune commande la semaine dernière). Ajustez les quantités puis ajoutez au brouillon.
+        </p>
+        {!clients.some(c => refOrderByClient[c.id]) ? (
+          <div style={{textAlign:"center",padding:"20px 12px",background:"var(--chalk)",borderRadius:10,color:"var(--muted)",fontSize:13}}>
+            Aucune commande trouvée le {(()=>{const d=new Date(date+"T00:00:00");d.setDate(d.getDate()-7);return dateFR(d.toISOString().slice(0,10));})()}
+            {" "}ni le {(()=>{const d=new Date(date+"T00:00:00");d.setDate(d.getDate()-14);return dateFR(d.toISOString().slice(0,10));})()}.
+            <br/>Cette section se remplira automatiquement une fois que vous aurez 7 jours d'historique.
+          </div>
+        ) : clients.filter(c => refOrderByClient[c.id]).map(c => {
+          const last  = refOrderByClient[c.id];
+          const open  = !!reorderQtys[c.id];
+          const drName = driverLabel(c.driver, drivers);
+          const t14 = (()=>{const d=new Date(date+"T00:00:00");d.setDate(d.getDate()-14);return d.toISOString().slice(0,10);})();
+          // Dédupliquer les lignes par produit (somme des quantités)
+          const dedupLines = Object.values(
+            last.lines.reduce((acc, l) => {
+              if (!acc[l.productId]) acc[l.productId] = {...l, quantity: 0};
+              acc[l.productId].quantity += Number(l.quantity) || 0;
+              return acc;
+            }, {})
+          );
+          return (
+            <div key={c.id} style={{border:"1px solid var(--line)",borderRadius:12,marginBottom:10,overflow:"hidden"}}>
+              <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",padding:"10px 12px",background:"var(--chalk)"}}>
+                <div>
+                  <div style={{fontWeight:700,color:"var(--ink)"}}>{c.name}</div>
+                  <div style={{fontSize:12,color:"var(--muted)"}}>{drName} · réf. {dateFR(last.date)}{last.date === t14 ? " (J-14)" : " (J-7)"}</div>
                 </div>
-                {/* Lignes avec quantités éditables */}
-                {open && (
-                  <div style={{padding:"10px 12px"}}>
-                    {last.lines.map(l => {
-                      const unitPr = getUnitPrice(c.id, l.productId, clientPrices, products);
-                      const q = reorderQtys[c.id]?.[l.productId] ?? l.quantity;
-                      const tot = (Number(q)||0)*unitPr;
-                      return (
-                        <div key={l.productId} style={{display:"flex",alignItems:"center",gap:10,padding:"7px 0",borderBottom:"1px solid var(--line)"}}>
-                          <div style={{flex:1,fontSize:14,color:"var(--ink)"}}>
-                            {l.productName}
-                            <span style={{fontSize:12,color:"var(--muted)",marginLeft:6}}>({money(unitPr,currency)})</span>
-                          </div>
-                          <input type="number" min="0" style={{...input,width:72,padding:"7px 8px",textAlign:"center"}}
-                            value={q}
-                            onChange={e=>setReorderQtys(prev=>({...prev,[c.id]:{...prev[c.id],[l.productId]:e.target.value}}))}/>
-                          <span style={{fontWeight:600,color:"var(--ink)",minWidth:64,textAlign:"right"}}>{money(tot,currency)}</span>
-                        </div>
-                      );
-                    })}
-                    <div style={{display:"flex",justifyContent:"flex-end",marginTop:10}}>
-                      <button style={{...btn,background:"var(--sage)"}} onClick={()=>addReorder(c.id)}>
-                        <Plus size={15}/> Ajouter au brouillon
-                      </button>
-                    </div>
-                  </div>
-                )}
+                <button style={{...btn,padding:"7px 12px",fontSize:12,background:open?C.muted:C.wheat}}
+                  onClick={() => open ? setReorderQtys(p=>{const n={...p};delete n[c.id];return n;}) : openReorder(c.id)}>
+                  <RotateCcw size={13}/> {open ? "Annuler" : "Reprendre"}
+                </button>
               </div>
-            );
-          })}
-        </Section>
-      )}
+              {open && (
+                <div style={{padding:"10px 12px"}}>
+                  {dedupLines.map(l => {
+                    const unitPr = getUnitPrice(c.id, l.productId, clientPrices, products);
+                    const q = reorderQtys[c.id]?.[l.productId] ?? l.quantity;
+                    const tot = (Number(q)||0)*unitPr;
+                    return (
+                      <div key={l.productId} style={{display:"flex",alignItems:"center",gap:10,padding:"7px 0",borderBottom:"1px solid var(--line)"}}>
+                        <div style={{flex:1,fontSize:14,color:"var(--ink)"}}>
+                          {l.productName}
+                          <span style={{fontSize:12,color:"var(--muted)",marginLeft:6}}>({money(unitPr,currency)})</span>
+                        </div>
+                        <input type="number" min="0" style={{...input,width:72,padding:"7px 8px",textAlign:"center"}}
+                          value={q}
+                          onChange={e=>setReorderQtys(prev=>({...prev,[c.id]:{...prev[c.id],[l.productId]:e.target.value}}))}/>
+                        <span style={{fontWeight:600,color:"var(--ink)",minWidth:64,textAlign:"right"}}>{money(tot,currency)}</span>
+                      </div>
+                    );
+                  })}
+                  <div style={{display:"flex",justifyContent:"flex-end",marginTop:10}}>
+                    <button style={{...btn,background:"var(--sage)"}} onClick={()=>addReorder(c.id)}>
+                      <Plus size={15}/> Ajouter au brouillon
+                    </button>
+                  </div>
+                </div>
+              )}
+            </div>
+          );
+        })}
+      </Section>
 
       {/* ---------- SAISIE MANUELLE ---------- */}
       <Section title="Nouvelle sortie de viennoiserie" icon={<Plus size={18}/>}>
