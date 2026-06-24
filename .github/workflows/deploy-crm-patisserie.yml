@@ -39,8 +39,11 @@ jobs:
           echo "bye" >> /tmp/sftp_batch.txt
 
           # Execute SFTP upload
+          # -oBatchMode=no is required so sshpass can inject the password
           sshpass -p "$SFTP_PASS" sftp \
-            -o StrictHostKeyChecking=no \
-            -o Port="$SFTP_PORT" \
+            -oBatchMode=no \
+            -oStrictHostKeyChecking=no \
+            -oPasswordAuthentication=yes \
+            -P "$SFTP_PORT" \
             -b /tmp/sftp_batch.txt \
             "$SFTP_USER@$SFTP_HOST"
