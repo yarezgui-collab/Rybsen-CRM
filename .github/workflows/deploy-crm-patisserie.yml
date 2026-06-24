@@ -25,7 +25,7 @@ jobs:
           SFTP_USER: ${{ secrets.SFTP_USER }}
           SFTP_PASS: ${{ secrets.SFTP_PASSWORD }}
         run: |
-          printf 'pwd\nls -la\nls -la public_html\nbye\n' > /tmp/sftp_debug.txt
+          printf 'pwd\nls -la\nls -la domains/rybsen.fr/public_html\nbye\n' > /tmp/sftp_debug.txt
           sshpass -p "$SFTP_PASS" sftp \
             -oBatchMode=no \
             -oStrictHostKeyChecking=no \
@@ -43,7 +43,7 @@ jobs:
         run: |
           # Write SFTP batch commands
           cat > /tmp/sftp_batch.txt << 'EOF'
-          cd public_html/pby
+          cd domains/rybsen.fr/public_html/pby
           put crm-patisserie/index.html index.html
           put crm-patisserie/api.php api.php
           put crm-patisserie/default.php default.php
