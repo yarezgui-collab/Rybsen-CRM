@@ -664,49 +664,89 @@ const CATEGORY_META = {
   "Autres":          { emoji:"📦", color:"#7A8A96" },
 };
 
-function ProductPicker({ products, currency, value, onChange, getPrice }) {
-  const groups = useMemo(() => groupProductsByBase(products), [products]);
-  const catGroups = useMemo(() => groupByCategory(groups), [groups]);
-  const selected = products.find(p => p.id === value) || null;
+const SUFFIX_COLORS = {
+  "60/40":      { border:"#C17A2A", bg:"rgba(193,122,42,0.10)", text:"#8a5200" },
+  "Margarine":  { border:"#7A5C9A", bg:"rgba(122,92,154,0.10)", text:"#4a2d6a" },
+  "Pur beurre": { border:"#B8860B", bg:"rgba(184,134,11,0.10)", text:"#7a5800" },
+  "Classique":  { border:"#3B82F6", bg:"rgba(59,130,246,0.10)", text:"#1d4ed8" },
+};
 
-  // Retrouve la catégorie et le groupe du produit sélectionné
+function ProductPicker({ products, currency, value, onChange, getPrice }) {
+  const groups    = useMemo(() => groupProductsByBase(products), [products]);
+  const catGroups = useMemo(() => groupByCategory(groups), [groups]);
+  const selected  = products.find(p => p.id === value) || null;
+
   const selectedGroup = useMemo(() => {
     if (!selected) return null;
     return groups.find(g => g.single?.id === selected.id || g.variants.some(v => v.product.id === selected.id)) || null;
   }, [groups, selected]);
 
-  const [activeCat,  setActiveCat]  = useState(selectedGroup ? selectedGroup.category : "");
-  const [baseChoice, setBaseChoice] = useState(selectedGroup ? selectedGroup.base : "");
+  const [activeCat,    setActiveCat]    = useState(selectedGroup ? selectedGroup.category : "");
+  const [activeSuffix, setActiveSuffix] = useState(() => {
+    if (!selectedGroup || !selected) return "";
+    const v = selectedGroup.variants.find(v => v.product.id === selected.id);
+    return v ? v.suffix : (selectedGroup.single?.id === selected.id ? "Classique" : "");
+  });
+  const [baseChoice,   setBaseChoice]   = useState(selectedGroup ? selectedGroup.base : "");
 
   useEffect(() => {
-    setActiveCat(selectedGroup ? selectedGroup.category : "");
+    const cat = selectedGroup ? selectedGroup.category : "";
+    setActiveCat(cat);
     setBaseChoice(selectedGroup ? selectedGroup.base : "");
+    if (selectedGroup && selected) {
+      const v = selectedGroup.variants.find(v => v.product.id === selected.id);
+      setActiveSuffix(v ? v.suffix : "Classique");
+    } else {
+      setActiveSuffix("");
+    }
   }, [selectedGroup?.base]);
 
-  const filteredGroups = catGroups.find(c => c.category === activeCat)?.groups || [];
+  const isViennoiserie = activeCat === "Viennoiserie";
+  const catGroupItems  = catGroups.find(c => c.category === activeCat)?.groups || [];
+
+  // Pour Viennoiserie : quels mélanges existent dans le catalogue ?
+  const availableSuffixes = VARIANT_SUFFIXES.filter(s =>
+    catGroupItems.some(g => g.variants.some(v => v.suffix === s))
+  );
+  const hasClassique = catGroupItems.some(g => g.single && g.variants.length === 0);
+
+  // Filtrer les produits selon le mélange choisi
+  const filteredForSuffix = !activeSuffix ? [] :
+    activeSuffix === "Classique"
+      ? catGroupItems.filter(g => g.single && g.variants.length === 0)
+      : catGroupItems.filter(g => g.variants.some(v => v.suffix === activeSuffix));
+
   const currentGroup = groups.find(g => g.base === baseChoice) || null;
 
   const pickCat = (cat) => {
-    if (activeCat === cat) { setActiveCat(""); setBaseChoice(""); onChange(""); return; }
-    setActiveCat(cat);
-    setBaseChoice("");
-    onChange("");
+    if (activeCat === cat) { setActiveCat(""); setActiveSuffix(""); setBaseChoice(""); onChange(""); return; }
+    setActiveCat(cat); setActiveSuffix(""); setBaseChoice(""); onChange("");
+  };
+
+  const pickSuffix = (suffix) => {
+    if (activeSuffix === suffix) { setActiveSuffix(""); setBaseChoice(""); onChange(""); return; }
+    setActiveSuffix(suffix); setBaseChoice(""); onChange("");
   };
 
   const pickBase = (base) => {
     setBaseChoice(base);
     const g = groups.find(x => x.base === base);
     if (!g) { onChange(""); return; }
-    if (g.single && g.variants.length === 0) { onChange(g.single.id); }
-    else onChange("");
+    if (isViennoiserie && activeSuffix) {
+      if (activeSuffix === "Classique") { onChange(g.single ? g.single.id : ""); }
+      else { const v = g.variants.find(v => v.suffix === activeSuffix); onChange(v ? v.product.id : ""); }
+    } else {
+      if (g.single && g.variants.length === 0) onChange(g.single.id);
+      else onChange("");
+    }
   };
 
   return (
     <div>
-      {/* ── Étape 1 : 4 boutons icônes de catégorie ── */}
+      {/* ── Étape 1 : boutons catégorie ── */}
       <div style={{display:"flex",gap:8,flexWrap:"wrap",marginBottom:10}}>
         {catGroups.map(({category}) => {
-          const meta = CATEGORY_META[category] || CATEGORY_META["Autres"];
+          const meta   = CATEGORY_META[category] || CATEGORY_META["Autres"];
           const active = activeCat === category;
           return (
             <button key={category} type="button" onClick={()=>pickCat(category)}
@@ -726,21 +766,74 @@ function ProductPicker({ products, currency, value, onChange, getPrice }) {
         })}
       </div>
 
-      {/* ── Étape 2 : menu déroulant filtré sur la catégorie choisie ── */}
-      {activeCat && (
-        <select style={{...input, marginBottom: currentGroup && currentGroup.variants.length > 0 ? 10 : 0}}
-          value={baseChoice} onChange={e=>pickBase(e.target.value)}>
-          <option value="">— {activeCat} : choisir un produit —</option>
-          {filteredGroups.map(g => (
-            <option key={g.base} value={g.base}>
-              {g.base}{g.single && g.variants.length===0 ? ` (${money(getPrice ? getPrice(g.single.id) : g.single.price, currency)})` : ""}
-            </option>
-          ))}
+      {/* ── Étape 2a (Viennoiserie) : choisir le mélange en premier ── */}
+      {isViennoiserie && (
+        <div style={{display:"flex",gap:8,flexWrap:"wrap",marginBottom:10}}>
+          {availableSuffixes.map(s => {
+            const sc = SUFFIX_COLORS[s] || { border:"var(--wheat)", bg:"var(--wheat-lt)", text:"var(--ink)" };
+            const active = activeSuffix === s;
+            return (
+              <button key={s} type="button" onClick={()=>pickSuffix(s)}
+                style={{
+                  flex:"1 1 auto", minWidth:86, padding:"10px 12px", borderRadius:10, minHeight:44,
+                  border: active ? `2px solid ${sc.border}` : "1.5px solid var(--line)",
+                  background: active ? sc.bg : "var(--surface)",
+                  color: active ? sc.text : "var(--ink)",
+                  fontWeight: active ? 700 : 500, fontSize:14, cursor:"pointer", transition:"all .15s",
+                }}>
+                {s}
+              </button>
+            );
+          })}
+          {hasClassique && (() => {
+            const sc = SUFFIX_COLORS["Classique"];
+            const active = activeSuffix === "Classique";
+            return (
+              <button type="button" onClick={()=>pickSuffix("Classique")}
+                style={{
+                  flex:"1 1 auto", minWidth:86, padding:"10px 12px", borderRadius:10, minHeight:44,
+                  border: active ? `2px solid ${sc.border}` : "1.5px solid var(--line)",
+                  background: active ? sc.bg : "var(--surface)",
+                  color: active ? sc.text : "var(--ink)",
+                  fontWeight: active ? 700 : 500, fontSize:14, cursor:"pointer", transition:"all .15s",
+                }}>
+                Classique
+              </button>
+            );
+          })()}
+        </div>
+      )}
+
+      {/* ── Étape 2b / 3 : menu déroulant produit ── */}
+      {(isViennoiserie ? !!activeSuffix : !!activeCat) && (
+        <select
+          style={{...input, marginBottom: (!isViennoiserie && currentGroup && currentGroup.variants.length > 0) ? 10 : 0}}
+          value={baseChoice}
+          onChange={e => pickBase(e.target.value)}>
+          <option value="">
+            {isViennoiserie ? `— ${activeSuffix} : choisir un produit —` : `— ${activeCat} : choisir un produit —`}
+          </option>
+          {(isViennoiserie ? filteredForSuffix : catGroupItems).map(g => {
+            let price = null;
+            if (isViennoiserie && activeSuffix) {
+              const prod = activeSuffix === "Classique"
+                ? g.single
+                : (g.variants.find(v => v.suffix === activeSuffix) || {}).product;
+              if (prod) price = getPrice ? getPrice(prod.id) : prod.price;
+            } else if (g.single && g.variants.length === 0) {
+              price = getPrice ? getPrice(g.single.id) : g.single.price;
+            }
+            return (
+              <option key={g.base} value={g.base}>
+                {g.base}{price !== null ? ` (${money(price, currency)})` : ""}
+              </option>
+            );
+          })}
         </select>
       )}
 
-      {/* ── Étape 3 : boutons Margarine / 60-40 / Pur beurre si applicable ── */}
-      {currentGroup && currentGroup.variants.length > 0 && (
+      {/* ── Étape 3b (autres catégories uniquement) : variantes ── */}
+      {!isViennoiserie && currentGroup && currentGroup.variants.length > 0 && (
         <div style={{display:"flex",gap:8,flexWrap:"wrap"}}>
           {currentGroup.variants.map(v => {
             const active = value === v.product.id;
