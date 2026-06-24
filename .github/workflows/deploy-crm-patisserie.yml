@@ -27,7 +27,7 @@ jobs:
         run: |
           # Write SFTP batch commands
           cat > /tmp/sftp_batch.txt << 'EOF'
-          cd /public_html/pby
+          cd public_html/pby
           put crm-patisserie/index.html index.html
           put crm-patisserie/api.php api.php
           put crm-patisserie/default.php default.php
