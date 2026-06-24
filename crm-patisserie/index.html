@@ -783,6 +783,10 @@ function Labo({ products, clients, drivers, deliveries, returns, currency, setti
   const [returnQty,   setReturnQty]   = useState(1);
   const [returnReason,setReturnReason]= useState("");
   const [returnError, setReturnError] = useState("");
+  const [expandedDetails, setExpandedDetails] = useState(new Set());
+  const toggleDetail = (key) => setExpandedDetails(prev => {
+    const next = new Set(prev); next.has(key) ? next.delete(key) : next.add(key); return next;
+  });
 
   const startEditLine = (d) => {
     setEditingId(d.id); setReturningId(null);
@@ -1207,7 +1211,10 @@ function Labo({ products, clients, drivers, deliveries, returns, currency, setti
           const dayTotal = rows.reduce((s,r)=>s+lineTotal(r),0);
           // Regrouper par client pour ce jour
           const byClient = {};
-          rows.forEach(r=>{ (byClient[r.clientId]=byClient[r.clientId]||{clientName:r.clientName,driver:r.driver,rows:[]}).rows.push(r); });
+          rows.forEach(r=>{
+            if (!byClient[r.clientId]) byClient[r.clientId]={clientId:r.clientId,clientName:r.clientName,driver:r.driver,rows:[]};
+            byClient[r.clientId].rows.push(r);
+          });
           return (
             <div key={day} style={{marginBottom:20}}>
               <div style={{display:"flex",justifyContent:"space-between",alignItems:"baseline",borderBottom:"2px solid var(--wheat)",paddingBottom:6,marginBottom:10}}>
@@ -1217,8 +1224,22 @@ function Labo({ products, clients, drivers, deliveries, returns, currency, setti
               {Object.values(byClient).map(g => {
                 const clientTotal = g.rows.reduce((s,r)=>s+lineTotal(r),0);
                 const drName = driverLabel(g.driver,drivers);
+                const detailKey = `${day}-${g.clientId}`;
+                const showDetail = expandedDetails.has(detailKey);
+
+                // Agrégation par produit
+                const aggMap = {};
+                g.rows.forEach(r => {
+                  if (!aggMap[r.productId]) aggMap[r.productId] = { productName:r.productName, totalQty:0, totalNet:0, totalReturned:0, totalValue:0 };
+                  aggMap[r.productId].totalQty      += Number(r.quantity)||0;
+                  aggMap[r.productId].totalNet      += netQty(r);
+                  aggMap[r.productId].totalReturned += Number(r.returnedQty)||0;
+                  aggMap[r.productId].totalValue    += lineTotal(r);
+                });
+                const aggRows = Object.values(aggMap);
+
                 return (
-                  <div key={g.clientName} style={{border:"1px solid var(--line)",borderRadius:12,marginBottom:10,overflow:"hidden"}}>
+                  <div key={g.clientId} style={{border:"1px solid var(--line)",borderRadius:12,marginBottom:10,overflow:"hidden"}}>
                     {/* Entête client */}
                     <div style={{background:"var(--chalk)",padding:"10px 12px",display:"flex",justifyContent:"space-between",alignItems:"center"}}>
                       <div>
@@ -1227,14 +1248,35 @@ function Labo({ products, clients, drivers, deliveries, returns, currency, setti
                       </div>
                       <div style={{display:"flex",alignItems:"center",gap:8}}>
                         <span style={{fontWeight:700,color:"var(--ink)"}}>{money(clientTotal,currency)}</span>
+                        <button style={{...btnGhost,fontSize:12,padding:"5px 8px",color:showDetail?"var(--wheat)":"var(--muted)",border:"1px solid var(--line)",borderRadius:8}}
+                          onClick={()=>toggleDetail(detailKey)} title={showDetail?"Masquer le détail":"Modifier / voir le détail"}>
+                          <Settings size={13}/> {showDetail ? "Fermer" : "Modifier"}
+                        </button>
                         <button style={{...btn,padding:"7px 10px",fontSize:12,background:"var(--wheat)",color:"#fff"}}
                           onClick={()=>openBon(g.clientName,drName,g.rows)}>
                           <FileText size={14}/> Bon
                         </button>
                       </div>
                     </div>
-                    {/* Lignes produits */}
-                    {g.rows.map(r=>{
+
+                    {/* Vue agrégée (par défaut) */}
+                    {!showDetail && aggRows.map((agg, i) => (
+                      <div key={agg.productName} style={{display:"flex",alignItems:"center",gap:8,padding:"8px 12px",borderTop:"1px solid var(--line)"}}>
+                        <div style={{flex:1,fontSize:13,color:"var(--ink)"}}>
+                          {agg.productName}
+                          <span style={{color:"var(--muted)",marginLeft:4}}>× {agg.totalQty}</span>
+                          {agg.totalReturned > 0 && (
+                            <span style={{color:"var(--coral)",fontSize:12,marginLeft:6}}>
+                              − {agg.totalReturned} retourné{agg.totalReturned>1?"s":""} → net {agg.totalNet}
+                            </span>
+                          )}
+                        </div>
+                        <div style={{fontSize:13,fontWeight:600,color:"var(--ink)",whiteSpace:"nowrap"}}>{money(agg.totalValue,currency)}</div>
+                      </div>
+                    ))}
+
+                    {/* Vue détaillée (lignes individuelles avec actions) */}
+                    {showDetail && g.rows.map(r=>{
                       const isEditing = editingId === r.id;
                       const isReturning = returningId === r.id;
                       const net = netQty(r);
@@ -1242,7 +1284,7 @@ function Labo({ products, clients, drivers, deliveries, returns, currency, setti
                       const remaining = Math.max(0, (Number(r.quantity)||0) - (Number(r.returnedQty)||0));
                       const lineReturns = returnsFor(r.id);
                       return (
-                        <div key={r.id} style={{borderTop:"1px solid var(--line)"}}>
+                        <div key={r.id} style={{borderTop:"1px solid var(--line)",background:"rgba(245,242,235,0.5)"}}>
                           {!isEditing && !isReturning && (
                             <div style={{display:"flex",alignItems:"center",gap:8,padding:"8px 12px"}}>
                               <div style={{flex:1,minWidth:0}}>
@@ -1264,7 +1306,6 @@ function Labo({ products, clients, drivers, deliveries, returns, currency, setti
                             </div>
                           )}
 
-                          {/* Confirmation de suppression */}
                           {confirmDelId === r.id && (
                             <div style={{padding:"10px 12px",background:"var(--coral-lt)",borderTop:"1px solid rgba(200,75,60,.2)"}}>
                               <p style={{fontSize:13,color:"var(--coral)",fontWeight:600,margin:"0 0 8px"}}>Supprimer cette ligne ({r.productName} × {r.quantity}) ?</p>
@@ -1275,7 +1316,6 @@ function Labo({ products, clients, drivers, deliveries, returns, currency, setti
                             </div>
                           )}
 
-                          {/* Formulaire de modification */}
                           {isEditing && (
                             <div style={{padding:"12px",background:"var(--chalk)"}}>
                               <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:10,marginBottom:10}}>
@@ -1301,7 +1341,6 @@ function Labo({ products, clients, drivers, deliveries, returns, currency, setti
                             </div>
                           )}
 
-                          {/* Formulaire de retour */}
                           {isReturning && (
                             <div style={{padding:"12px",background:"var(--coral-lt)"}}>
                               <p style={{fontSize:13,color:"var(--ink)",margin:"0 0 8px"}}>
@@ -1325,7 +1364,6 @@ function Labo({ products, clients, drivers, deliveries, returns, currency, setti
                             </div>
                           )}
 
-                          {/* Historique des retours déjà enregistrés sur cette ligne */}
                           {lineReturns.length>0 && !isReturning && (
                             <div style={{padding:"6px 12px 8px",background:"var(--coral-lt)"}}>
                               {lineReturns.map(ret=>(
