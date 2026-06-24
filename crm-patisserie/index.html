@@ -387,33 +387,6 @@ const C = {
   "wheat-lt":"#FDF3E3","sage-lt":"#E8F3F0","coral-lt":"#FCEAE8",
 };
 
-const SHARED = true;
-const KEYS = {
-  products:"patisserie:products", clients:"patisserie:clients",
-  deliveries:"patisserie:deliveries", payments:"patisserie:payments",
-  reports:"patisserie:reports", settings:"patisserie:settings",
-};
-
-/* ---------- Stockage (window.storage Claude ou localStorage hébergé) ---------- */
-async function sGet(key, fallback) {
-  try {
-    if (typeof window !== "undefined" && window.storage) {
-      const r = await window.storage.get(key, SHARED);
-      if (r && r.value != null) return JSON.parse(r.value);
-      return fallback;
-    }
-    const v = localStorage.getItem(key);
-    return v != null ? JSON.parse(v) : fallback;
-  } catch (e) { return fallback; }
-}
-async function sSet(key, value) {
-  try {
-    if (typeof window !== "undefined" && window.storage) {
-      await window.storage.set(key, JSON.stringify(value), SHARED); return;
-    }
-    localStorage.setItem(key, JSON.stringify(value));
-  } catch (e) {}
-}
 
 /* ---------- Données de départ ---------- */
 const seedProducts = [
@@ -644,59 +617,6 @@ function BonLivraison({ bon, settings, currency, onClose }) {
   );
 }
 
-/* ===================== ÉCRAN DE CONNEXION ===================== */
-function Login({ settings, onLogin }) {
-  const [user, setUser] = useState("");
-  const [pass, setPass] = useState("");
-  const [err,  setErr]  = useState("");
-
-  const drivers = settings.drivers || [];
-  const auth    = settings.auth || {};
-
-  const tryLogin = () => {
-    const u = user.trim().toLowerCase();
-    // Laboratoire
-    if (auth.labo && u === (auth.labo.user||"").toLowerCase() && pass === auth.labo.pass) return onLogin("labo");
-    // Propriétaire
-    if (auth.proprietaire && u === (auth.proprietaire.user||"").toLowerCase() && pass === auth.proprietaire.pass) return onLogin("proprietaire");
-    // Chauffeurs
-    const dr = drivers.find(d => (d.user||"").toLowerCase() === u && d.pass === pass);
-    if (dr) return onLogin(dr.id);
-    setErr("Nom d'utilisateur ou mot de passe incorrect.");
-  };
-
-  return (
-    <div style={{minHeight:"100dvh",background:"var(--ink)",display:"flex",alignItems:"center",justifyContent:"center",padding:16,fontFamily:"'Inter',sans-serif"}}>
-      <div style={{background:"var(--surface)",borderRadius:20,width:"100%",maxWidth:360,padding:"28px 24px",boxShadow:"0 20px 60px rgba(28,43,58,.30)"}}>
-        <div style={{textAlign:"center",marginBottom:22}}>
-          <div style={{fontSize:42}}>🥐</div>
-          <h1 style={{...serif,margin:"8px 0 2px",fontSize:24,color:"var(--ink)"}}>{settings.business||"Ma Pâtisserie"}</h1>
-          <p style={{margin:0,fontSize:13,color:"var(--muted)"}}>Connectez-vous pour accéder à votre interface</p>
-        </div>
-        <div style={{marginBottom:12}}>
-          <label style={label}>Nom d'utilisateur</label>
-          <input style={input} value={user} autoCapitalize="none" autoCorrect="off"
-            onChange={e=>{setUser(e.target.value);setErr("");}}
-            onKeyDown={e=>e.key==="Enter"&&tryLogin()}/>
-        </div>
-        <div style={{marginBottom:16}}>
-          <label style={label}>Mot de passe</label>
-          <input type="password" style={input} value={pass}
-            onChange={e=>{setPass(e.target.value);setErr("");}}
-            onKeyDown={e=>e.key==="Enter"&&tryLogin()}/>
-        </div>
-        {err && (
-          <p style={{display:"flex",alignItems:"center",gap:6,color:"var(--coral)",fontSize:13,margin:"0 0 12px",background:"var(--coral-lt)",padding:"8px 10px",borderRadius:8}}>
-            <AlertTriangle size={14}/> {err}
-          </p>
-        )}
-        <button style={{...btn,width:"100%",padding:"14px",fontSize:16}} onClick={tryLogin}>
-          <Lock size={16}/> Se connecter
-        </button>
-      </div>
-    </div>
-  );
-}
 
 function Section({ title, icon, children, right }) {
   return (
@@ -1166,7 +1086,7 @@ function Labo({ products, clients, drivers, deliveries, returns, currency, setti
                     <div style={{fontWeight:700,color:"var(--ink)"}}>{c.name}</div>
                     <div style={{fontSize:12,color:"var(--muted)"}}>{drName} · dernière commande : {dateFR(last.date)}</div>
                   </div>
-                  <button style={{...btn,padding:"7px 12px",fontSize:12,background:open?C.muted:C.gold}}
+                  <button style={{...btn,padding:"7px 12px",fontSize:12,background:open?C.muted:C.wheat}}
                     onClick={() => open ? setReorderQtys(p=>{const n={...p};delete n[c.id];return n;}) : openReorder(c.id)}>
                     <RotateCcw size={13}/> {open ? "Annuler" : "Reprendre"}
                   </button>
@@ -1496,7 +1416,7 @@ function Chauffeur({ driver, drivers, deliveries, payments, settings, currency, 
             const exact  = Math.abs(ecart)<=0.0001;
             const drName = driverLabel(driver,drivers);
             return (
-              <div key={g.clientId} style={{...cardBox,marginBottom:14,borderLeft:`5px solid ${!filled?C.gold:exact?C.green:C.red}`}}>
+              <div key={g.clientId} style={{...cardBox,marginBottom:14,borderLeft:`5px solid ${!filled?C.wheat:exact?C.green:C.red}`}}>
                 <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:6}}>
                   <h3 style={{...serif,margin:0,fontSize:18,color:"var(--ink)"}}>{g.clientName}</h3>
                   <button style={{...btn,padding:"6px 10px",fontSize:12,background:"var(--wheat)"}}
@@ -1587,7 +1507,7 @@ function Chauffeur({ driver, drivers, deliveries, payments, settings, currency, 
 }
 
 /* ===================== PROPRIÉTAIRE ===================== */
-function Owner({ deliveries, payments, products, clients, drivers, settings, reports, setProducts, setClients, setDrivers, setSettings, currency, onRestore, setDeliveries, returns }) {
+function Owner({ deliveries, payments, products, clients, drivers, settings, reports, setProducts, setClients, setDrivers, setSettings, currency, onRestore, setDeliveries, returns, onAddReturn, onDeleteReturn }) {
   const [tab,    setTab]    = useState("dash");
   const [filter, setFilter] = useState("all");
 
@@ -2087,10 +2007,10 @@ function DailyReport({ deliveries, payments, reports, drivers, settings, currenc
     const lines = rows.map(r=>[date,driverLabel(r.driver,drivers),r.client,r.items.join(" / "),fmt(r.rempli),fmt(r.rec),fmt(r.ecart)]);
     lines.push(["","","TOTAL","",fmt(tot.rempli),fmt(tot.rec),fmt(tot.ecart)]);
     lines.push([]);
-    lines.push(["--- RECAPITULATIF PAR PRODUIT ---","","","","",""]);
-    lines.push(["Produit","Quantite totale","Montant","","",""]);
-    perProduct.forEach(p => lines.push([p.name, p.qty+" pcs", fmt(p.total),"","",""]));
-    lines.push(["TOTAL", perProduct.reduce((s,p)=>s+p.qty,0)+" pcs", fmt(tot.rempli),"","",""]);
+    lines.push(["--- RECAPITULATIF PAR PRODUIT ---","","","","","",""]);
+    lines.push(["Produit","Quantite totale","Montant","","","",""]);
+    perProduct.forEach(p => lines.push([p.name, p.qty+" pcs", fmt(p.total),"","","",""]));
+    lines.push(["TOTAL", perProduct.reduce((s,p)=>s+p.qty,0)+" pcs", fmt(tot.rempli),"","","",""]);
     const csv = [head,...lines].map(l=>l.map(c=>`"${String(c||"").replace(/"/g,'""')}"`).join(";")).join("\n");
     try {
       const blob = new Blob(["\uFEFF"+csv],{type:"text/csv;charset=utf-8;"});
@@ -2669,6 +2589,7 @@ function App() {
               const dateGroups = {};
               todayRows.forEach(p=>{ (dateGroups[p.date]=dateGroups[p.date]||[]).push(p); });
               const dates = Object.keys(dateGroups);
+              if (!dates.length) return; // aucune ligne → rien à persister
               const targetDate = dates[dates.length-1];
               await setPaymentsForDay(targetDate, role, dateGroups[targetDate]||[], nextFullArray);
             }}/>

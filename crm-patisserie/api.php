@@ -236,14 +236,20 @@ try {
             ");
             $pdo->beginTransaction();
             $ids = [];
-            foreach ($rows as $r) {
+            foreach ($rows as $i => $r) {
+                $jour        = $r['date']        ?? '';
+                $clientId    = $r['clientId']    ?? '';
+                $driver      = $r['driver']      ?? '';
+                $productId   = $r['productId']   ?? '';
+                $productName = trim($r['productName'] ?? '');
+                $quantity    = (int)($r['quantity']  ?? 0);
+                $unitPrice   = (float)($r['unitPrice'] ?? 0);
+                if ($jour===''||$clientId===''||$driver===''||$productId===''||$productName===''||$quantity<=0) {
+                    if ($pdo->inTransaction()) $pdo->rollBack();
+                    err("Ligne $i invalide : date, client, chauffeur, produit et quantité (>0) sont obligatoires");
+                }
                 $newId = bin2hex(random_bytes(6));
-                $stmt->execute([
-                    $newId,
-                    $r['date'], $r['clientId'], $r['driver'],
-                    $r['productId'], $r['productName'],
-                    (int)$r['quantity'], (float)$r['unitPrice'],
-                ]);
+                $stmt->execute([$newId, $jour, $clientId, $driver, $productId, $productName, $quantity, $unitPrice]);
                 $ids[] = $newId;
             }
             $pdo->commit();
@@ -258,19 +264,23 @@ try {
         }
         // Modification d'une commande existante (utilisé par le Propriétaire)
         case 'update_delivery': {
-            $id = $input['id'] ?? '';
-            if ($id === '') err('Identifiant de commande requis');
+            $id          = $input['id']          ?? '';
+            $jour        = $input['date']        ?? '';
+            $clientId    = $input['clientId']    ?? '';
+            $driver      = $input['driver']      ?? '';
+            $productId   = $input['productId']   ?? '';
+            $productName = trim($input['productName'] ?? '');
+            $quantity    = (int)($input['quantity']  ?? 0);
+            $unitPrice   = (float)($input['unitPrice'] ?? 0);
+            if ($id===''||$jour===''||$clientId===''||$driver===''||$productId===''||$productName===''||$quantity<=0) {
+                err('Champs obligatoires manquants ou quantité invalide');
+            }
             $stmt = $pdo->prepare("
                 UPDATE livraisons
                 SET jour = ?, client_id = ?, chauffeur_id = ?, produit_id = ?, produit_nom = ?, quantite = ?, prix_unitaire = ?
                 WHERE id = ?
             ");
-            $stmt->execute([
-                $input['date'], $input['clientId'], $input['driver'],
-                $input['productId'], $input['productName'],
-                (int)$input['quantity'], (float)$input['unitPrice'],
-                $id,
-            ]);
+            $stmt->execute([$jour, $clientId, $driver, $productId, $productName, $quantity, $unitPrice, $id]);
             out(['ok' => true]);
             break;
         }
@@ -404,44 +414,49 @@ try {
         case 'restore_backup': {
             $data = $input;
             $pdo->beginTransaction();
-
             $pdo->exec("SET FOREIGN_KEY_CHECKS=0");
-            foreach (['retours','encaissements','livraisons','clients','chauffeurs','produits','rapports_jour'] as $t) {
-                $pdo->exec("DELETE FROM $t");
+            try {
+                foreach (['retours','encaissements','livraisons','clients','chauffeurs','produits','rapports_jour'] as $t) {
+                    $pdo->exec("DELETE FROM $t");
+                }
+
+                $stmtP = $pdo->prepare("INSERT INTO produits (id,nom,prix,categorie) VALUES (?,?,?,?)");
+                foreach ($data['products'] ?? [] as $p) $stmtP->execute([$p['id'],$p['name'],(float)$p['price'],$p['category'] ?? 'Autres']);
+
+                $stmtD = $pdo->prepare("INSERT INTO chauffeurs (id,nom,utilisateur,mot_de_passe) VALUES (?,?,?,?)");
+                foreach ($data['settings']['drivers'] ?? [] as $d) $stmtD->execute([$d['id'],$d['name'],$d['user'] ?? $d['id'],$d['pass'] ?? '0000']);
+
+                $stmtC = $pdo->prepare("INSERT INTO clients (id,nom,chauffeur_id) VALUES (?,?,?)");
+                foreach ($data['clients'] ?? [] as $c) $stmtC->execute([$c['id'],$c['name'],$c['driver']]);
+
+                $stmtL = $pdo->prepare("INSERT INTO livraisons (id,jour,client_id,chauffeur_id,produit_id,produit_nom,quantite,prix_unitaire) VALUES (?,?,?,?,?,?,?,?)");
+                foreach ($data['deliveries'] ?? [] as $l) $stmtL->execute([$l['id'],$l['date'],$l['clientId'],$l['driver'],$l['productId'],$l['productName'],(int)$l['quantity'],(float)$l['unitPrice']]);
+
+                $stmtRet = $pdo->prepare("INSERT INTO retours (id,livraison_id,jour,quantite,motif) VALUES (?,?,?,?,?)");
+                foreach ($data['returns'] ?? [] as $rt) $stmtRet->execute([$rt['id'],$rt['livraisonId'],$rt['date'],(int)$rt['quantity'],$rt['reason'] ?? null]);
+
+                $stmtE = $pdo->prepare("INSERT INTO encaissements (id,jour,client_id,chauffeur_id,montant) VALUES (?,?,?,?,?)");
+                foreach ($data['payments'] ?? [] as $p) $stmtE->execute([$p['id'],$p['date'],$p['clientId'],$p['driver'],(float)$p['amount']]);
+
+                $stmtR = $pdo->prepare("INSERT INTO rapports_jour (jour,rempli,recupere,ecart,detail_json) VALUES (?,?,?,?,?)");
+                foreach ($data['reports'] ?? [] as $r) $stmtR->execute([$r['date'],(float)$r['rempli'],(float)$r['rec'],(float)$r['ecart'],json_encode($r['rows'] ?? [], JSON_UNESCAPED_UNICODE)]);
+
+                $settings = $data['settings'] ?? [];
+                $stmtS = $pdo->prepare("INSERT INTO parametres (cle,valeur) VALUES (?,?) ON DUPLICATE KEY UPDATE valeur=VALUES(valeur)");
+                $stmtS->execute(['business', $settings['business'] ?? 'Ma Pâtisserie']);
+                $stmtS->execute(['currency', $settings['currency'] ?? 'DT']);
+                $stmtS->execute(['auth_labo_user', $settings['auth']['labo']['user'] ?? 'labo']);
+                $stmtS->execute(['auth_labo_pass', $settings['auth']['labo']['pass'] ?? '0000']);
+                $stmtS->execute(['auth_proprio_user', $settings['auth']['proprietaire']['user'] ?? 'admin']);
+                $stmtS->execute(['auth_proprio_pass', $settings['auth']['proprietaire']['pass'] ?? '9999']);
+
+                $pdo->exec("SET FOREIGN_KEY_CHECKS=1");
+                $pdo->commit();
+            } catch (Throwable $e) {
+                $pdo->exec("SET FOREIGN_KEY_CHECKS=1");
+                if ($pdo->inTransaction()) $pdo->rollBack();
+                throw $e;
             }
-
-            $stmtP = $pdo->prepare("INSERT INTO produits (id,nom,prix,categorie) VALUES (?,?,?,?)");
-            foreach ($data['products'] ?? [] as $p) $stmtP->execute([$p['id'],$p['name'],(float)$p['price'],$p['category'] ?? 'Autres']);
-
-            $stmtD = $pdo->prepare("INSERT INTO chauffeurs (id,nom,utilisateur,mot_de_passe) VALUES (?,?,?,?)");
-            foreach ($data['settings']['drivers'] ?? [] as $d) $stmtD->execute([$d['id'],$d['name'],$d['user'] ?? $d['id'],$d['pass'] ?? '0000']);
-
-            $stmtC = $pdo->prepare("INSERT INTO clients (id,nom,chauffeur_id) VALUES (?,?,?)");
-            foreach ($data['clients'] ?? [] as $c) $stmtC->execute([$c['id'],$c['name'],$c['driver']]);
-
-            $stmtL = $pdo->prepare("INSERT INTO livraisons (id,jour,client_id,chauffeur_id,produit_id,produit_nom,quantite,prix_unitaire) VALUES (?,?,?,?,?,?,?,?)");
-            foreach ($data['deliveries'] ?? [] as $l) $stmtL->execute([$l['id'],$l['date'],$l['clientId'],$l['driver'],$l['productId'],$l['productName'],(int)$l['quantity'],(float)$l['unitPrice']]);
-
-            $stmtRet = $pdo->prepare("INSERT INTO retours (id,livraison_id,jour,quantite,motif) VALUES (?,?,?,?,?)");
-            foreach ($data['returns'] ?? [] as $rt) $stmtRet->execute([$rt['id'],$rt['livraisonId'],$rt['date'],(int)$rt['quantity'],$rt['reason'] ?? null]);
-
-            $stmtE = $pdo->prepare("INSERT INTO encaissements (id,jour,client_id,chauffeur_id,montant) VALUES (?,?,?,?,?)");
-            foreach ($data['payments'] ?? [] as $p) $stmtE->execute([$p['id'],$p['date'],$p['clientId'],$p['driver'],(float)$p['amount']]);
-
-            $stmtR = $pdo->prepare("INSERT INTO rapports_jour (jour,rempli,recupere,ecart,detail_json) VALUES (?,?,?,?,?)");
-            foreach ($data['reports'] ?? [] as $r) $stmtR->execute([$r['date'],(float)$r['rempli'],(float)$r['rec'],(float)$r['ecart'],json_encode($r['rows'] ?? [], JSON_UNESCAPED_UNICODE)]);
-
-            $settings = $data['settings'] ?? [];
-            $stmtS = $pdo->prepare("INSERT INTO parametres (cle,valeur) VALUES (?,?) ON DUPLICATE KEY UPDATE valeur=VALUES(valeur)");
-            $stmtS->execute(['business', $settings['business'] ?? 'Ma Pâtisserie']);
-            $stmtS->execute(['currency', $settings['currency'] ?? 'DT']);
-            $stmtS->execute(['auth_labo_user', $settings['auth']['labo']['user'] ?? 'labo']);
-            $stmtS->execute(['auth_labo_pass', $settings['auth']['labo']['pass'] ?? '0000']);
-            $stmtS->execute(['auth_proprio_user', $settings['auth']['proprietaire']['user'] ?? 'admin']);
-            $stmtS->execute(['auth_proprio_pass', $settings['auth']['proprietaire']['pass'] ?? '9999']);
-
-            $pdo->exec("SET FOREIGN_KEY_CHECKS=1");
-            $pdo->commit();
             out(['ok' => true]);
             break;
         }

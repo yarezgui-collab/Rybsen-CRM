@@ -1,0 +1,9 @@
+# Credentials base de données — ne jamais committer
+config.php
+
+# Fichiers rate-limit générés automatiquement
+.rl*.json
+
+# Fichiers temporaires macOS
+.DS_Store
+__MACOSX/
