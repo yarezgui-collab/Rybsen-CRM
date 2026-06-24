@@ -18,6 +18,22 @@ jobs:
       - name: Install sshpass
         run: sudo apt-get install -y sshpass
 
+      - name: Debug SFTP directory structure
+        env:
+          SFTP_HOST: ${{ secrets.SFTP_HOST }}
+          SFTP_PORT: ${{ secrets.SFTP_PORT }}
+          SFTP_USER: ${{ secrets.SFTP_USER }}
+          SFTP_PASS: ${{ secrets.SFTP_PASSWORD }}
+        run: |
+          printf 'pwd\nls -la\nls -la public_html\nbye\n' > /tmp/sftp_debug.txt
+          sshpass -p "$SFTP_PASS" sftp \
+            -oBatchMode=no \
+            -oStrictHostKeyChecking=no \
+            -oPasswordAuthentication=yes \
+            -P "$SFTP_PORT" \
+            -b /tmp/sftp_debug.txt \
+            "$SFTP_USER@$SFTP_HOST" 2>&1 || true
+
       - name: Deploy via SFTP
         env:
           SFTP_HOST: ${{ secrets.SFTP_HOST }}
