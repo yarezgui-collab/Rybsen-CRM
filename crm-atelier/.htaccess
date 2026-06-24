@@ -1,0 +1,35 @@
+# ============================================================
+# Sécurité — Pâtisserie CRM
+# À placer dans le même dossier que index.html, api.php, config.php
+# ============================================================
+
+# Bloque l'accès direct à config.php (qui contient les identifiants de la base)
+# même si quelqu'un en devine le nom — seul api.php peut l'inclure en interne.
+<Files "config.php">
+    Require all denied
+</Files>
+
+# Bloque l'accès aux fichiers de compteur anti brute-force (créés automatiquement)
+<FilesMatch "^\.rl.*\.json$">
+    Require all denied
+</FilesMatch>
+
+# Bloque l'accès aux fichiers SQL si jamais ils restent dans ce dossier par erreur
+<FilesMatch "\.sql$">
+    Require all denied
+</FilesMatch>
+
+# Force la redirection vers HTTPS (le site ne doit jamais être accessible en http://)
+RewriteEngine On
+RewriteCond %{HTTPS} off
+RewriteRule ^(.*)$ https://%{HTTP_HOST}%{REQUEST_URI} [L,R=301]
+
+# En-têtes de sécurité de base
+<IfModule mod_headers.c>
+    Header set X-Content-Type-Options "nosniff"
+    Header set X-Frame-Options "SAMEORIGIN"
+    Header set Referrer-Policy "strict-origin-when-cross-origin"
+</IfModule>
+
+# Désactive l'affichage du contenu des dossiers (empêche de lister les fichiers)
+Options -Indexes

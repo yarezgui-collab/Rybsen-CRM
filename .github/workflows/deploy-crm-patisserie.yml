@@ -1,0 +1,46 @@
+name: Deploy crm-patisserie to Hostinger
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - 'crm-patisserie/**'
+  workflow_dispatch:
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Install sshpass
+        run: sudo apt-get install -y sshpass
+
+      - name: Deploy via SFTP
+        env:
+          SFTP_HOST: ${{ secrets.SFTP_HOST }}
+          SFTP_PORT: ${{ secrets.SFTP_PORT }}
+          SFTP_USER: ${{ secrets.SFTP_USER }}
+          SFTP_PASS: ${{ secrets.SFTP_PASSWORD }}
+        run: |
+          # Write SFTP batch commands
+          cat > /tmp/sftp_batch.txt << 'EOF'
+          cd /public_html/pby
+          put crm-patisserie/index.html index.html
+          put crm-patisserie/api.php api.php
+          put crm-patisserie/default.php default.php
+          EOF
+
+          # Add .htaccess if it exists
+          [ -f crm-patisserie/.htaccess ] && echo "put crm-patisserie/.htaccess .htaccess" >> /tmp/sftp_batch.txt
+
+          echo "bye" >> /tmp/sftp_batch.txt
+
+          # Execute SFTP upload
+          sshpass -p "$SFTP_PASS" sftp \
+            -o StrictHostKeyChecking=no \
+            -o Port="$SFTP_PORT" \
+            -b /tmp/sftp_batch.txt \
+            "$SFTP_USER@$SFTP_HOST"

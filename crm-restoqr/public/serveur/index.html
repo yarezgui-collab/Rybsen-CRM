@@ -1,0 +1,385 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0">
+<title>Service — Le Médina</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,500;9..144,600;9..144,700&family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --semolina:#F2E8D8; --paprika:#C1502E; --olive:#5B6B3F; --char:#2A211B; --clay:#8C6A52;
+    --line:rgba(42,33,27,0.12); --cream-card:#FBF6EC; --warn:#C18A2E; --danger:#B33A2E;
+  }
+  *{box-sizing:border-box; margin:0; padding:0;}
+  body{ background:#EDE3D1; color:var(--char); font-family:'Inter',sans-serif; -webkit-font-smoothing:antialiased;
+    min-height:100vh; padding-bottom:80px; }
+
+  .topbar{ position:sticky; top:0; z-index:40; background:var(--char); color:var(--semolina); padding:14px 18px;
+    display:flex; align-items:center; justify-content:space-between; }
+  .topbar .who{ display:flex; align-items:center; gap:10px; }
+  .avatar{ width:34px; height:34px; border-radius:50%; background:var(--paprika); display:flex; align-items:center;
+    justify-content:center; font-weight:700; font-size:13px; }
+  .who-text .name{ font-size:13.5px; font-weight:700; }
+  .who-text .zone{ font-size:11px; opacity:0.55; }
+  .topbar .right{ display:flex; align-items:center; gap:14px; }
+  .topbar .stats{ display:flex; gap:16px; }
+  .topbar .stat{ text-align:right; }
+  .topbar .stat .v{ font-family:'Fraunces',serif; font-size:17px; font-weight:600; }
+  .topbar .stat .k{ font-size:9.5px; text-transform:uppercase; letter-spacing:0.06em; opacity:0.5; }
+  .conn-indicator{ width:8px; height:8px; border-radius:50%; background:#7FA66B; box-shadow:0 0 0 3px rgba(127,166,107,0.25); }
+  .conn-indicator.lost{ background:var(--danger); box-shadow:0 0 0 3px rgba(179,58,46,0.25); animation:blink 1s infinite; }
+  @keyframes blink{ 50%{ opacity:0.3; } }
+  .logout-btn{ background:rgba(242,232,216,0.1); border:none; color:var(--semolina); font-size:11px; font-weight:700;
+    padding:7px 12px; border-radius:8px; cursor:pointer; opacity:0.7; }
+
+  .status-tabs{ display:flex; gap:8px; padding:14px 16px 10px; overflow-x:auto; scrollbar-width:none; }
+  .status-tabs::-webkit-scrollbar{ display:none; }
+  .stab{ flex:0 0 auto; padding:9px 14px; border-radius:100px; font-size:12.5px; font-weight:700; background:var(--cream-card);
+    border:1px solid var(--line); color:var(--char); opacity:0.6; cursor:pointer; display:flex; align-items:center; gap:7px; }
+  .stab.active{ opacity:1; background:var(--char); color:var(--semolina); border-color:var(--char); }
+  .stab .n{ background:rgba(0,0,0,0.12); border-radius:100px; padding:1px 7px; font-size:11px; }
+  .stab.active .n{ background:rgba(242,232,216,0.2); }
+
+  .board{ padding:4px 16px 20px; display:flex; flex-direction:column; gap:12px; }
+  .col-head{ display:none; }
+
+  .order-card{ background:var(--cream-card); border-radius:16px; padding:14px 16px; border:1px solid var(--line);
+    position:relative; overflow:hidden; }
+  .order-card.new{ border-color:var(--paprika); box-shadow:0 0 0 1px var(--paprika), 0 8px 20px rgba(193,80,46,0.15);
+    animation:pulse-border 1.8s ease-in-out infinite; }
+  @keyframes pulse-border{ 0%,100%{ box-shadow:0 0 0 1px var(--paprika), 0 8px 20px rgba(193,80,46,0.15); }
+    50%{ box-shadow:0 0 0 4px rgba(193,80,46,0.25), 0 8px 24px rgba(193,80,46,0.22); } }
+  .order-top{ display:flex; align-items:flex-start; justify-content:space-between; margin-bottom:10px; }
+  .order-table{ font-family:'Fraunces',serif; font-size:19px; font-weight:700; }
+  .order-id{ font-size:11px; color:var(--clay); font-weight:600; margin-top:1px; }
+  .order-timer .t{ font-size:13px; font-weight:800; padding:4px 9px; border-radius:8px; background:rgba(91,107,63,0.14); color:var(--olive); }
+  .order-timer .t.warn{ background:rgba(193,138,46,0.18); color:var(--warn); }
+  .order-timer .t.danger{ background:rgba(179,58,46,0.16); color:var(--danger); }
+  .order-items{ margin:10px 0 12px; padding-top:10px; border-top:1px dashed var(--line); }
+  .order-item{ display:flex; justify-content:space-between; font-size:13.5px; padding:4px 0; }
+  .order-item .q{ font-weight:800; color:var(--paprika); margin-right:8px; }
+  .order-note{ font-size:11.5px; color:var(--clay); background:rgba(140,106,82,0.1); padding:5px 9px; border-radius:8px;
+    margin-top:6px; display:inline-block; }
+  .order-foot{ display:flex; align-items:center; justify-content:space-between; gap:10px; }
+  .order-total{ font-family:'Fraunces',serif; font-weight:700; font-size:16px; }
+  .order-action{ flex:1; border:none; padding:11px 14px; border-radius:11px; font-size:13px; font-weight:700; cursor:pointer;
+    display:flex; align-items:center; justify-content:center; gap:6px; max-width:220px; }
+  .order-action.to-prep{ background:var(--char); color:var(--semolina); }
+  .order-action.to-ready{ background:var(--warn); color:#fff; }
+  .order-action.to-served{ background:var(--olive); color:#fff; }
+  .order-action.done{ background:transparent; color:var(--clay); opacity:0.6; cursor:default; }
+  .order-action:disabled{ opacity:0.5; cursor:wait; }
+
+  .empty-state{ text-align:center; padding:70px 24px; color:var(--clay); }
+  .empty-state .icon{ font-size:32px; display:block; margin-bottom:10px; }
+
+  .bottom-nav{ position:fixed; left:0; right:0; bottom:0; z-index:40; background:var(--char); display:flex;
+    padding:10px 10px calc(10px + env(safe-area-inset-bottom)); gap:6px; }
+  .bnav-item{ flex:1; text-align:center; padding:8px 4px; border-radius:12px; color:var(--semolina); opacity:0.5;
+    font-size:10.5px; font-weight:700; }
+  .bnav-item.active{ opacity:1; background:rgba(242,232,216,0.1); }
+  .bnav-item .ic{ font-size:17px; display:block; margin-bottom:2px; }
+
+  @media (min-width: 760px){
+    body{ padding-bottom:0; }
+    .status-tabs{ display:none; }
+    .bottom-nav{ display:none; }
+    .board{ display:grid; grid-template-columns:repeat(3, 1fr); gap:18px; padding:18px 24px 30px; align-items:start; }
+    .col-head{ display:flex; align-items:center; justify-content:space-between; margin-bottom:10px; padding:0 4px; }
+    .col-head h3{ font-family:'Fraunces',serif; font-size:16px; font-weight:600; }
+    .col-head .n{ font-size:11.5px; font-weight:700; color:var(--clay); background:rgba(140,106,82,0.12); padding:2px 9px; border-radius:100px; }
+    .col{ display:flex; flex-direction:column; gap:12px; }
+    .topbar{ padding:16px 28px; }
+  }
+</style>
+</head>
+<body>
+
+  <div class="topbar">
+    <div class="who">
+      <div class="avatar" id="avatarInit">--</div>
+      <div class="who-text">
+        <div class="name" id="userName">—</div>
+        <div class="zone" id="userZone">—</div>
+      </div>
+    </div>
+    <div class="right">
+      <div class="stats">
+        <div class="stat"><div class="v" id="statActive">0</div><div class="k">Actives</div></div>
+        <div class="stat"><div class="v" id="statServed">0</div><div class="k">Servies</div></div>
+      </div>
+      <span class="conn-indicator" id="connIndicator" title="État de la connexion"></span>
+      <button class="logout-btn" id="logoutBtn">Quitter</button>
+    </div>
+  </div>
+
+  <div class="status-tabs" id="statusTabs">
+    <button class="stab active" data-status="all">Toutes <span class="n" id="cAll">0</span></button>
+    <button class="stab" data-status="nouvelle">🔴 Nouvelles <span class="n" id="cNouvelle">0</span></button>
+    <button class="stab" data-status="en_cours">En préparation <span class="n" id="cEnCours">0</span></button>
+    <button class="stab" data-status="prete">Prêtes <span class="n" id="cPrete">0</span></button>
+  </div>
+
+  <div class="board" id="board">
+    <div class="empty-state"><span class="icon">⏳</span><p>Chargement des commandes…</p></div>
+  </div>
+
+  <div class="bottom-nav">
+    <div class="bnav-item active"><span class="ic">📋</span>Commandes</div>
+    <div class="bnav-item"><span class="ic">🍽️</span>Mes tables</div>
+    <div class="bnav-item"><span class="ic">🔔</span>Notifs</div>
+  </div>
+
+<script>
+const API_BASE = '/api';
+const POLL_INTERVAL_MS = 4000;
+
+// ---------- AUTH GUARD ----------
+const TOKEN = localStorage.getItem('qrmenu_token');
+const USER = JSON.parse(localStorage.getItem('qrmenu_user') || 'null');
+if(!TOKEN || !USER || USER.role !== 'serveur'){
+  window.location.href = '../login.html';
+}
+
+document.getElementById('userName').textContent = USER.nom;
+document.getElementById('userZone').textContent = 'Zone assignée';
+document.getElementById('avatarInit').textContent = USER.nom.split(' ').map(w => w[0]).slice(0,2).join('').toUpperCase();
+
+document.getElementById('logoutBtn').addEventListener('click', async () => {
+  await fetch(`${API_BASE}/logout.php`, { method:'POST', headers:{ 'Authorization':'Bearer '+TOKEN } }).catch(()=>{});
+  localStorage.removeItem('qrmenu_token');
+  localStorage.removeItem('qrmenu_user');
+  window.location.href = '../login.html';
+});
+
+// ---------- ÉTAT ----------
+let orders = [];
+let activeFilter = 'all';
+let knownOrderIds = new Set();
+let isFirstLoad = true;
+let consecutiveFailures = 0;
+
+const isTablet = () => window.innerWidth >= 760;
+
+const STATUS_FLOW = {
+  nouvelle: { next:'en_cours', label:'Prendre en charge', cls:'to-prep' },
+  en_cours: { next:'prete',    label:'Marquer prête',     cls:'to-ready' },
+  prete:    { next:'servie',   label:'Marquer servie',    cls:'to-served' },
+  servie:   { next:null,       label:'Servie ✓',          cls:'done' },
+};
+const STATUS_LABEL = { nouvelle:'Nouvelles commandes', en_cours:'En préparation', prete:'Prêtes à servir' };
+
+function fmt(n){ return n.toFixed(3).replace('.', ',') + ' DT'; }
+function timeAgo(iso){
+  const mins = Math.floor((Date.now() - new Date(iso).getTime()) / 60000);
+  return mins <= 0 ? "à l'instant" : mins + ' min';
+}
+function timerClass(iso, statut){
+  if(statut === 'servie') return '';
+  const mins = (Date.now() - new Date(iso).getTime()) / 60000;
+  if(mins >= 15) return 'danger';
+  if(mins >= 8) return 'warn';
+  return '';
+}
+
+// ---------- NOTIFICATIONS (son + vibration + badge) ----------
+let audioCtx = null;
+function playNotificationSound(){
+  try{
+    if(!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+    // Deux bips courts, plus distinctif qu'un simple beep
+    [0, 0.18].forEach(delay => {
+      const osc = audioCtx.createOscillator();
+      const gain = audioCtx.createGain();
+      osc.connect(gain); gain.connect(audioCtx.destination);
+      osc.frequency.value = 880;
+      gain.gain.setValueAtTime(0.001, audioCtx.currentTime + delay);
+      gain.gain.exponentialRampToValueAtTime(0.3, audioCtx.currentTime + delay + 0.02);
+      gain.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + delay + 0.15);
+      osc.start(audioCtx.currentTime + delay);
+      osc.stop(audioCtx.currentTime + delay + 0.16);
+    });
+  }catch(e){ /* AudioContext peut être bloqué avant interaction utilisateur — non bloquant */ }
+}
+function vibrate(){
+  if(navigator.vibrate) navigator.vibrate([200, 80, 200]);
+}
+function flashTitle(newCount){
+  if(newCount > 0){
+    document.title = `(${newCount}) Nouvelle commande !`;
+  } else {
+    document.title = 'Service — Le Médina';
+  }
+}
+function notifyNewOrders(count){
+  playNotificationSound();
+  vibrate();
+  flashTitle(count);
+}
+
+// ---------- POLLING ----------
+async function fetchOrders(){
+  try{
+    const res = await fetch(`${API_BASE}/commandes_list.php`, {
+      headers: { 'Authorization': 'Bearer ' + TOKEN },
+    });
+
+    if(res.status === 401){
+      localStorage.removeItem('qrmenu_token');
+      localStorage.removeItem('qrmenu_user');
+      window.location.href = '../login.html';
+      return;
+    }
+
+    const data = await res.json();
+    if(!data.success) throw new Error(data.error || 'Erreur API');
+
+    consecutiveFailures = 0;
+    document.getElementById('connIndicator').classList.remove('lost');
+
+    const newOrders = data.commandes;
+
+    if(!isFirstLoad){
+      const newIds = newOrders.map(o => o.id).filter(id => !knownOrderIds.has(id));
+      if(newIds.length > 0){
+        notifyNewOrders(newIds.length);
+      }
+    }
+    knownOrderIds = new Set(newOrders.map(o => o.id));
+    isFirstLoad = false;
+
+    orders = newOrders;
+    render();
+
+  }catch(e){
+    consecutiveFailures++;
+    if(consecutiveFailures >= 2){
+      document.getElementById('connIndicator').classList.add('lost');
+    }
+  }
+}
+
+function startPolling(){
+  fetchOrders();
+  setInterval(fetchOrders, POLL_INTERVAL_MS);
+  // Re-synchronise immédiatement quand l'onglet redevient actif (utile si le téléphone s'est mis en veille)
+  document.addEventListener('visibilitychange', () => {
+    if(!document.hidden) fetchOrders();
+  });
+}
+
+// ---------- ACTIONS ----------
+async function advanceOrder(id, btnEl){
+  const order = orders.find(o => o.id === id);
+  if(!order) return;
+  const flow = STATUS_FLOW[order.statut];
+  if(!flow.next) return;
+
+  btnEl.disabled = true;
+  btnEl.textContent = '...';
+
+  try{
+    const res = await fetch(`${API_BASE}/commande_update_statut.php`, {
+      method: 'POST',
+      headers: { 'Authorization':'Bearer '+TOKEN, 'Content-Type':'application/json' },
+      body: JSON.stringify({ commande_id: id, statut: flow.next }),
+    });
+    const data = await res.json();
+    if(!data.success){
+      alert(data.error || 'Action impossible.');
+      btnEl.disabled = false;
+      btnEl.textContent = flow.label;
+      return;
+    }
+    // Mise à jour optimiste locale, confirmée par le prochain polling
+    order.statut = flow.next;
+    render();
+  }catch(e){
+    alert('Connexion impossible. Réessayez.');
+    btnEl.disabled = false;
+    btnEl.textContent = flow.label;
+  }
+}
+
+// ---------- RENDU ----------
+function orderCardHTML(o){
+  const flow = STATUS_FLOW[o.statut];
+  const tCls = timerClass(o.created_at, o.statut);
+  return `
+    <div class="order-card ${o.statut === 'nouvelle' ? 'new' : ''}" data-id="${o.id}">
+      <div class="order-top">
+        <div>
+          <div class="order-table">Table ${o.table}</div>
+          <div class="order-id">#${o.code}</div>
+        </div>
+        <div class="order-timer"><div class="t ${tCls}">${timeAgo(o.created_at)}</div></div>
+      </div>
+      <div class="order-items">
+        ${o.items.map(it => `<div class="order-item"><span><span class="q">${it.quantite}×</span>${it.nom}</span></div>${it.note ? `<div class="order-note">📝 ${it.note}</div>` : ''}`).join('')}
+        ${o.note ? `<div class="order-note">🗒️ ${o.note}</div>` : ''}
+      </div>
+      <div class="order-foot">
+        <div class="order-total">${fmt(o.total)}</div>
+        ${flow.next
+          ? `<button class="order-action ${flow.cls}" data-next="${flow.next}" data-id="${o.id}">${flow.label}</button>`
+          : `<button class="order-action done" disabled>${flow.label}</button>`}
+      </div>
+    </div>`;
+}
+
+function emptyHTML(){
+  return `<div class="empty-state"><span class="icon">✅</span><p>Aucune commande ici pour le moment.</p></div>`;
+}
+
+function render(){
+  const board = document.getElementById('board');
+  const counts = { all:orders.length, nouvelle:0, en_cours:0, prete:0, servie:0 };
+  orders.forEach(o => counts[o.statut]++);
+
+  document.getElementById('cAll').textContent = counts.all;
+  document.getElementById('cNouvelle').textContent = counts.nouvelle;
+  document.getElementById('cEnCours').textContent = counts.en_cours;
+  document.getElementById('cPrete').textContent = counts.prete;
+  document.getElementById('statActive').textContent = counts.nouvelle + counts.en_cours + counts.prete;
+  document.getElementById('statServed').textContent = counts.servie;
+
+  if(isTablet()){
+    const cols = ['nouvelle', 'en_cours', 'prete'];
+    board.innerHTML = cols.map(status => `
+      <div class="col">
+        <div class="col-head"><h3>${STATUS_LABEL[status]}</h3><span class="n">${counts[status]}</span></div>
+        ${orders.filter(o => o.statut === status).map(orderCardHTML).join('') || emptyHTML()}
+      </div>`).join('');
+  } else {
+    let list = activeFilter === 'all' ? orders.filter(o => o.statut !== 'servie') : orders.filter(o => o.statut === activeFilter);
+    const statusOrder = { nouvelle:0, en_cours:1, prete:2, servie:3 };
+    list = list.sort((a,b) => statusOrder[a.statut] - statusOrder[b.statut] || new Date(a.created_at) - new Date(b.created_at));
+    board.innerHTML = list.length ? list.map(orderCardHTML).join('') : emptyHTML();
+  }
+
+  board.querySelectorAll('[data-next]').forEach(btn => {
+    btn.addEventListener('click', () => advanceOrder(Number(btn.dataset.id), btn));
+  });
+}
+
+document.getElementById('statusTabs').addEventListener('click', (e) => {
+  const tab = e.target.closest('.stab');
+  if(!tab) return;
+  document.querySelectorAll('.stab').forEach(t => t.classList.remove('active'));
+  tab.classList.add('active');
+  activeFilter = tab.dataset.status;
+  render();
+});
+
+window.addEventListener('resize', render);
+
+// Premier clic/touch de la page : débloque l'AudioContext (politique navigateur)
+document.addEventListener('click', () => {
+  if(audioCtx && audioCtx.state === 'suspended') audioCtx.resume();
+}, { once:true });
+
+startPolling();
+</script>
+</body>
+</html>

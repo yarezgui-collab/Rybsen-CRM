@@ -1,0 +1,2736 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1.0,maximum-scale=1.0,viewport-fit=cover"/>
+<meta name="apple-mobile-web-app-capable" content="yes"/>
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent"/>
+<title>Pâtisserie CRM</title>
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🥐</text></svg>"/>
+<style>
+
+@import url('https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&family=Inter:wght@400;500;600;700;800;900&display=swap');
+
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+html{-webkit-text-size-adjust:100%;scroll-behavior:smooth}
+body{
+  font-family:'Inter',system-ui,sans-serif;
+  background:#FDFCF8;
+  color:#1C2B3A;
+  min-height:100dvh;
+  font-size:15px;
+  line-height:1.5;
+}
+input,select,button,textarea{font-family:inherit;font-size:inherit}
+button{cursor:pointer}
+img{max-width:100%}
+
+/* ── Tokens ─────────────────────────────────────────── */
+:root{
+  --bg:       #FDFCF8;
+  --surface:  #FFFFFF;
+  --chalk:    #F0EBE1;
+  --line:     #E4DDD2;
+  --ink:      #1C2B3A;
+  --muted:    #7A8A96;
+  --wheat:    #D4922A;
+  --sage:     #4A7C6F;
+  --coral:    #C84B3C;
+  --wheat-lt: #FDF3E3;
+  --sage-lt:  #E8F3F0;
+  --coral-lt: #FCEAE8;
+  --r4:4px;--r8:8px;--r12:12px;--r16:16px;--r20:20px;--r99:99px;
+  --shadow-sm:0 1px 3px rgba(28,43,58,.08),0 1px 2px rgba(28,43,58,.05);
+  --shadow-md:0 4px 16px rgba(28,43,58,.10),0 2px 4px rgba(28,43,58,.06);
+  --shadow-lg:0 20px 60px rgba(28,43,58,.18),0 4px 12px rgba(28,43,58,.10);
+}
+
+/* ── Typography ─────────────────────────────────────── */
+.serif{font-family:'Instrument Serif',Georgia,serif}
+.num-xl{font-size:clamp(28px,6vw,42px);font-weight:800;letter-spacing:-.03em;line-height:1;font-variant-numeric:tabular-nums}
+.num-lg{font-size:clamp(20px,4vw,28px);font-weight:700;font-variant-numeric:tabular-nums;letter-spacing:-.02em}
+.label-xs{font-size:11px;font-weight:600;letter-spacing:.06em;text-transform:uppercase;color:var(--muted)}
+
+/* ── Layout shell ───────────────────────────────────── */
+.app-shell{display:flex;flex-direction:column;min-height:100dvh}
+.main-content{flex:1;padding:16px;max-width:768px;margin:0 auto;width:100%}
+
+/* Header */
+.app-header{
+  background:var(--ink);color:#fff;
+  padding:14px 16px 12px;
+  position:sticky;top:0;z-index:100;
+  box-shadow:var(--shadow-md);
+}
+.app-header-inner{max-width:768px;margin:0 auto;display:flex;justify-content:space-between;align-items:center;gap:12px}
+.app-logo{display:flex;align-items:center;gap:10px}
+.app-logo-icon{font-size:26px;line-height:1}
+.app-logo-text h1{font-family:'Instrument Serif',Georgia,serif;font-size:20px;font-weight:400;line-height:1.1}
+.app-logo-text p{font-size:11px;opacity:.6;margin-top:1px;letter-spacing:.02em}
+.btn-logout{
+  background:rgba(255,255,255,.10);border:1px solid rgba(255,255,255,.15);
+  color:rgba(255,255,255,.85);border-radius:var(--r8);
+  padding:7px 12px;font-size:12px;font-weight:600;
+  display:inline-flex;align-items:center;gap:6px;
+  transition:background .15s;white-space:nowrap;
+}
+.btn-logout:hover{background:rgba(255,255,255,.18)}
+
+/* Bottom nav — mobile */
+.bottom-nav{
+  display:none;
+  position:fixed;bottom:0;left:0;right:0;z-index:100;
+  background:var(--surface);border-top:1px solid var(--line);
+  padding-bottom:env(safe-area-inset-bottom);
+  box-shadow:0 -4px 20px rgba(28,43,58,.08);
+}
+.bottom-nav-inner{display:flex;max-width:768px;margin:0 auto}
+.nav-tab{
+  flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;
+  gap:3px;padding:10px 4px 8px;border:none;background:transparent;
+  color:var(--muted);font-size:10px;font-weight:500;line-height:1.2;
+  transition:color .15s;min-width:0;
+  -webkit-tap-highlight-color:transparent;
+}
+.nav-tab.active{color:var(--wheat)}
+.nav-tab .tab-icon{font-size:20px;line-height:1}
+.nav-tab .tab-label{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:100%}
+.nav-tab-bar{position:absolute;top:0;left:50%;transform:translateX(-50%);width:28px;height:2px;background:var(--wheat);border-radius:0 0 2px 2px;opacity:0;transition:opacity .15s}
+.nav-tab.active .nav-tab-bar{opacity:1}
+
+/* Top nav — desktop */
+.top-nav{
+  background:var(--surface);border-bottom:1px solid var(--line);
+  position:sticky;top:60px;z-index:90;overflow-x:auto;
+}
+.top-nav-inner{max-width:768px;margin:0 auto;display:flex}
+.top-nav-tab{
+  flex:1;min-width:80px;padding:12px 8px 11px;border:none;background:transparent;
+  color:var(--muted);font-size:12px;font-weight:500;border-bottom:3px solid transparent;
+  display:flex;flex-direction:column;align-items:center;gap:3px;
+  transition:color .15s,border-color .15s;white-space:nowrap;
+  -webkit-tap-highlight-color:transparent;
+}
+.top-nav-tab.active{color:var(--ink);border-bottom-color:var(--wheat);font-weight:700}
+
+@media(max-width:639px){
+  .bottom-nav{display:block}
+  .top-nav{display:none}
+  .main-content{padding:12px 12px 80px}
+}
+@media(min-width:640px){
+  .bottom-nav{display:none!important}
+  .top-nav{display:block}
+  .main-content{padding:20px 20px 40px}
+  .app-header{padding:16px 20px}
+}
+
+/* ── Cards & sections ───────────────────────────────── */
+.card{
+  background:var(--surface);border:1px solid var(--line);
+  border-radius:var(--r16);padding:16px;
+  box-shadow:var(--shadow-sm);
+  margin-bottom:14px;
+}
+.card-header{display:flex;align-items:center;justify-content:space-between;margin-bottom:12px;gap:8px;flex-wrap:wrap}
+.card-title{display:flex;align-items:center;gap:8px}
+.card-title h2{font-family:'Instrument Serif',Georgia,serif;font-size:18px;font-weight:400;color:var(--ink);line-height:1.2}
+.card-title .icon{color:var(--wheat);flex-shrink:0}
+
+/* ── KPI row ─────────────────────────────────────────── */
+.kpi-row{display:flex;gap:10px;flex-wrap:wrap}
+.kpi{
+  flex:1 1 130px;min-width:120px;
+  background:var(--chalk);border:1px solid var(--line);
+  border-radius:var(--r12);padding:12px 14px;
+}
+.kpi-label{font-size:10px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:var(--muted);margin-bottom:4px}
+.kpi-value{font-family:'Inter',sans-serif;font-size:clamp(18px,4vw,26px);font-weight:800;letter-spacing:-.03em;font-variant-numeric:tabular-nums;line-height:1;color:var(--ink)}
+.kpi-value.green{color:var(--sage)}
+.kpi-value.red{color:var(--coral)}
+.kpi-sub{font-size:11px;color:var(--muted);margin-top:3px}
+
+/* ── Forms ───────────────────────────────────────────── */
+.field{margin-bottom:0}
+.field-label{font-size:11px;font-weight:700;letter-spacing:.05em;text-transform:uppercase;color:var(--muted);display:block;margin-bottom:5px}
+.field-input{
+  width:100%;background:var(--surface);border:1.5px solid var(--line);
+  border-radius:var(--r10,10px);padding:10px 12px;color:var(--ink);
+  outline:none;transition:border-color .15s,box-shadow .15s;
+  font-size:15px;
+}
+.field-input:focus{border-color:var(--wheat);box-shadow:0 0 0 3px rgba(212,146,42,.12)}
+.field-input::placeholder{color:var(--muted)}
+.form-grid{display:grid;gap:12px}
+.form-grid-2{grid-template-columns:1fr 1fr}
+.form-grid-full{grid-column:1/-1}
+@media(max-width:400px){.form-grid-2{grid-template-columns:1fr}}
+
+/* ── Buttons ─────────────────────────────────────────── */
+.btn{
+  display:inline-flex;align-items:center;justify-content:center;gap:6px;
+  border:none;border-radius:var(--r10,10px);
+  padding:11px 16px;font-weight:700;font-size:14px;
+  transition:filter .15s,transform .1s;
+  -webkit-tap-highlight-color:transparent;
+  min-height:44px;
+}
+.btn:active{transform:scale(.97)}
+.btn-primary{background:var(--ink);color:#fff}
+.btn-primary:hover{filter:brightness(1.15)}
+.btn-wheat{background:var(--wheat);color:#fff}
+.btn-wheat:hover{filter:brightness(1.1)}
+.btn-sage{background:var(--sage);color:#fff}
+.btn-sage:hover{filter:brightness(1.1)}
+.btn-coral{background:var(--coral);color:#fff}
+.btn-coral:hover{filter:brightness(1.1)}
+.btn-ghost{background:transparent;border:1.5px solid var(--line);color:var(--ink)}
+.btn-ghost:hover{background:var(--chalk)}
+.btn-danger-ghost{background:transparent;border:1.5px solid var(--coral);color:var(--coral)}
+.btn-icon{background:transparent;border:none;color:var(--coral);padding:6px;min-height:36px;min-width:36px;border-radius:var(--r8);display:inline-flex;align-items:center;justify-content:center}
+.btn-icon:hover{background:var(--coral-lt)}
+.btn-full{width:100%}
+.btn-lg{padding:14px 20px;font-size:16px;min-height:52px}
+
+/* ── Tables ─────────────────────────────────────────── */
+.table-wrap{overflow-x:auto;border-radius:var(--r12);border:1px solid var(--line)}
+.data-table{width:100%;border-collapse:collapse;min-width:400px}
+.data-table thead tr{background:var(--ink)}
+.data-table th{
+  padding:10px 12px;font-size:11px;font-weight:700;
+  letter-spacing:.05em;text-transform:uppercase;color:rgba(255,255,255,.9);
+  text-align:left;white-space:nowrap;
+}
+.data-table th.r{text-align:right}
+.data-table td{
+  padding:10px 12px;font-size:13px;color:var(--ink);
+  border-bottom:1px solid var(--line);vertical-align:middle;
+}
+.data-table td.r{text-align:right;font-variant-numeric:tabular-nums;font-weight:600;white-space:nowrap}
+.data-table td.muted{color:var(--muted);font-size:12px}
+.data-table tbody tr:last-child td{border-bottom:none}
+.data-table tbody tr:nth-child(even){background:var(--chalk)}
+.data-table .row-total td{background:var(--ink)!important;color:#fff;font-weight:800;font-size:14px;border-top:2px solid var(--wheat)}
+.data-table .row-total td.r{color:#fff}
+.data-table .row-sub td{background:var(--chalk)!important;font-style:italic;color:var(--muted)}
+.data-table .row-driver td{background:var(--chalk)!important;color:var(--wheat);font-weight:700;font-size:12px;letter-spacing:.04em;text-transform:uppercase}
+
+/* ── Dividers & lines ───────────────────────────────── */
+.divider{border:none;border-top:1px solid var(--line);margin:12px 0}
+.divider-gold{border-top:2px solid var(--wheat)}
+
+/* ── Status tags ─────────────────────────────────────── */
+.tag{display:inline-flex;align-items:center;gap:4px;padding:3px 10px;border-radius:var(--r99);font-size:12px;font-weight:700;white-space:nowrap}
+.tag-sage{background:var(--sage-lt);color:var(--sage)}
+.tag-coral{background:var(--coral-lt);color:var(--coral)}
+.tag-wheat{background:var(--wheat-lt);color:var(--wheat)}
+.tag-muted{background:var(--chalk);color:var(--muted)}
+
+/* ── List rows ───────────────────────────────────────── */
+.list-row{display:flex;align-items:center;gap:10px;padding:10px 0;border-bottom:1px solid var(--line)}
+.list-row:last-child{border-bottom:none}
+.list-row-main{flex:1;min-width:0}
+.list-row-title{font-weight:600;color:var(--ink);font-size:14px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.list-row-sub{font-size:12px;color:var(--muted);margin-top:1px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.list-row-amount{font-weight:700;font-variant-numeric:tabular-nums;white-space:nowrap;font-size:14px;color:var(--ink)}
+
+/* ── Client cards (Chauffeur) ────────────────────────── */
+.client-card{border-radius:var(--r12);border:1px solid var(--line);overflow:hidden;margin-bottom:12px;background:var(--surface)}
+.client-card-header{padding:12px 14px;background:var(--chalk);display:flex;justify-content:space-between;align-items:center;gap:8px}
+.client-card-body{padding:12px 14px}
+.client-card.border-wheat{border-left:4px solid var(--wheat)}
+.client-card.border-sage{border-left:4px solid var(--sage)}
+.client-card.border-coral{border-left:4px solid var(--coral)}
+
+/* ── Alerts / confirmations ─────────────────────────── */
+.alert{border-radius:var(--r12);padding:12px 14px;display:flex;align-items:flex-start;gap:8px;font-size:13px}
+.alert-coral{background:var(--coral-lt);border:1px solid rgba(200,75,60,.2);color:var(--coral)}
+.alert-sage{background:var(--sage-lt);border:1px solid rgba(74,124,111,.2);color:var(--sage)}
+.alert-wheat{background:var(--wheat-lt);border:1px solid rgba(212,146,42,.2);color:var(--wheat)}
+.confirm-box{background:var(--coral-lt);border:1.5px solid var(--coral);border-radius:var(--r12);padding:14px;margin-top:12px}
+.confirm-box p{font-size:13px;font-weight:600;color:var(--coral);margin-bottom:10px}
+.confirm-actions{display:flex;gap:8px}
+
+/* ── Modal overlay ───────────────────────────────────── */
+.modal-overlay{position:fixed;inset:0;background:rgba(28,43,58,.55);z-index:200;display:flex;align-items:flex-start;justify-content:center;padding:16px;overflow-y:auto}
+.modal-box{background:var(--surface);border-radius:var(--r20);width:100%;max-width:600px;box-shadow:var(--shadow-lg);overflow:hidden}
+.modal-header{background:var(--ink);padding:18px 20px;display:flex;justify-content:space-between;align-items:center}
+.modal-header h2{font-family:'Instrument Serif',Georgia,serif;font-size:19px;font-weight:400;color:#fff}
+.modal-header p{font-size:12px;color:rgba(255,255,255,.65);margin-top:2px}
+.modal-body{padding:18px 20px}
+
+/* ── Login screen ────────────────────────────────────── */
+.login-screen{min-height:100dvh;display:flex;align-items:center;justify-content:center;padding:16px;background:var(--ink)}
+.login-card{background:var(--surface);border-radius:var(--r20);width:100%;max-width:360px;padding:28px 24px;box-shadow:var(--shadow-lg)}
+.login-hero{text-align:center;margin-bottom:24px}
+.login-hero .emoji{font-size:44px;line-height:1;display:block;margin-bottom:10px}
+.login-hero h1{font-family:'Instrument Serif',Georgia,serif;font-size:26px;font-weight:400;color:var(--ink);margin-bottom:4px}
+.login-hero p{font-size:13px;color:var(--muted)}
+
+/* ── Settings groups ─────────────────────────────────── */
+.settings-row{display:flex;align-items:center;gap:8px;padding:10px 0;border-bottom:1px solid var(--line)}
+.settings-row:last-child{border-bottom:none}
+.settings-row-fields{display:grid;grid-template-columns:1fr 1fr;gap:8px;padding:8px 0;border-bottom:1px solid var(--line)}
+.settings-row-fields:last-child{border-bottom:none}
+
+/* ── Bon de livraison ────────────────────────────────── */
+.bon-parties{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:16px}
+.bon-partie{background:var(--chalk);border-radius:var(--r12);padding:12px 14px;border:1px solid var(--line)}
+.bon-sig{background:var(--chalk);border:1px dashed var(--line);border-radius:var(--r12);padding:14px;min-height:72px}
+
+/* ── Validation strip ────────────────────────────────── */
+.validate-strip{background:var(--chalk);border:1px solid var(--line);border-radius:var(--r12);padding:14px;margin-top:14px}
+.validate-strip-row{display:flex;justify-content:space-between;font-size:14px;padding:2px 0;color:var(--muted)}
+.validate-strip-total{display:flex;justify-content:space-between;font-size:17px;padding:8px 0 10px;border-top:1px dashed var(--line);margin-top:6px}
+
+/* ── History accordion ───────────────────────────────── */
+.hist-row{border:1px solid var(--line);border-radius:var(--r12);margin-bottom:10px;overflow:hidden}
+.hist-row-header{display:flex;align-items:center;gap:10px;padding:12px;background:var(--chalk)}
+.hist-row-body{padding:10px 12px 12px}
+.hist-detail-row{display:flex;justify-content:space-between;font-size:13px;padding:5px 0;border-bottom:1px solid var(--line)}
+.hist-detail-row:last-child{border-bottom:none}
+
+/* ── Print styles ────────────────────────────────────── */
+@media print{
+  .app-header,.top-nav,.bottom-nav,.btn-logout,.btn{display:none!important}
+  .main-content{padding:0!important;max-width:100%!important}
+  .card{box-shadow:none;border:none;padding:8px 0}
+  body{font-size:12px}
+  .no-print{display:none!important}
+}
+
+/* ── Quick-reorder ───────────────────────────────────── */
+.reorder-card{border:1px solid var(--line);border-radius:var(--r12);margin-bottom:10px;overflow:hidden}
+.reorder-header{display:flex;justify-content:space-between;align-items:center;padding:10px 14px;background:var(--chalk)}
+.reorder-body{padding:12px 14px}
+.reorder-line{display:flex;align-items:center;gap:10px;padding:8px 0;border-bottom:1px solid var(--line)}
+.reorder-line:last-child{border-bottom:none}
+.reorder-line-name{flex:1;min-width:0;font-size:14px;color:var(--ink);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.qty-input{width:70px;padding:7px 8px;text-align:center;font-variant-numeric:tabular-nums;font-size:15px;font-weight:700;background:var(--surface);border:1.5px solid var(--line);border-radius:var(--r8);outline:none}
+.qty-input:focus{border-color:var(--wheat)}
+.reorder-amount{min-width:72px;text-align:right;font-weight:700;font-variant-numeric:tabular-nums;font-size:13px;color:var(--ink)}
+
+/* ── Draft list ──────────────────────────────────────── */
+.draft-line{display:flex;align-items:center;gap:10px;padding:9px 0;border-bottom:1px solid var(--line)}
+.draft-line:last-child{border-bottom:none}
+.draft-client{font-weight:700;font-size:14px;color:var(--ink)}
+.draft-sub{font-size:12px;color:var(--muted)}
+.draft-amount{font-weight:700;font-variant-numeric:tabular-nums;font-size:14px;color:var(--ink);white-space:nowrap}
+
+/* ── Recap by product ────────────────────────────────── */
+.product-recap{margin-top:18px;padding-top:16px;border-top:2px solid var(--wheat)}
+.product-recap-title{font-family:'Instrument Serif',Georgia,serif;font-size:16px;color:var(--wheat);margin-bottom:10px}
+.product-recap-row{display:flex;align-items:center;justify-content:space-between;padding:9px 0;border-bottom:1px solid var(--line)}
+.product-recap-row:last-child{border-bottom:none}
+.product-recap-name{font-size:14px;color:var(--ink);font-weight:500}
+.product-recap-badge{background:var(--wheat);color:#fff;border-radius:var(--r99);padding:2px 10px;font-size:12px;font-weight:700}
+.product-recap-amount{font-weight:700;font-variant-numeric:tabular-nums;font-size:14px;color:var(--ink)}
+.product-recap-total{display:flex;justify-content:space-between;padding:10px 0 2px;font-weight:800;font-size:15px;color:var(--ink);border-top:2px solid var(--line);margin-top:4px}
+
+/* ── Section tabs (Proprietaire) ─────────────────────── */
+.section-tabs{display:flex;gap:8px;margin-bottom:16px}
+.section-tab{flex:1;padding:11px 8px;border-radius:var(--r10,10px);font-weight:700;font-size:13px;border:1.5px solid var(--line);background:var(--surface);color:var(--muted);display:inline-flex;align-items:center;justify-content:center;gap:6px;transition:all .15s}
+.section-tab.active{background:var(--ink);color:#fff;border-color:var(--ink)}
+
+/* ── Misc ────────────────────────────────────────────── */
+.text-muted{color:var(--muted);font-size:13px}
+.text-sm{font-size:12px;color:var(--muted);margin-top:6px}
+.mt-8{margin-top:8px}
+.mt-12{margin-top:12px}
+.mt-16{margin-top:16px}
+.gap-row{display:flex;gap:8px;flex-wrap:wrap;align-items:center}
+.spacer{flex:1}
+.day-header{display:flex;justify-content:space-between;align-items:baseline;padding-bottom:8px;margin-bottom:10px;border-bottom:2px solid var(--wheat)}
+.day-header-date{font-family:'Instrument Serif',Georgia,serif;font-size:16px;color:var(--wheat);text-transform:capitalize}
+.day-header-total{font-weight:700;font-variant-numeric:tabular-nums;color:var(--ink);font-size:15px}
+
+</style>
+<script crossorigin src="https://cdnjs.cloudflare.com/ajax/libs/react/18.3.1/umd/react.production.min.js"></script>
+<script crossorigin src="https://cdnjs.cloudflare.com/ajax/libs/react-dom/18.3.1/umd/react-dom.production.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/babel-standalone/7.26.4/babel.min.js"></script>
+</head>
+<body>
+<div id="root"></div>
+<script type="text/babel" data-presets="react">
+const { useState, useEffect, useMemo, useRef } = React;
+const mkIcon = (g) => ({ size = 16, color }) =>
+  React.createElement("span", { style: { fontSize: size, lineHeight: 1, color, display: "inline-block" } }, g);
+const ChefHat = mkIcon("👨‍🍳");
+const Truck = mkIcon("🚚");
+const Crown = mkIcon("👑");
+const Plus = mkIcon("➕");
+const Trash2 = mkIcon("🗑️");
+const AlertTriangle = mkIcon("⚠️");
+const Check = mkIcon("✅");
+const Settings = mkIcon("⚙️");
+const LayoutDashboard = mkIcon("📊");
+const Package = mkIcon("📦");
+const Users = mkIcon("👥");
+const Wallet = mkIcon("💰");
+const CalendarDays = mkIcon("📅");
+const Printer = mkIcon("🖨️");
+const RotateCcw = mkIcon("🔄");
+const FileText = mkIcon("📄");
+const X = mkIcon("✕");
+const LogOut = mkIcon("🚪");
+const Lock = mkIcon("🔒");
+const Download = mkIcon("⬇️");
+const Upload = mkIcon("⬆️");
+
+
+/* ---------- Palette ---------- */
+const C = {
+  cream:"#FDFCF8", card:"#FFFFFF", chalk:"#F0EBE1", ink:"#1C2B3A",
+  wheat:"#D4922A", sage:"#4A7C6F", coral:"#C84B3C", muted:"#7A8A96",
+  line:"#E4DDD2", brown:"#1C2B3A",
+  green:"#4A7C6F", red:"#C84B3C", terra:"#C84B3C",
+  "wheat-lt":"#FDF3E3","sage-lt":"#E8F3F0","coral-lt":"#FCEAE8",
+};
+
+
+/* ---------- Données de départ ---------- */
+const seedProducts = [
+  { id:"p1", name:"Croissant", price:0.5 },
+  { id:"p2", name:"Pain au chocolat", price:0.6 },
+  { id:"p3", name:"Pain aux raisins", price:0.7 },
+  { id:"p4", name:"Croissant amandes", price:0.9 },
+];
+const seedClients = [
+  { id:"c1", name:"Café de la Gare",       driver:"chauffeur1" },
+  { id:"c2", name:"Boulangerie Centrale",  driver:"chauffeur1" },
+  { id:"c3", name:"Hôtel El Manar",        driver:"chauffeur2" },
+  { id:"c4", name:"Épicerie du Coin",      driver:"chauffeur2" },
+];
+const seedSettings = {
+  currency:"DT",
+  business:"Ma Pâtisserie",
+  drivers:[
+    { id:"chauffeur1", name:"Chauffeur 1", user:"chauffeur1", pass:"1111" },
+    { id:"chauffeur2", name:"Chauffeur 2", user:"chauffeur2", pass:"2222" },
+  ],
+  auth:{
+    labo:        { user:"labo",  pass:"0000" },
+    proprietaire:{ user:"admin", pass:"9999" },
+  },
+};
+
+/* ---------- Utils ---------- */
+const uid       = () => Date.now().toString(36) + Math.random().toString(36).slice(2,7);
+const today     = () => new Date().toISOString().slice(0,10);
+const fmt       = (n) => (Number(n)||0).toLocaleString("fr-FR",{minimumFractionDigits:2,maximumFractionDigits:3});
+const money     = (n,cur) => `${fmt(n)} ${cur}`;
+const dateFR    = (d) => { try{return new Date(d+"T00:00:00").toLocaleDateString("fr-FR",{weekday:"long",day:"numeric",month:"long"});}catch(e){return d;} };
+// Quantité nette = quantité livrée - quantité retournée (jamais négative)
+const netQty    = (d) => Math.max(0, (Number(d.quantity)||0) - (Number(d.returnedQty)||0));
+// Le montant dû tient toujours compte des retours : un produit retourné n'est plus facturé.
+const lineTotal = (d) => netQty(d)*(Number(d.unitPrice)||0);
+const driverLabel = (id, drivers) => (drivers||[]).find(d=>d.id===id)?.name || id;
+
+// Retourne le prix unitaire d'un produit pour un client donné :
+// cherche d'abord un tarif spécial, revient au prix catalogue sinon.
+function getUnitPrice(clientId, productId, clientPrices, products) {
+  const specific = (clientPrices||[]).find(pc => pc.clientId===clientId && pc.productId===productId);
+  if (specific) return specific.prix;
+  return (products||[]).find(p => p.id===productId)?.price || 0;
+}
+
+// Regroupe les produits qui ont 3 variantes (Margarine / 60/40 / Pur beurre) sous un seul
+// "produit de base" pour simplifier la saisie. Un produit sans variante reste seul dans son groupe.
+const VARIANT_SUFFIXES = ["Margarine", "60/40", "Pur beurre"];
+function groupProductsByBase(products) {
+  const groups = {}; // baseName -> { base, category, variants: [{suffix, product}], single: product|null }
+  const order = [];
+  products.forEach(p => {
+    let base = p.name, suffix = null;
+    for (const suf of VARIANT_SUFFIXES) {
+      if (p.name.endsWith(" " + suf)) { base = p.name.slice(0, -(suf.length+1)); suffix = suf; break; }
+    }
+    if (!groups[base]) { groups[base] = { base, category: p.category || "Autres", variants: [], single: null }; order.push(base); }
+    if (suffix) groups[base].variants.push({ suffix, product: p });
+    else groups[base].single = p; // produit sans variante (ou nom de base saisi tel quel)
+  });
+  return order.map(b => groups[b]).sort((a,b)=>a.base.localeCompare(b.base,"fr"));
+}
+
+// Ordre d'affichage des catégories tel que défini dans le catalogue papier
+const CATEGORY_ORDER = ["Viennoiserie", "Cake & Biscuit", "Salée", "Gâteau français", "Autres"];
+// Regroupe les groupes de produits (sortie de groupProductsByBase) par catégorie, dans l'ordre fixe ci-dessus.
+function groupByCategory(baseGroups) {
+  const byCat = {};
+  baseGroups.forEach(g => { (byCat[g.category] = byCat[g.category] || []).push(g); });
+  return CATEGORY_ORDER.filter(c => byCat[c]).map(c => ({ category: c, groups: byCat[c] }))
+    .concat(Object.keys(byCat).filter(c => !CATEGORY_ORDER.includes(c)).map(c => ({ category: c, groups: byCat[c] })));
+}
+
+
+/* ---------- Styles ---------- */
+const input = { background:"var(--surface)", border:"1.5px solid var(--line)", borderRadius:10, padding:"10px 12px", fontSize:15, color:"var(--ink)", width:"100%", outline:"none", boxSizing:"border-box", fontFamily:"'Inter',sans-serif", transition:"border-color .15s" };
+const label = { fontSize:11, fontWeight:700, color:"var(--muted)", marginBottom:5, display:"block", textTransform:"uppercase", letterSpacing:".05em" };
+const btn = { background:"var(--ink)", color:"#fff", border:"none", borderRadius:10, padding:"11px 16px", fontWeight:700, fontSize:14, cursor:"pointer", display:"inline-flex", alignItems:"center", gap:6, justifyContent:"center", minHeight:44, fontFamily:"'Inter',sans-serif", transition:"filter .15s" };
+const btnGhost = { background:"transparent", color:"var(--coral)", border:"none", cursor:"pointer", padding:6, display:"inline-flex", minHeight:36, minWidth:36, borderRadius:8, alignItems:"center", justifyContent:"center" };
+const cardBox = { background:"var(--surface)", border:"1px solid var(--line)", borderRadius:16, padding:16, boxShadow:"0 1px 3px rgba(28,43,58,.08)", marginBottom:14 };
+const serif = { fontFamily:"'Instrument Serif',Georgia,serif" };
+
+/* ===================== BON DE LIVRAISON ===================== */
+function BonLivraison({ bon, settings, currency, onClose }) {
+  if (!bon) return null;
+  const { date, driverName, clientName, lines, bonNum } = bon;
+  const total = lines.reduce((s,l) => s + lineTotal(l), 0);
+
+  const printBon = () => {
+    const w = window.open("","_blank","width=700,height=600");
+    if (!w) return;
+    w.document.write(`<!DOCTYPE html><html lang="fr"><head>
+<meta charset="UTF-8"/>
+<title>Bon de livraison N°${bonNum}</title>
+<style>
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{font-family:Arial,sans-serif;color:#1a1a1a;background:#fff;padding:32px;max-width:680px;margin:auto}
+  .header{display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:28px;padding-bottom:20px;border-bottom:3px solid #7A4E2D}
+  .logo{font-family:Georgia,serif;font-size:26px;font-weight:700;color:#7A4E2D}
+  .logo span{display:block;font-size:12px;font-weight:400;color:#8A7763;margin-top:2px;letter-spacing:.04em;text-transform:uppercase}
+  .bon-num{text-align:right}
+  .bon-num h2{font-size:18px;color:#7A4E2D;font-family:Georgia,serif}
+  .bon-num p{font-size:12px;color:#8A7763;margin-top:4px}
+  .parties{display:grid;grid-template-columns:1fr 1fr;gap:20px;margin-bottom:24px}
+  .partie{background:#FAF4EA;border-radius:8px;padding:12px 14px;border:1px solid #E8DDC8}
+  .partie h3{font-size:10px;text-transform:uppercase;letter-spacing:.05em;color:#8A7763;margin-bottom:6px}
+  .partie p{font-size:14px;font-weight:600;color:#3B2A1E}
+  .partie .sub{font-size:12px;font-weight:400;color:#8A7763;margin-top:2px}
+  table{width:100%;border-collapse:collapse;margin-bottom:20px}
+  thead tr{background:#7A4E2D;color:#fff}
+  th{padding:10px 12px;font-size:12px;text-align:left;letter-spacing:.03em;text-transform:uppercase}
+  th:last-child,td:last-child{text-align:right}
+  td{padding:10px 12px;font-size:13px;border-bottom:1px solid #E8DDC8}
+  tbody tr:nth-child(even){background:#FFFDF8}
+  .total-row td{font-weight:700;font-size:15px;background:#FAF4EA;border-top:2px solid #C8841E;color:#3B2A1E}
+  .footer{display:grid;grid-template-columns:1fr 1fr;gap:20px;margin-top:28px;padding-top:20px;border-top:1px solid #E8DDC8}
+  .sig{background:#FAF4EA;border-radius:8px;padding:14px;border:1px solid #E8DDC8;min-height:80px}
+  .sig h3{font-size:10px;text-transform:uppercase;letter-spacing:.05em;color:#8A7763;margin-bottom:8px}
+  .watermark{text-align:center;font-size:10px;color:#C8C0B0;margin-top:24px}
+  @media print{body{padding:16px}button{display:none}}
+</style></head><body>
+<div class="header">
+  <div class="logo">🥐 ${settings.business||"Ma Pâtisserie"}<span>Bon de livraison</span></div>
+  <div class="bon-num">
+    <h2>N° ${bonNum}</h2>
+    <p>Date : ${new Date(date+"T00:00:00").toLocaleDateString("fr-FR",{day:"numeric",month:"long",year:"numeric"})}</p>
+  </div>
+</div>
+<div class="parties">
+  <div class="partie"><h3>Expéditeur</h3><p>${settings.business||"Ma Pâtisserie"}</p><div class="sub">Laboratoire</div></div>
+  <div class="partie"><h3>Destinataire</h3><p>${clientName}</p><div class="sub">Via : ${driverName}</div></div>
+</div>
+<table>
+  <thead><tr><th>Produit</th><th>Quantité</th><th>Prix unit.</th><th>Montant</th></tr></thead>
+  <tbody>
+    ${lines.map(l=>{
+      const rQty = Number(l.returnedQty)||0;
+      const net  = netQty(l);
+      const qtyStr = rQty>0 ? `${net} pcs <span style="color:#C84B3C;font-size:11px">(−${rQty} retour)</span>` : `${net} pcs`;
+      return `<tr><td>${l.productName}</td><td>${qtyStr}</td><td>${(Number(l.unitPrice)||0).toFixed(3)} ${currency}</td><td>${lineTotal(l).toFixed(3)} ${currency}</td></tr>`;
+    }).join("")}
+    <tr class="total-row"><td colspan="3">TOTAL À RÉGLER</td><td>${total.toFixed(3)} ${currency}</td></tr>
+  </tbody>
+</table>
+<div class="footer">
+  <div class="sig"><h3>Signature transporteur</h3></div>
+  <div class="sig"><h3>Signature destinataire</h3></div>
+</div>
+<div class="watermark">Document généré par ${settings.business||"Ma Pâtisserie"} · ${new Date().toLocaleDateString("fr-FR")}</div>
+<script>window.onload=()=>window.print();<\/script>
+</body></html>`);
+    w.document.close();
+  };
+
+  return (
+    <div style={{position:"fixed",inset:0,background:"rgba(0,0,0,.55)",zIndex:1000,display:"flex",alignItems:"flex-start",justifyContent:"center",padding:"16px",overflowY:"auto"}}>
+      <div style={{background:"var(--surface)",borderRadius:20,width:"100%",maxWidth:620,boxShadow:"0 20px 60px rgba(0,0,0,.25)",overflow:"hidden"}}>
+        {/* En-tête */}
+        <div style={{background:`linear-gradient(135deg,var(--ink),#5C3A22)`,padding:"18px 20px",display:"flex",justifyContent:"space-between",alignItems:"center"}}>
+          <div style={{color:"#fff"}}>
+            <div style={{...serif,fontSize:18,fontWeight:700}}>Bon de livraison N° {bonNum}</div>
+            <div style={{fontSize:12,opacity:.8,marginTop:2}}>
+              {new Date(date+"T00:00:00").toLocaleDateString("fr-FR",{weekday:"long",day:"numeric",month:"long",year:"numeric"})}
+            </div>
+          </div>
+          <button style={{background:"rgba(255,255,255,.15)",border:"none",borderRadius:8,color:"#fff",cursor:"pointer",padding:"7px 8px",display:"flex"}} onClick={onClose}>
+            <X size={18}/>
+          </button>
+        </div>
+
+        <div style={{padding:20}}>
+          {/* Expéditeur / Destinataire */}
+          <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:12,marginBottom:16}}>
+            <div style={{background:"var(--chalk)",borderRadius:12,padding:"12px 14px",border:"1px solid var(--line)"}}>
+              <div style={{fontSize:10,textTransform:"uppercase",letterSpacing:".05em",color:"var(--muted)",marginBottom:4}}>Expéditeur</div>
+              <div style={{fontWeight:700,color:"var(--ink)"}}>{settings.business||"Ma Pâtisserie"}</div>
+              <div style={{fontSize:12,color:"var(--muted)"}}>Laboratoire</div>
+            </div>
+            <div style={{background:"var(--chalk)",borderRadius:12,padding:"12px 14px",border:"1px solid var(--line)"}}>
+              <div style={{fontSize:10,textTransform:"uppercase",letterSpacing:".05em",color:"var(--muted)",marginBottom:4}}>Destinataire</div>
+              <div style={{fontWeight:700,color:"var(--ink)"}}>{clientName}</div>
+              <div style={{fontSize:12,color:"var(--muted)"}}>Via : {bon.driverName}</div>
+            </div>
+          </div>
+
+          {/* Tableau des produits */}
+          <div style={{border:"1px solid var(--line)",borderRadius:12,overflow:"hidden",marginBottom:16}}>
+            <table style={{width:"100%",borderCollapse:"collapse"}}>
+              <thead>
+                <tr style={{background:"var(--ink)"}}>
+                  {["Produit","Qté","Prix unit.","Montant"].map((h,i)=>(
+                    <th key={h} style={{padding:"9px 12px",fontSize:11,textTransform:"uppercase",letterSpacing:".03em",color:"#fff",textAlign:i>0?"right":"left"}}>{h}</th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody>
+                {lines.map((l,i)=>(
+                  <tr key={i} style={{background:i%2===0?C.card:C.cream}}>
+                    <td style={{padding:"9px 12px",fontSize:14,color:"var(--ink)",fontWeight:500}}>{l.productName}</td>
+                    <td style={{padding:"9px 12px",fontSize:14,color:"var(--ink)",textAlign:"right"}}>{l.quantity} pcs</td>
+                    <td style={{padding:"9px 12px",fontSize:13,color:"var(--muted)",textAlign:"right"}}>{money(l.unitPrice,currency)}</td>
+                    <td style={{padding:"9px 12px",fontSize:14,color:"var(--ink)",fontWeight:600,textAlign:"right"}}>{money(lineTotal(l),currency)}</td>
+                  </tr>
+                ))}
+                <tr style={{background:"var(--chalk)",borderTop:"2px solid var(--wheat)"}}>
+                  <td colSpan={3} style={{padding:"11px 12px",fontWeight:800,fontSize:15,color:"var(--ink)"}}>TOTAL À RÉGLER</td>
+                  <td style={{padding:"11px 12px",fontWeight:800,fontSize:16,color:"var(--wheat)",textAlign:"right",...serif}}>{money(total,currency)}</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+
+          {/* Zones de signature */}
+          <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:12,marginBottom:18}}>
+            {["Signature transporteur","Signature destinataire"].map(s=>(
+              <div key={s} style={{background:"var(--chalk)",border:`1px dashed var(--line)`,borderRadius:12,padding:"12px 14px",minHeight:72}}>
+                <div style={{fontSize:10,textTransform:"uppercase",letterSpacing:".05em",color:"var(--muted)"}}>{s}</div>
+              </div>
+            ))}
+          </div>
+
+          {/* Boutons d'action */}
+          <div style={{display:"flex",gap:10}}>
+            <button style={{...btn,flex:1,background:"var(--ink)",fontSize:15,padding:"13px"}} onClick={printBon}>
+              <Printer size={16}/> Imprimer le bon
+            </button>
+            <button style={{...btn,flex:1,background:"var(--surface)",color:"var(--wheat)",border:"1px solid var(--line)",fontSize:15,padding:"13px"}} onClick={onClose}>
+              Fermer
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+
+function Section({ title, icon, children, right }) {
+  return (
+    <div style={{background:"var(--surface)",border:"1px solid var(--line)",borderRadius:16,padding:16,boxShadow:"0 1px 3px rgba(28,43,58,.08)",marginBottom:14}}>
+      <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:12,gap:8,flexWrap:"wrap"}}>
+        <div style={{display:"flex",alignItems:"center",gap:8,color:"var(--wheat)",flexShrink:0}}>
+          {icon}
+          <h2 style={{fontFamily:"'Instrument Serif',Georgia,serif",margin:0,fontSize:18,color:"var(--ink)",fontWeight:400,lineHeight:1.2}}>{title}</h2>
+        </div>
+        {right && <div style={{flexShrink:0}}>{right}</div>}
+      </div>
+      {children}
+    </div>
+  );
+}
+
+function KPI({ label:l, value, sub, tone }) {
+  const color = tone==="red"?"var(--coral)":tone==="green"?"var(--sage)":"var(--ink)";
+  return (
+    <div style={{background:"var(--chalk)",border:"1px solid var(--line)",borderRadius:12,padding:"12px 14px",flex:"1 1 130px",minWidth:120}}>
+      <div style={{fontSize:10,fontWeight:700,color:"var(--muted)",textTransform:"uppercase",letterSpacing:".06em",marginBottom:4}}>{l}</div>
+      <div style={{fontFamily:"'Inter',sans-serif",fontSize:"clamp(18px,4vw,26px)",fontWeight:800,letterSpacing:"-.03em",fontVariantNumeric:"tabular-nums",lineHeight:1,color}}>{value}</div>
+      {sub && <div style={{fontSize:11,color:"var(--muted)",marginTop:3}}>{sub}</div>}
+    </div>
+  );
+}
+
+/* ===================== SÉLECTEUR DE PRODUIT (avec variantes Margarine/60-40/Pur beurre) ===================== */
+// Affiche un menu déroulant pour choisir le produit de base, puis, si ce produit a plusieurs
+// variantes, des boutons pour choisir Margarine / 60-40 / Pur beurre (avec le prix sur chaque bouton).
+// Icônes et couleurs par catégorie (affichées comme boutons de sélection)
+const CATEGORY_META = {
+  "Viennoiserie":    { emoji:"🥐", color:"#C17A2A" },
+  "Cake & Biscuit":  { emoji:"🍰", color:"#8B5CF6" },
+  "Salée":           { emoji:"🥪", color:"#16A34A" },
+  "Gâteau français": { emoji:"🎂", color:"#DC2626" },
+  "Autres":          { emoji:"📦", color:"#7A8A96" },
+};
+
+function ProductPicker({ products, currency, value, onChange, getPrice }) {
+  const groups = useMemo(() => groupProductsByBase(products), [products]);
+  const catGroups = useMemo(() => groupByCategory(groups), [groups]);
+  const selected = products.find(p => p.id === value) || null;
+
+  // Retrouve la catégorie et le groupe du produit sélectionné
+  const selectedGroup = useMemo(() => {
+    if (!selected) return null;
+    return groups.find(g => g.single?.id === selected.id || g.variants.some(v => v.product.id === selected.id)) || null;
+  }, [groups, selected]);
+
+  const [activeCat,  setActiveCat]  = useState(selectedGroup ? selectedGroup.category : "");
+  const [baseChoice, setBaseChoice] = useState(selectedGroup ? selectedGroup.base : "");
+
+  useEffect(() => {
+    setActiveCat(selectedGroup ? selectedGroup.category : "");
+    setBaseChoice(selectedGroup ? selectedGroup.base : "");
+  }, [selectedGroup?.base]);
+
+  const filteredGroups = catGroups.find(c => c.category === activeCat)?.groups || [];
+  const currentGroup = groups.find(g => g.base === baseChoice) || null;
+
+  const pickCat = (cat) => {
+    if (activeCat === cat) { setActiveCat(""); setBaseChoice(""); onChange(""); return; }
+    setActiveCat(cat);
+    setBaseChoice("");
+    onChange("");
+  };
+
+  const pickBase = (base) => {
+    setBaseChoice(base);
+    const g = groups.find(x => x.base === base);
+    if (!g) { onChange(""); return; }
+    if (g.single && g.variants.length === 0) { onChange(g.single.id); }
+    else onChange("");
+  };
+
+  return (
+    <div>
+      {/* ── Étape 1 : 4 boutons icônes de catégorie ── */}
+      <div style={{display:"flex",gap:8,flexWrap:"wrap",marginBottom:10}}>
+        {catGroups.map(({category}) => {
+          const meta = CATEGORY_META[category] || CATEGORY_META["Autres"];
+          const active = activeCat === category;
+          return (
+            <button key={category} type="button" onClick={()=>pickCat(category)}
+              style={{
+                flex:"1 1 auto", minWidth:70, padding:"10px 6px", borderRadius:12,
+                border: active ? `2px solid ${meta.color}` : "1.5px solid var(--line)",
+                background: active ? meta.color : "var(--surface)",
+                color: active ? "#fff" : "var(--ink)",
+                fontWeight: active ? 700 : 500, fontSize:12, cursor:"pointer",
+                display:"flex", flexDirection:"column", alignItems:"center", gap:4, minHeight:56,
+                transition:"all .15s",
+              }}>
+              <span style={{fontSize:22,lineHeight:1}}>{meta.emoji}</span>
+              <span style={{lineHeight:1.2,textAlign:"center"}}>{category}</span>
+            </button>
+          );
+        })}
+      </div>
+
+      {/* ── Étape 2 : menu déroulant filtré sur la catégorie choisie ── */}
+      {activeCat && (
+        <select style={{...input, marginBottom: currentGroup && currentGroup.variants.length > 0 ? 10 : 0}}
+          value={baseChoice} onChange={e=>pickBase(e.target.value)}>
+          <option value="">— {activeCat} : choisir un produit —</option>
+          {filteredGroups.map(g => (
+            <option key={g.base} value={g.base}>
+              {g.base}{g.single && g.variants.length===0 ? ` (${money(getPrice ? getPrice(g.single.id) : g.single.price, currency)})` : ""}
+            </option>
+          ))}
+        </select>
+      )}
+
+      {/* ── Étape 3 : boutons Margarine / 60-40 / Pur beurre si applicable ── */}
+      {currentGroup && currentGroup.variants.length > 0 && (
+        <div style={{display:"flex",gap:8,flexWrap:"wrap"}}>
+          {currentGroup.variants.map(v => {
+            const active = value === v.product.id;
+            return (
+              <button key={v.product.id} type="button" onClick={()=>onChange(v.product.id)}
+                style={{
+                  flex:"1 1 auto", minWidth:100, padding:"10px 12px", borderRadius:10,
+                  border:active ? "2px solid var(--wheat)" : "1.5px solid var(--line)",
+                  background:active ? "var(--wheat-lt)" : "var(--surface)",
+                  color:"var(--ink)", fontWeight:active?700:500, fontSize:13, cursor:"pointer",
+                  display:"flex", flexDirection:"column", alignItems:"center", gap:2, minHeight:44,
+                }}>
+                <span>{v.suffix}</span>
+                <span style={{fontSize:12,color:"var(--muted)",fontVariantNumeric:"tabular-nums"}}>{money(getPrice ? getPrice(v.product.id) : v.product.price, currency)}</span>
+              </button>
+            );
+          })}
+        </div>
+      )}
+    </div>
+  );
+}
+
+
+function Labo({ products, clients, drivers, deliveries, returns, currency, settings, onAddMany, onDelete, onUpdate, onAddReturn, onDeleteReturn, clientPrices }) {
+  const [date,      setDate]      = useState(today());
+  const [clientId,  setClientId]  = useState("");
+  const [productId, setProductId] = useState("");
+  const [qty,       setQty]       = useState("");
+  const [draft,     setDraft]     = useState([]);
+  const [bon,       setBon]       = useState(null);
+
+  // Modification d'une commande déjà enregistrée
+  const [editingId, setEditingId] = useState(null);
+  const [editDraft, setEditDraft] = useState(null);
+  const [confirmDelId, setConfirmDelId] = useState(null);
+
+  // Retour d'articles non conformes sur une commande déjà enregistrée
+  const [returningId, setReturningId] = useState(null);
+  const [returnQty,   setReturnQty]   = useState(1);
+  const [returnReason,setReturnReason]= useState("");
+  const [returnError, setReturnError] = useState("");
+
+  const startEditLine = (d) => {
+    setEditingId(d.id); setReturningId(null);
+    setEditDraft({ date:d.date, clientId:d.clientId, productId:d.productId, quantity:d.quantity });
+  };
+  const cancelEditLine = () => { setEditingId(null); setEditDraft(null); };
+  const saveEditLine = (orig) => {
+    const client  = clients.find(c=>c.id===editDraft.clientId);
+    const product = products.find(p=>p.id===editDraft.productId);
+    if (!client || !product || !(Number(editDraft.quantity)>0)) return;
+    onUpdate(orig.id, {
+      date:editDraft.date, clientId:client.id, clientName:client.name, driver:client.driver,
+      productId:product.id, productName:product.name, quantity:Number(editDraft.quantity),
+      unitPrice:getUnitPrice(client.id, product.id, clientPrices, products),
+    });
+    cancelEditLine();
+  };
+
+  const startReturn = (d) => {
+    setReturningId(d.id); setEditingId(null);
+    setReturnQty(1); setReturnReason(""); setReturnError("");
+  };
+  const cancelReturn = () => { setReturningId(null); setReturnError(""); };
+  const submitReturn = async (d) => {
+    const remaining = Math.max(0, (Number(d.quantity)||0) - (Number(d.returnedQty)||0));
+    const q = Number(returnQty);
+    if (!(q > 0)) { setReturnError("Quantité invalide."); return; }
+    if (q > remaining) { setReturnError(`Maximum ${remaining} (quantité encore livrée non retournée).`); return; }
+    const res = await onAddReturn(d.id, q, today(), returnReason);
+    if (!res.ok) { setReturnError(res.error || "Erreur lors de l'enregistrement du retour."); return; }
+    setReturningId(null);
+  };
+
+  const returnsFor = (deliveryId) => (returns||[]).filter(r => r.livraisonId === deliveryId);
+
+  const client  = clients.find(c => c.id === clientId);
+  const product = products.find(p => p.id === productId);
+  const preview = (product && client) ? (Number(qty)||0)*getUnitPrice(client.id, product.id, clientPrices, products) : 0;
+
+  // Commande de référence : même jour J-7, ou J-14 si aucune commande la semaine dernière
+  const refOrderByClient = useMemo(() => {
+    const offsetDate = (n) => {
+      const d = new Date(date + "T00:00:00");
+      d.setDate(d.getDate() - n);
+      return d.toISOString().slice(0, 10);
+    };
+    const t7  = offsetDate(7);
+    const t14 = offsetDate(14);
+    const m = {};
+    [t7, t14].forEach(target => {
+      deliveries.filter(d => d.date === target).forEach(d => {
+        if (!m[d.clientId]) m[d.clientId] = { date: target, lines: [] };
+        if (m[d.clientId].date === target) m[d.clientId].lines.push(d);
+      });
+    });
+    return m;
+  }, [deliveries, date]);
+
+  // Reprendre la dernière commande d'un client : ajoute ses lignes au brouillon (quantités modifiables)
+  const [reorderQtys, setReorderQtys] = useState({});  // clientId -> {productId: qty}
+
+  const openReorder = (cid) => {
+    const last = refOrderByClient[cid];
+    if (!last) return;
+    const qtys = {};
+    last.lines.forEach(l => { qtys[l.productId] = l.quantity; });
+    setReorderQtys(prev => ({ ...prev, [cid]: qtys }));
+  };
+
+  const addReorder = (cid) => {
+    const last = refOrderByClient[cid];
+    const qtys = reorderQtys[cid];
+    if (!last || !qtys) return;
+    const c = clients.find(x => x.id === cid);
+    if (!c) return;
+    const lines = last.lines
+      .map(l => {
+        const q = Number(qtys[l.productId]) || 0;
+        if (q <= 0) return null;
+        return {
+          tmpId:uid(), date, clientId:c.id, clientName:c.name,
+          driver:c.driver, productId:l.productId, productName:l.productName,
+          quantity:q, unitPrice: getUnitPrice(cid, l.productId, clientPrices, products),
+        };
+      })
+      .filter(Boolean);
+    if (!lines.length) return;
+    setDraft(d => [...d, ...lines]);
+    setReorderQtys(prev => { const n={...prev}; delete n[cid]; return n; });
+  };
+
+  const addLine = () => {
+    if (!client || !product || !(Number(qty)>0)) return;
+    setDraft(d => [...d, {
+      tmpId:uid(), date, clientId:client.id, clientName:client.name,
+      driver:client.driver, productId:product.id, productName:product.name,
+      quantity:Number(qty), unitPrice:getUnitPrice(client.id, product.id, clientPrices, products),
+    }]);
+    setProductId(""); setQty("");
+  };
+
+  const draftTotal = draft.reduce((s,l) => s+lineTotal(l), 0);
+  const validate   = () => {
+    if (!draft.length) return;
+    onAddMany(draft.map(({tmpId,...rest}) => ({id:uid(),...rest})));
+    setDraft([]);
+  };
+
+  const openBon = (clientName, driverName, rows) => {
+    const d = rows[0]?.date || today();
+    const bonNum = `BL-${d.replace(/-/g,"")}-${clientName.slice(0,3).toUpperCase()}`;
+    setBon({ date:d, driverName, clientName, lines:rows, bonNum });
+  };
+
+  const [laboView, setLaboView] = useState("saisie"); // "saisie" | "dashboard"
+
+  const byDay = useMemo(() => {
+    const m = {};
+    [...deliveries].forEach(d => { (m[d.date]=m[d.date]||[]).push(d); });
+    return Object.keys(m).sort((a,b)=>a<b?1:-1).map(day=>({day,rows:m[day]}));
+  }, [deliveries]);
+
+  return (
+    <div>
+      {/* ── Sélecteur de vue Labo ─────────────────────── */}
+      <div style={{display:"flex",gap:8,marginBottom:14}}>
+        {[["saisie","➕","Saisie"],["dashboard","📊","Tableau du jour"]].map(([v,ic,lab])=>(
+          <button key={v} type="button" onClick={()=>setLaboView(v)}
+            style={{
+              flex:1, padding:"11px 8px", borderRadius:10, border:"none", cursor:"pointer",
+              background: laboView===v ? "var(--ink)" : "var(--chalk)",
+              color: laboView===v ? "#fff" : "var(--muted)",
+              fontWeight: laboView===v ? 700 : 500, fontSize:13,
+              display:"flex", alignItems:"center", justifyContent:"center", gap:6, minHeight:44,
+              transition:"all .15s",
+            }}>
+            <span>{ic}</span><span>{lab}</span>
+          </button>
+        ))}
+      </div>
+
+      {/* ══════════ VUE DASHBOARD ══════════ */}
+      {laboView==="dashboard" && (() => {
+        const dashDate = date;
+        const dayRows = deliveries.filter(d => d.date === dashDate);
+
+        // Totaux par produit (quantités nettes, retours déduits)
+        const byProduct = {};
+        dayRows.forEach(r => {
+          if (!byProduct[r.productId]) byProduct[r.productId] = { name:r.productName, qty:0, category:products.find(p=>p.id===r.productId)?.category||"" };
+          byProduct[r.productId].qty += netQty(r);
+        });
+        // Trier par catégorie puis par nom
+        const catOrder = ["Viennoiserie","Cake & Biscuit","Salée","Gâteau français","Autres"];
+        const prodLines = Object.values(byProduct)
+          .filter(p=>p.qty>0)
+          .sort((a,b)=>{
+            const ci = catOrder.indexOf(a.category) - catOrder.indexOf(b.category);
+            return ci!==0 ? ci : a.name.localeCompare(b.name,"fr");
+          });
+
+        // Totaux par chauffeur
+        const byChauffeur = {};
+        dayRows.forEach(r => {
+          if(!byChauffeur[r.driver]) byChauffeur[r.driver] = { name:driverLabel(r.driver,drivers), clients:{} };
+          if(!byChauffeur[r.driver].clients[r.clientId]) byChauffeur[r.driver].clients[r.clientId] = { name:r.clientName, lines:[] };
+          byChauffeur[r.driver].clients[r.clientId].lines.push(r);
+        });
+
+        const grandTotal = dayRows.reduce((s,r)=>s+lineTotal(r),0);
+        const totalQty   = prodLines.reduce((s,p)=>s+p.qty,0);
+
+        const printDashboard = () => {
+          const w = window.open("","_blank","width=800,height=700");
+          const biz = settings.business || "Pâtisserie";
+          // Grouper par catégorie pour l'impression
+          const cats = {};
+          prodLines.forEach(p=>{ (cats[p.category]=cats[p.category]||[]).push(p); });
+          const catBlocks = catOrder.filter(c=>cats[c]).map(c=>`
+            <div class="cat-block">
+              <div class="cat-title">${c}</div>
+              ${cats[c].map(p=>`<div class="prod-row"><span class="prod-name">${p.name}</span><span class="prod-qty">${p.qty}</span></div>`).join("")}
+            </div>
+          `).join("");
+          w.document.write(`<!DOCTYPE html><html><head><meta charset="UTF-8"/>
+            <title>Fabrication ${dashDate}</title>
+            <style>
+              *{margin:0;padding:0;box-sizing:border-box}
+              body{font-family:Arial,sans-serif;font-size:13px;color:#111;padding:20px}
+              h1{font-size:18px;margin-bottom:4px} .sub{font-size:12px;color:#666;margin-bottom:16px}
+              .cat-block{margin-bottom:14px}
+              .cat-title{font-weight:700;font-size:13px;text-transform:uppercase;letter-spacing:.06em;
+                border-bottom:2px solid #111;padding-bottom:3px;margin-bottom:6px;color:#333}
+              .prod-row{display:flex;justify-content:space-between;padding:4px 0;border-bottom:1px solid #eee}
+              .prod-name{flex:1}
+              .prod-qty{font-weight:700;min-width:40px;text-align:right;font-size:15px}
+              .total-row{display:flex;justify-content:space-between;padding:8px 0;font-weight:700;font-size:14px;border-top:2px solid #111;margin-top:8px}
+              @media print{@page{margin:1cm}}
+            </style></head><body>
+            <h1>Bon de Fabrication — ${biz}</h1>
+            <div class="sub">Date : ${new Date(dashDate+"T00:00:00").toLocaleDateString("fr-FR",{weekday:"long",year:"numeric",month:"long",day:"numeric"})}</div>
+            ${catBlocks}
+            <div class="total-row"><span>TOTAL PIÈCES</span><span>${totalQty}</span></div>
+            <script>window.onload=()=>{window.print();}<\/script>
+            </body></html>`);
+          w.document.close();
+        };
+
+        return (
+          <div>
+            {/* En-tête date + bouton imprimer */}
+            <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:12,flexWrap:"wrap",gap:8}}>
+              <div>
+                <div style={{...serif,fontSize:18,color:"var(--ink)",fontWeight:600}}>Tableau du jour</div>
+                <div style={{fontSize:12,color:"var(--muted)",marginTop:2,textTransform:"capitalize"}}>{dateFR(dashDate)}</div>
+              </div>
+              <div style={{display:"flex",gap:8}}>
+                <input type="date" style={{...input,width:"auto",padding:"8px 10px"}} value={dashDate} onChange={e=>setDate(e.target.value)}/>
+                <button style={{...btn,background:"var(--wheat)"}} onClick={printDashboard} disabled={!prodLines.length}>
+                  <Printer size={15}/> Imprimer
+                </button>
+              </div>
+            </div>
+
+            {!prodLines.length && (
+              <div style={{textAlign:"center",padding:"32px 16px",color:"var(--muted)",background:"var(--chalk)",borderRadius:12}}>
+                Aucune sortie enregistrée pour ce jour.
+              </div>
+            )}
+
+            {prodLines.length > 0 && (
+              <>
+                {/* KPIs résumé */}
+                <div style={{display:"flex",gap:10,marginBottom:14,flexWrap:"wrap"}}>
+                  <KPI label="Total pièces" value={totalQty} sub="toutes catégories"/>
+                  <KPI label="Produits distincts" value={Object.keys(byProduct).length}/>
+                  <KPI label="Valeur totale" value={money(grandTotal,currency)} tone="green"/>
+                </div>
+
+                {/* Tableau produits par catégorie */}
+                {catOrder.filter(cat=>prodLines.some(p=>p.category===cat)).map(cat => (
+                  <div key={cat} style={{marginBottom:12}}>
+                    <div style={{display:"flex",alignItems:"center",gap:8,padding:"6px 0",marginBottom:6,borderBottom:"2px solid var(--wheat)"}}>
+                      <span style={{fontSize:16}}>{(CATEGORY_META[cat]||CATEGORY_META["Autres"]).emoji}</span>
+                      <span style={{fontWeight:700,color:"var(--wheat)",fontSize:13,textTransform:"uppercase",letterSpacing:".04em"}}>{cat}</span>
+                    </div>
+                    {prodLines.filter(p=>p.category===cat).map(p=>(
+                      <div key={p.name} style={{display:"flex",justifyContent:"space-between",alignItems:"center",padding:"8px 0",borderBottom:"1px solid var(--line)"}}>
+                        <span style={{fontSize:14,color:"var(--ink)"}}>{p.name}</span>
+                        <span style={{fontWeight:800,fontSize:18,fontVariantNumeric:"tabular-nums",color:"var(--ink)",minWidth:48,textAlign:"right"}}>{p.qty}</span>
+                      </div>
+                    ))}
+                  </div>
+                ))}
+
+                {/* Total général */}
+                <div style={{display:"flex",justifyContent:"space-between",padding:"10px 0",borderTop:"2px solid var(--ink)",marginTop:4}}>
+                  <span style={{fontWeight:700,color:"var(--ink)",fontSize:15}}>TOTAL PIÈCES</span>
+                  <span style={{fontWeight:800,fontSize:22,fontVariantNumeric:"tabular-nums",color:"var(--ink)"}}>{totalQty}</span>
+                </div>
+
+                {/* Répartition par chauffeur */}
+                <div style={{marginTop:16}}>
+                  <div style={{fontWeight:700,fontSize:13,color:"var(--muted)",textTransform:"uppercase",letterSpacing:".05em",marginBottom:8}}>Par chauffeur</div>
+                  {Object.values(byChauffeur).map(drv=>{
+                    const drvTotal = Object.values(drv.clients).flatMap(c=>c.lines).reduce((s,r)=>s+lineTotal(r),0);
+                    return (
+                      <div key={drv.name} style={{border:"1px solid var(--line)",borderRadius:12,marginBottom:10,overflow:"hidden"}}>
+                        <div style={{background:"var(--chalk)",padding:"10px 14px",display:"flex",justifyContent:"space-between"}}>
+                          <span style={{fontWeight:700,color:"var(--ink)"}}>{drv.name}</span>
+                          <span style={{fontWeight:700,color:"var(--wheat)"}}>{money(drvTotal,currency)}</span>
+                        </div>
+                        {Object.values(drv.clients).map(cl=>{
+                          const clTotal = cl.lines.reduce((s,r)=>s+lineTotal(r),0);
+                          const clQty = cl.lines.reduce((s,r)=>s+netQty(r),0);
+                          return (
+                            <div key={cl.name} style={{padding:"8px 14px",borderTop:"1px solid var(--line)",display:"flex",justifyContent:"space-between",fontSize:13}}>
+                              <span style={{color:"var(--ink)"}}>{cl.name}</span>
+                              <span style={{color:"var(--muted)"}}>{clQty} pcs · {money(clTotal,currency)}</span>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    );
+                  })}
+                </div>
+              </>
+            )}
+          </div>
+        );
+      })()}
+
+      {/* ══════════ VUE SAISIE ══════════ */}
+      {laboView==="saisie" && (
+      <div>
+
+      {/* ---------- COMMANDES RAPIDES ---------- */}
+      {clients.some(c => refOrderByClient[c.id]) && (
+        <Section title="Commandes rapides" icon={<RotateCcw size={18}/>}>
+          <p style={{fontSize:13,color:"var(--muted)",margin:"0 0 10px"}}>
+            Reprend la commande du même jour J-7 (ou J-14 si aucune commande la semaine dernière). Ajustez les quantités puis ajoutez au brouillon.
+          </p>
+          {clients.filter(c => refOrderByClient[c.id]).map(c => {
+            const last  = refOrderByClient[c.id];
+            const open  = !!reorderQtys[c.id];
+            const drName = driverLabel(c.driver, drivers);
+            return (
+              <div key={c.id} style={{border:"1px solid var(--line)",borderRadius:12,marginBottom:10,overflow:"hidden"}}>
+                {/* Entête client */}
+                <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",padding:"10px 12px",background:"var(--chalk)"}}>
+                  <div>
+                    <div style={{fontWeight:700,color:"var(--ink)"}}>{c.name}</div>
+                    <div style={{fontSize:12,color:"var(--muted)"}}>{drName} · réf. {dateFR(last.date)}{last.date === (()=>{const d=new Date(date+"T00:00:00");d.setDate(d.getDate()-14);return d.toISOString().slice(0,10);})() ? " (J-14)" : " (J-7)"}</div>
+                  </div>
+                  <button style={{...btn,padding:"7px 12px",fontSize:12,background:open?C.muted:C.wheat}}
+                    onClick={() => open ? setReorderQtys(p=>{const n={...p};delete n[c.id];return n;}) : openReorder(c.id)}>
+                    <RotateCcw size={13}/> {open ? "Annuler" : "Reprendre"}
+                  </button>
+                </div>
+                {/* Lignes avec quantités éditables */}
+                {open && (
+                  <div style={{padding:"10px 12px"}}>
+                    {last.lines.map(l => {
+                      const unitPr = getUnitPrice(c.id, l.productId, clientPrices, products);
+                      const q = reorderQtys[c.id]?.[l.productId] ?? l.quantity;
+                      const tot = (Number(q)||0)*unitPr;
+                      return (
+                        <div key={l.productId} style={{display:"flex",alignItems:"center",gap:10,padding:"7px 0",borderBottom:"1px solid var(--line)"}}>
+                          <div style={{flex:1,fontSize:14,color:"var(--ink)"}}>
+                            {l.productName}
+                            <span style={{fontSize:12,color:"var(--muted)",marginLeft:6}}>({money(unitPr,currency)})</span>
+                          </div>
+                          <input type="number" min="0" style={{...input,width:72,padding:"7px 8px",textAlign:"center"}}
+                            value={q}
+                            onChange={e=>setReorderQtys(prev=>({...prev,[c.id]:{...prev[c.id],[l.productId]:e.target.value}}))}/>
+                          <span style={{fontWeight:600,color:"var(--ink)",minWidth:64,textAlign:"right"}}>{money(tot,currency)}</span>
+                        </div>
+                      );
+                    })}
+                    <div style={{display:"flex",justifyContent:"flex-end",marginTop:10}}>
+                      <button style={{...btn,background:"var(--sage)"}} onClick={()=>addReorder(c.id)}>
+                        <Plus size={15}/> Ajouter au brouillon
+                      </button>
+                    </div>
+                  </div>
+                )}
+              </div>
+            );
+          })}
+        </Section>
+      )}
+
+      {/* ---------- SAISIE MANUELLE ---------- */}
+      <Section title="Nouvelle sortie de viennoiserie" icon={<Plus size={18}/>}>
+        <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:12}}>
+          <div style={{gridColumn:"1 / -1"}}>
+            <label style={label}>Jour</label>
+            <input type="date" style={input} value={date} onChange={e=>setDate(e.target.value)}/>
+          </div>
+          <div style={{gridColumn:"1 / -1"}}>
+            <label style={label}>Client (pâtisserie)</label>
+            <select style={input} value={clientId} onChange={e=>setClientId(e.target.value)}>
+              <option value="">— Choisir —</option>
+              {clients.map(c=><option key={c.id} value={c.id}>{c.name} · {driverLabel(c.driver,drivers)}</option>)}
+            </select>
+          </div>
+          <div style={{gridColumn:"1 / -1"}}>
+            <label style={label}>Produit</label>
+            {client ? (
+              <ProductPicker products={products} currency={currency} value={productId} onChange={setProductId}
+                getPrice={pid=>getUnitPrice(client.id, pid, clientPrices, products)}/>
+            ) : (
+              <p style={{fontSize:13,color:"var(--muted)",margin:0,padding:"10px 12px",background:"var(--chalk)",borderRadius:10}}>
+                Choisissez d'abord un client ci-dessus.
+              </p>
+            )}
+          </div>
+          <div>
+            <label style={label}>Quantité</label>
+            <input
+              type="number" min="1" style={input} value={qty}
+              onChange={e=>setQty(e.target.value)}
+              onKeyDown={e=>{ if(e.key==="Enter"){ e.preventDefault(); addLine(); } }}
+              placeholder="Qté puis Entrée ↵"
+            />
+          </div>
+        </div>
+        <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginTop:14,flexWrap:"wrap",gap:10}}>
+          <div style={{color:"var(--muted)",fontSize:14}}>Total ligne : <strong style={{color:"var(--ink)"}}>{money(preview,currency)}</strong></div>
+          <button style={btn} onClick={addLine}><Plus size={16}/> Ajouter à la liste</button>
+        </div>
+      </Section>
+
+      <Section title="Sorties à valider" icon={<ChefHat size={18}/>}>
+        {!draft.length && <p style={{color:"var(--muted)",margin:0}}>Ajoutez des produits ci-dessus, puis validez en bas.</p>}
+        {draft.map(l => (
+          <div key={l.tmpId} style={{display:"flex",alignItems:"center",gap:10,padding:"8px 0",borderBottom:"1px solid var(--line)"}}>
+            <div style={{flex:1,minWidth:0}}>
+              <div style={{fontWeight:600,color:"var(--ink)"}}>{l.clientName}</div>
+              <div style={{fontSize:13,color:"var(--muted)"}}>{l.productName} × {l.quantity} · {dateFR(l.date)}</div>
+            </div>
+            <div style={{fontWeight:700,color:"var(--ink)",whiteSpace:"nowrap"}}>{money(lineTotal(l),currency)}</div>
+            <button style={btnGhost} onClick={()=>setDraft(d=>d.filter(x=>x.tmpId!==l.tmpId))}><Trash2 size={16}/></button>
+          </div>
+        ))}
+        {draft.length>0 && (
+          <div style={{marginTop:14,paddingTop:12,borderTop:"2px solid var(--wheat)"}}>
+            <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:12}}>
+              <span style={{...serif,fontSize:17,color:"var(--ink)",fontWeight:600}}>Total à valider</span>
+              <span style={{...serif,fontSize:22,fontWeight:800,color:"var(--wheat)"}}>{money(draftTotal,currency)}</span>
+            </div>
+            <button style={{...btn,width:"100%",padding:"14px",fontSize:16,background:"var(--sage)"}} onClick={validate}>
+              <Check size={18}/> Valider les sorties
+            </button>
+          </div>
+        )}
+      </Section>
+
+      <Section title="Sorties enregistrées" icon={<ChefHat size={18}/>}>
+        {!byDay.length && <p style={{color:"var(--muted)",margin:0}}>Aucune sortie enregistrée.</p>}
+        {byDay.map(({day,rows}) => {
+          const dayTotal = rows.reduce((s,r)=>s+lineTotal(r),0);
+          // Regrouper par client pour ce jour
+          const byClient = {};
+          rows.forEach(r=>{ (byClient[r.clientId]=byClient[r.clientId]||{clientName:r.clientName,driver:r.driver,rows:[]}).rows.push(r); });
+          return (
+            <div key={day} style={{marginBottom:20}}>
+              <div style={{display:"flex",justifyContent:"space-between",alignItems:"baseline",borderBottom:"2px solid var(--wheat)",paddingBottom:6,marginBottom:10}}>
+                <span style={{...serif,fontSize:15,color:"var(--wheat)",fontWeight:600,textTransform:"capitalize"}}>{dateFR(day)}</span>
+                <span style={{fontWeight:700,color:"var(--ink)"}}>{money(dayTotal,currency)}</span>
+              </div>
+              {Object.values(byClient).map(g => {
+                const clientTotal = g.rows.reduce((s,r)=>s+lineTotal(r),0);
+                const drName = driverLabel(g.driver,drivers);
+                return (
+                  <div key={g.clientName} style={{border:"1px solid var(--line)",borderRadius:12,marginBottom:10,overflow:"hidden"}}>
+                    {/* Entête client */}
+                    <div style={{background:"var(--chalk)",padding:"10px 12px",display:"flex",justifyContent:"space-between",alignItems:"center"}}>
+                      <div>
+                        <div style={{fontWeight:700,color:"var(--ink)",fontSize:15}}>{g.clientName}</div>
+                        <div style={{fontSize:12,color:"var(--muted)"}}>{drName}</div>
+                      </div>
+                      <div style={{display:"flex",alignItems:"center",gap:8}}>
+                        <span style={{fontWeight:700,color:"var(--ink)"}}>{money(clientTotal,currency)}</span>
+                        <button style={{...btn,padding:"7px 10px",fontSize:12,background:"var(--wheat)",color:"#fff"}}
+                          onClick={()=>openBon(g.clientName,drName,g.rows)}>
+                          <FileText size={14}/> Bon
+                        </button>
+                      </div>
+                    </div>
+                    {/* Lignes produits */}
+                    {g.rows.map(r=>{
+                      const isEditing = editingId === r.id;
+                      const isReturning = returningId === r.id;
+                      const net = netQty(r);
+                      const hasReturn = (Number(r.returnedQty)||0) > 0;
+                      const remaining = Math.max(0, (Number(r.quantity)||0) - (Number(r.returnedQty)||0));
+                      const lineReturns = returnsFor(r.id);
+                      return (
+                        <div key={r.id} style={{borderTop:"1px solid var(--line)"}}>
+                          {!isEditing && !isReturning && (
+                            <div style={{display:"flex",alignItems:"center",gap:8,padding:"8px 12px"}}>
+                              <div style={{flex:1,minWidth:0}}>
+                                <div style={{fontSize:13,color:"var(--ink)"}}>
+                                  {r.productName} <span style={{color:"var(--muted)"}}>× {r.quantity}</span>
+                                  {hasReturn && (
+                                    <span style={{color:"var(--coral)",fontSize:12,marginLeft:6}}>
+                                      − {r.returnedQty} retourné{r.returnedQty>1?"s":""} → net {net}
+                                    </span>
+                                  )}
+                                </div>
+                              </div>
+                              <div style={{fontSize:13,fontWeight:600,color:"var(--ink)",whiteSpace:"nowrap"}}>{money(lineTotal(r),currency)}</div>
+                              <button style={btnGhost} onClick={()=>startEditLine(r)} title="Modifier"><Settings size={15}/></button>
+                              <button style={{...btnGhost,color:"var(--coral)"}} onClick={()=>startReturn(r)} title="Enregistrer un retour" disabled={remaining<=0}>
+                                <RotateCcw size={15}/>
+                              </button>
+                              <button style={btnGhost} onClick={()=>setConfirmDelId(r.id)} title="Supprimer"><Trash2 size={15}/></button>
+                            </div>
+                          )}
+
+                          {/* Confirmation de suppression */}
+                          {confirmDelId === r.id && (
+                            <div style={{padding:"10px 12px",background:"var(--coral-lt)",borderTop:"1px solid rgba(200,75,60,.2)"}}>
+                              <p style={{fontSize:13,color:"var(--coral)",fontWeight:600,margin:"0 0 8px"}}>Supprimer cette ligne ({r.productName} × {r.quantity}) ?</p>
+                              <div style={{display:"flex",gap:8}}>
+                                <button style={{...btn,flex:1,background:"var(--coral)"}} onClick={()=>{onDelete(r.id);setConfirmDelId(null);}}><Trash2 size={15}/> Confirmer</button>
+                                <button style={{...btn,flex:1,background:"#fff",color:"var(--ink)",border:"1px solid var(--line)"}} onClick={()=>setConfirmDelId(null)}>Annuler</button>
+                              </div>
+                            </div>
+                          )}
+
+                          {/* Formulaire de modification */}
+                          {isEditing && (
+                            <div style={{padding:"12px",background:"var(--chalk)"}}>
+                              <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:10,marginBottom:10}}>
+                                <div style={{gridColumn:"1 / -1"}}>
+                                  <label style={label}>Jour</label>
+                                  <input type="date" style={input} value={editDraft.date} onChange={e=>setEditDraft({...editDraft,date:e.target.value})}/>
+                                </div>
+                                <div style={{gridColumn:"1 / -1"}}>
+                                  <label style={label}>Produit</label>
+                                  <ProductPicker products={products} currency={currency} value={editDraft.productId}
+                                    onChange={pid=>setEditDraft({...editDraft,productId:pid})}
+                                    getPrice={editDraft.clientId ? (pid=>getUnitPrice(editDraft.clientId, pid, clientPrices, products)) : undefined}/>
+                                </div>
+                                <div>
+                                  <label style={label}>Quantité</label>
+                                  <input type="number" min="1" style={input} value={editDraft.quantity} onChange={e=>setEditDraft({...editDraft,quantity:e.target.value})}/>
+                                </div>
+                              </div>
+                              <div style={{display:"flex",gap:8}}>
+                                <button style={{...btn,flex:1,background:"var(--sage)"}} onClick={()=>saveEditLine(r)}><Check size={15}/> Enregistrer</button>
+                                <button style={{...btn,flex:1,background:"#fff",color:"var(--ink)",border:"1px solid var(--line)"}} onClick={cancelEditLine}>Annuler</button>
+                              </div>
+                            </div>
+                          )}
+
+                          {/* Formulaire de retour */}
+                          {isReturning && (
+                            <div style={{padding:"12px",background:"var(--coral-lt)"}}>
+                              <p style={{fontSize:13,color:"var(--ink)",margin:"0 0 8px"}}>
+                                Retour sur <strong>{r.productName}</strong> — {remaining} disponible{remaining>1?"s":""} à retourner sur {r.quantity} livré{r.quantity>1?"s":""}.
+                              </p>
+                              <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:10,marginBottom:10}}>
+                                <div>
+                                  <label style={label}>Quantité retournée</label>
+                                  <input type="number" min="1" max={remaining} style={input} value={returnQty} onChange={e=>{setReturnQty(e.target.value);setReturnError("");}}/>
+                                </div>
+                                <div>
+                                  <label style={label}>Motif (optionnel)</label>
+                                  <input type="text" style={input} placeholder="ex. abîmé, périmé..." value={returnReason} onChange={e=>setReturnReason(e.target.value)}/>
+                                </div>
+                              </div>
+                              {returnError && <p style={{color:"var(--coral)",fontSize:13,fontWeight:600,margin:"0 0 8px"}}>{returnError}</p>}
+                              <div style={{display:"flex",gap:8}}>
+                                <button style={{...btn,flex:1,background:"var(--coral)"}} onClick={()=>submitReturn(r)}><RotateCcw size={15}/> Enregistrer le retour</button>
+                                <button style={{...btn,flex:1,background:"#fff",color:"var(--ink)",border:"1px solid var(--line)"}} onClick={cancelReturn}>Annuler</button>
+                              </div>
+                            </div>
+                          )}
+
+                          {/* Historique des retours déjà enregistrés sur cette ligne */}
+                          {lineReturns.length>0 && !isReturning && (
+                            <div style={{padding:"6px 12px 8px",background:"var(--coral-lt)"}}>
+                              {lineReturns.map(ret=>(
+                                <div key={ret.id} style={{display:"flex",justifyContent:"space-between",alignItems:"center",fontSize:12,color:"var(--coral)",padding:"3px 0"}}>
+                                  <span>↩ {ret.quantity} retourné{ret.quantity>1?"s":""}{ret.reason?` · ${ret.reason}`:""} · {dateFR(ret.date)}</span>
+                                  <button style={{...btnGhost,minHeight:24,minWidth:24,padding:2}} onClick={()=>onDeleteReturn(ret.id)} title="Annuler ce retour"><X size={12}/></button>
+                                </div>
+                              ))}
+                            </div>
+                          )}
+                        </div>
+                      );
+                    })}
+                  </div>
+                );
+              })}
+            </div>
+          );
+        })}
+      </Section>
+
+      </div>
+      )} {/* fin VUE SAISIE */}
+
+      {/* Modal bon de livraison */}
+      {bon && <BonLivraison bon={bon} settings={settings} currency={currency} onClose={()=>setBon(null)}/>}
+    </div>
+  );
+}
+
+/* ===================== CHAUFFEUR ===================== */
+function Chauffeur({ driver, drivers, deliveries, payments, settings, currency, onReplacePayments, returns }) {
+  const [date,       setDate]       = useState(today());
+  const [amts,       setAmts]       = useState({});
+  const [saved,      setSaved]      = useState(false);
+  const [confirming, setConfirming] = useState(false);
+  const [bon,        setBon]        = useState(null);
+
+  const groups = useMemo(() => {
+    const mine = deliveries.filter(d => d.driver===driver && d.date===date);
+    const m = {};
+    mine.forEach(d => { (m[d.clientId]=m[d.clientId]||{clientId:d.clientId,clientName:d.clientName,rows:[]}).rows.push(d); });
+    return Object.values(m);
+  }, [deliveries, driver, date]);
+
+  useEffect(() => {
+    const next = {};
+    payments.filter(p=>p.date===date&&p.driver===driver).forEach(p=>{
+      next[p.clientId] = String((Number(next[p.clientId])||0)+(Number(p.amount)||0));
+    });
+    setAmts(next);
+  }, [date, driver, payments]);
+
+  useEffect(() => { setSaved(false); setConfirming(false); }, [date, driver]);
+
+  const typedVal = (cid) => {
+    const raw = amts[cid];
+    return (raw!==undefined && raw!=="") ? (parseFloat(raw)||0) : 0;
+  };
+
+  const totals = groups.reduce((acc,g) => {
+    acc.exp += g.rows.reduce((s,r)=>s+lineTotal(r),0);
+    acc.col += typedVal(g.clientId);
+    return acc;
+  }, {exp:0,col:0});
+  const ecartTot = totals.col - totals.exp;
+  const exactTot = Math.abs(ecartTot)<=0.0001;
+
+  const validateTour = () => {
+    const others = payments.filter(p=>!(p.date===date&&p.driver===driver));
+    const mine   = [];
+    groups.forEach(g=>{
+      const raw = amts[g.clientId];
+      if (raw!==undefined&&raw!=="") mine.push({id:uid(),date,clientId:g.clientId,clientName:g.clientName,driver,amount:parseFloat(raw)||0});
+    });
+    onReplacePayments([...others,...mine]);
+    setSaved(true);
+  };
+
+  return (
+    <div>
+      <Section title={driverLabel(driver,drivers)} icon={<Truck size={18}/>}
+        right={<input type="date" style={{...input,width:"auto",padding:"8px 10px"}} value={date} onChange={e=>setDate(e.target.value)}/>}>
+        <div style={{display:"flex",gap:10,flexWrap:"wrap"}}>
+          <KPI label="Rempli (Labo)"  value={money(totals.exp,currency)}/>
+          <KPI label="Récupéré"       value={money(totals.col,currency)} tone="green"/>
+          <KPI label="Écart" value={`${ecartTot>=0?"+":"−"}${money(Math.abs(ecartTot),currency)}`} tone={exactTot?"green":"red"}/>
+        </div>
+      </Section>
+
+      {!groups.length ? (
+        <Section title="Tournée du jour" icon={<Wallet size={18}/>}>
+          <p style={{color:"var(--muted)",margin:0}}>Aucune livraison pour cette date.</p>
+        </Section>
+      ) : (
+        <>
+          {groups.map(g => {
+            const exp    = g.rows.reduce((s,r)=>s+lineTotal(r),0);
+            const col    = typedVal(g.clientId);
+            const ecart  = col-exp;
+            const filled = amts[g.clientId]!==undefined&&amts[g.clientId]!=="";
+            const exact  = Math.abs(ecart)<=0.0001;
+            const drName = driverLabel(driver,drivers);
+            return (
+              <div key={g.clientId} style={{...cardBox,marginBottom:14,borderLeft:`5px solid ${!filled?C.wheat:exact?C.green:C.red}`}}>
+                <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:6}}>
+                  <h3 style={{...serif,margin:0,fontSize:18,color:"var(--ink)"}}>{g.clientName}</h3>
+                  <button style={{...btn,padding:"6px 10px",fontSize:12,background:"var(--wheat)"}}
+                    onClick={()=>{const bonNum=`BL-${date.replace(/-/g,"")}-${g.clientName.slice(0,3).toUpperCase()}`;setBon({date,driverName:drName,clientName:g.clientName,lines:g.rows,bonNum});}}>
+                    <FileText size={13}/> Bon
+                  </button>
+                </div>
+                {g.rows.map(r=>{
+                  const rQty = Number(r.returnedQty)||0;
+                  const net  = netQty(r);
+                  return (
+                  <div key={r.id} style={{padding:"4px 0"}}>
+                    <div style={{display:"flex",justifyContent:"space-between",fontSize:14,color:"var(--muted)"}}>
+                      <span>
+                        {r.productName}
+                        {rQty>0
+                          ? <><span style={{color:"var(--coral)"}}> × {r.quantity}</span><span style={{color:"var(--sage)"}}> → net {net}</span></>
+                          : <span> × {r.quantity}</span>}
+                      </span>
+                      <span style={{color:"var(--ink)"}}>{money(lineTotal(r),currency)}</span>
+                    </div>
+                    {rQty>0 && (
+                      <div style={{fontSize:12,color:"var(--coral)",paddingLeft:4}}>
+                        ↩ {rQty} article{rQty>1?"s":""} retourné{rQty>1?"s":""} — déduit du total
+                      </div>
+                    )}
+                  </div>
+                );})}
+                <div style={{display:"flex",justifyContent:"space-between",fontWeight:700,color:"var(--ink)",borderTop:"1px solid var(--line)",marginTop:6,paddingTop:6}}>
+                  <span>Dû (après retours)</span><span>{money(exp,currency)}</span>
+                </div>
+                <div style={{marginTop:10}}>
+                  <label style={label}>Argent récupéré</label>
+                  <input type="number" min="0" placeholder={fmt(exp)} style={input}
+                    value={amts[g.clientId]??""} onChange={e=>{setAmts(a=>({...a,[g.clientId]:e.target.value}));setSaved(false);}}/>
+                </div>
+                {filled && (
+                  <div style={{display:"flex",justifyContent:"space-between",fontSize:15,marginTop:8,paddingTop:8,borderTop:"1px dashed var(--line)"}}>
+                    <span style={{fontWeight:700,color:"var(--ink)"}}>Écart</span>
+                    {exact
+                      ? <span style={{fontWeight:800,color:"var(--sage)",display:"inline-flex",alignItems:"center",gap:4}}><Check size={15}/> Réglé</span>
+                      : <span style={{fontWeight:800,color:"var(--coral)"}}>{ecart<0?`Manque ${money(-ecart,currency)}`:`En plus ${money(ecart,currency)}`}</span>}
+                  </div>
+                )}
+              </div>
+            );
+          })}
+
+          <div style={{...cardBox,borderTop:"3px solid var(--wheat)"}}>
+            <div style={{display:"flex",justifyContent:"space-between",fontSize:14,padding:"2px 0",color:"var(--muted)"}}>
+              <span>Total rempli (Labo)</span><span style={{color:"var(--ink)",fontWeight:600}}>{money(totals.exp,currency)}</span>
+            </div>
+            <div style={{display:"flex",justifyContent:"space-between",fontSize:14,padding:"2px 0",color:"var(--muted)"}}>
+              <span>Total récupéré</span><span style={{color:"var(--sage)",fontWeight:600}}>{money(totals.col,currency)}</span>
+            </div>
+            <div style={{display:"flex",justifyContent:"space-between",fontSize:17,padding:"6px 0",borderTop:"1px dashed var(--line)",marginTop:4}}>
+              <span style={{...serif,fontWeight:700,color:"var(--ink)"}}>Écart total</span>
+              <span style={{...serif,fontWeight:800,color:exactTot?C.green:C.red}}>
+                {exactTot?money(0,currency):`${ecartTot>=0?"+":"−"}${money(Math.abs(ecartTot),currency)}`}
+              </span>
+            </div>
+            {confirming ? (
+              <div style={{marginTop:12}}>
+                <p style={{fontSize:13,color:"var(--muted)",margin:"0 0 8px"}}>
+                  Confirmer l'encaissement de {money(totals.col,currency)} pour cette tournée ?
+                </p>
+                <div style={{display:"flex",gap:8}}>
+                  <button style={{...btn,flex:1,background:"var(--sage)",padding:"13px"}} onClick={()=>{validateTour();setConfirming(false);}}>
+                    <Check size={17}/> Confirmer
+                  </button>
+                  <button style={{...btn,flex:1,background:"var(--surface)",color:"var(--wheat)",border:"1px solid var(--line)",padding:"13px"}} onClick={()=>setConfirming(false)}>
+                    Annuler
+                  </button>
+                </div>
+              </div>
+            ) : (
+              <button style={{...btn,width:"100%",padding:"14px",fontSize:16,marginTop:12,background:saved?C.green:C.brown}}
+                onClick={()=>saved?setSaved(false):setConfirming(true)}>
+                <Check size={18}/> {saved?"Tournée validée ✓ — Modifier":"Valider la tournée"}
+              </button>
+            )}
+          </div>
+        </>
+      )}
+      {bon && <BonLivraison bon={bon} settings={settings} currency={currency} onClose={()=>setBon(null)}/>}
+    </div>
+  );
+}
+
+/* ===================== PROPRIÉTAIRE ===================== */
+function Owner({ deliveries, payments, products, clients, drivers, settings, reports, setProducts, setClients, setDrivers, setSettings, currency, onRestore, setDeliveries, returns, onAddReturn, onDeleteReturn, clientPrices, setClientPrices }) {
+  const [tab,    setTab]    = useState("dash");
+  const [filter, setFilter] = useState("all");
+
+  const allDates = useMemo(()=>[...new Set(deliveries.map(d=>d.date))].sort((a,b)=>a<b?1:-1),[deliveries]);
+  const fd = filter==="all"?deliveries:deliveries.filter(d=>d.date===filter);
+  const fp = filter==="all"?payments:payments.filter(p=>p.date===filter);
+
+  // CORRECTION : qtyOut utilise netQty (quantité livrée − retournée), pas la quantité brute
+  const qtyOut    = fd.reduce((s,d)=>s+netQty(d),0);
+  const qtyReturned = fd.reduce((s,d)=>s+(Number(d.returnedQty)||0),0);
+  const valueOut  = fd.reduce((s,d)=>s+lineTotal(d),0);
+  const collected = fp.reduce((s,p)=>s+(Number(p.amount)||0),0);
+  const manque    = valueOut - collected;
+
+  // Helper : retours liés à une livraison
+  const returnsFor = (deliveryId) => (returns||[]).filter(r => r.livraisonId === deliveryId);
+
+  const perDriver = drivers.map(dr=>{
+    const exp = fd.filter(d=>d.driver===dr.id).reduce((s,d)=>s+lineTotal(d),0);
+    const col = fp.filter(p=>p.driver===dr.id).reduce((s,p)=>s+(Number(p.amount)||0),0);
+    return {...dr, exp, col, manque:exp-col};
+  });
+
+  const perClient = useMemo(()=>{
+    const m = {};
+    fd.forEach(d=>{ m[d.clientId]=m[d.clientId]||{name:d.clientName,driver:d.driver,exp:0,col:0}; m[d.clientId].exp+=lineTotal(d); });
+    fp.forEach(p=>{ m[p.clientId]=m[p.clientId]||{name:p.clientName,driver:p.driver,exp:0,col:0}; m[p.clientId].col+=Number(p.amount)||0; });
+    return Object.values(m).map(x=>({...x,manque:x.exp-x.col}));
+  },[fd,fp]);
+
+  const alerts = perClient.filter(x=>x.manque>0.0001);
+
+  /* ---- Onglet Commandes : édition d'une livraison existante ou nouvelle ---- */
+  const [orderFilter, setOrderFilter] = useState("all");
+  const [editingId,   setEditingId]   = useState(null);
+  const [editDraft,   setEditDraft]   = useState(null);
+  const [confirmDel,  setConfirmDel]  = useState(null);
+  const [newOrder,    setNewOrder]    = useState({ date:today(), clientId:"", productId:"", quantity:1 });
+
+  const orderDates = useMemo(()=>[...new Set(deliveries.map(d=>d.date))].sort((a,b)=>a<b?1:-1),[deliveries]);
+  const filteredOrders = useMemo(()=>{
+    const list = orderFilter==="all" ? deliveries : deliveries.filter(d=>d.date===orderFilter);
+    return [...list].sort((a,b)=> a.date<b.date?1:(a.date>b.date?-1:0));
+  },[deliveries,orderFilter]);
+
+  const startEdit = (d) => {
+    setEditingId(d.id);
+    setEditDraft({ date:d.date, clientId:d.clientId, productId:d.productId, quantity:d.quantity });
+  };
+  const cancelEdit = () => { setEditingId(null); setEditDraft(null); };
+  const saveEdit = (orig) => {
+    const client  = clients.find(c=>c.id===editDraft.clientId);
+    const product = products.find(p=>p.id===editDraft.productId);
+    if (!client || !product || !(Number(editDraft.quantity)>0)) return;
+    const next = deliveries.map(d => d.id===orig.id ? {
+      ...d, date:editDraft.date, clientId:client.id, clientName:client.name, driver:client.driver,
+      productId:product.id, productName:product.name, quantity:Number(editDraft.quantity), unitPrice:product.price,
+    } : d);
+    setDeliveries(next);
+    cancelEdit();
+  };
+  const removeOrder = (id) => {
+    setDeliveries(deliveries.filter(d=>d.id!==id));
+    setConfirmDel(null);
+  };
+  const addOrder = () => {
+    const client  = clients.find(c=>c.id===newOrder.clientId);
+    const product = products.find(p=>p.id===newOrder.productId);
+    if (!client || !product || !(Number(newOrder.quantity)>0)) return;
+    const row = {
+      id:(Date.now()+Math.random()).toString(36), date:newOrder.date,
+      clientId:client.id, clientName:client.name, driver:client.driver,
+      productId:product.id, productName:product.name,
+      quantity:Number(newOrder.quantity), unitPrice:product.price,
+    };
+    setDeliveries([...deliveries, row]);
+    setNewOrder({ date:newOrder.date, clientId:"", productId:"", quantity:1 });
+  };
+
+  /* ---- Réglages locaux ---- */
+  const [np, setNp] = useState({name:"",price:""});
+  const [nc, setNc] = useState({name:"",driver:drivers[0]?.id||""});
+  const [nd, setNd] = useState("");  // nouveau chauffeur
+
+  return (
+    <div>
+      <div style={{display:"flex",gap:8,marginBottom:14}}>
+        {[["dash","Tableau de bord",<LayoutDashboard size={15}/>],["orders","Commandes",<Package size={15}/>],["settings","Réglages",<Settings size={15}/>]].map(([k,lab,ic])=>(
+          <button key={k} onClick={()=>setTab(k)} style={{...btn,flex:1,background:tab===k?C.brown:"#fff",color:tab===k?"#fff":C.brown,border:"1px solid var(--line)"}}>
+            {ic} {lab}
+          </button>
+        ))}
+      </div>
+
+      {tab==="dash" && (
+        <>
+          <Section title="Vue d'ensemble" icon={<Crown size={18}/>}
+            right={<select style={{...input,width:"auto",padding:"8px 10px"}} value={filter} onChange={e=>setFilter(e.target.value)}>
+              <option value="all">Toutes les dates</option>
+              {allDates.map(d=><option key={d} value={d}>{dateFR(d)}</option>)}
+            </select>}>
+            <div style={{display:"flex",gap:10,flexWrap:"wrap"}}>
+              <KPI label="Quantité nette sortie" value={qtyOut} sub={qtyReturned>0?`dont ${qtyReturned} retourné${qtyReturned>1?"s":""}`:undefined}/>
+              <KPI label="Valeur nette labo" value={money(valueOut,currency)} sub={qtyReturned>0?"retours déduits":undefined}/>
+              <KPI label="Encaissé chauffeurs" value={money(collected,currency)} tone="green"/>
+              <KPI label="Manque" value={money(manque,currency)} tone={manque>0.0001?"red":"green"}/>
+            </div>
+          </Section>
+
+          {alerts.length>0 && (
+            <Section title="À signaler" icon={<AlertTriangle size={18} color={C.red}/>}>
+              {alerts.map((a,i)=>(
+                <div key={i} style={{display:"flex",justifyContent:"space-between",alignItems:"center",padding:"8px 10px",marginBottom:6,background:"var(--coral-lt)",border:"1px solid rgba(200,75,60,.2)",borderRadius:10}}>
+                  <div><strong style={{color:"var(--ink)"}}>{a.name}</strong><span style={{color:"var(--muted)",fontSize:13}}> · {driverLabel(a.driver,drivers)}</span></div>
+                  <span style={{color:"var(--coral)",fontWeight:700}}>Manque {money(a.manque,currency)}</span>
+                </div>
+              ))}
+            </Section>
+          )}
+
+          <Section title="Par chauffeur" icon={<Truck size={18}/>}>
+            {perDriver.map(d=>{
+              const retQty = fd.filter(liv=>liv.driver===d.id).reduce((s,liv)=>s+(Number(liv.returnedQty)||0),0);
+              return (
+              <div key={d.id} style={{display:"flex",justifyContent:"space-between",alignItems:"center",padding:"10px 0",borderBottom:"1px solid var(--line)"}}>
+                <strong style={{color:"var(--ink)"}}>{d.name}</strong>
+                <div style={{textAlign:"right",fontSize:13}}>
+                  <div style={{color:"var(--muted)"}}>
+                    Sortie {money(d.exp,currency)} · Encaissé {money(d.col,currency)}
+                    {retQty>0 && <span style={{color:"var(--coral)"}}> · {retQty} retour{retQty>1?"s":""}</span>}
+                  </div>
+                  <div style={{color:d.manque>0.0001?C.red:C.green,fontWeight:700}}>
+                    {d.manque>0.0001?`Manque ${money(d.manque,currency)}`:"À jour"}
+                  </div>
+                </div>
+              </div>
+            );})}
+          </Section>
+
+          <Section title="Par client (fournisseurs)" icon={<Users size={18}/>}>
+            {!perClient.length && <p style={{color:"var(--muted)",margin:0}}>Aucune donnée.</p>}
+            {perClient.map((x,i)=>(
+              <div key={i} style={{display:"flex",justifyContent:"space-between",alignItems:"center",padding:"8px 0",borderBottom:"1px solid var(--line)"}}>
+                <div>
+                  <div style={{fontWeight:600,color:"var(--ink)"}}>{x.name}</div>
+                  <div style={{fontSize:12,color:"var(--muted)"}}>{driverLabel(x.driver,drivers)} · sortie {money(x.exp,currency)}</div>
+                </div>
+                <div style={{textAlign:"right"}}>
+                  <div style={{fontSize:13,color:"var(--sage)"}}>{money(x.col,currency)}</div>
+                  <div style={{fontSize:13,fontWeight:700,color:x.manque>0.0001?C.red:C.green}}>
+                    {x.manque>0.0001?`−${money(x.manque,currency)}`:"OK"}
+                  </div>
+                </div>
+              </div>
+            ))}
+          </Section>
+        </>
+      )}
+
+      {tab==="orders" && (
+        <>
+          <Section title="Ajouter une commande" icon={<Plus size={18}/>}>
+            <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:12}}>
+              <div style={{gridColumn:"1 / -1"}}>
+                <label style={label}>Jour</label>
+                <input type="date" style={input} value={newOrder.date} onChange={e=>setNewOrder({...newOrder,date:e.target.value})}/>
+              </div>
+              <div style={{gridColumn:"1 / -1"}}>
+                <label style={label}>Client</label>
+                <select style={input} value={newOrder.clientId} onChange={e=>setNewOrder({...newOrder,clientId:e.target.value})}>
+                  <option value="">— Choisir —</option>
+                  {clients.map(c=><option key={c.id} value={c.id}>{c.name} · {driverLabel(c.driver,drivers)}</option>)}
+                </select>
+              </div>
+              <div style={{gridColumn:"1 / -1"}}>
+                <label style={label}>Produit</label>
+                {newOrder.clientId ? (
+                  <ProductPicker products={products} currency={currency} value={newOrder.productId} onChange={pid=>setNewOrder({...newOrder,productId:pid})}/>
+                ) : (
+                  <p style={{fontSize:13,color:"var(--muted)",margin:0,padding:"10px 12px",background:"var(--chalk)",borderRadius:10}}>
+                    Choisissez d'abord un client ci-dessus.
+                  </p>
+                )}
+              </div>
+              <div>
+                <label style={label}>Quantité</label>
+                <input type="number" min="1" style={input} value={newOrder.quantity} onChange={e=>setNewOrder({...newOrder,quantity:e.target.value})}/>
+              </div>
+            </div>
+            <div style={{marginTop:14}}>
+              <button style={{...btn,width:"100%"}} onClick={addOrder}><Plus size={16}/> Ajouter la commande</button>
+            </div>
+          </Section>
+
+          <Section title="Toutes les commandes" icon={<Package size={18}/>}
+            right={<select style={{...input,width:"auto",padding:"8px 10px"}} value={orderFilter} onChange={e=>setOrderFilter(e.target.value)}>
+              <option value="all">Toutes les dates</option>
+              {orderDates.map(d=><option key={d} value={d}>{dateFR(d)}</option>)}
+            </select>}>
+            {!filteredOrders.length && <p style={{color:"var(--muted)",margin:0}}>Aucune commande pour ce filtre.</p>}
+            {filteredOrders.map(d => {
+              const isEditing = editingId === d.id;
+              return (
+                <div key={d.id} style={{border:"1px solid var(--line)",borderRadius:12,marginBottom:10,overflow:"hidden"}}>
+                  {!isEditing ? (
+                    <div style={{display:"flex",alignItems:"center",gap:10,padding:"10px 12px"}}>
+                      <div style={{flex:1,minWidth:0}}>
+                        <div style={{fontWeight:700,color:"var(--ink)"}}>{d.clientName}</div>
+                        <div style={{fontSize:12,color:"var(--muted)"}}>
+                          {dateFR(d.date)} · {d.productName} × {netQty(d)}
+                          {(Number(d.returnedQty)||0)>0 && <span style={{color:"var(--coral)",fontWeight:600}}> (−{d.returnedQty} retour)</span>}
+                          {" "}· {driverLabel(d.driver,drivers)}
+                        </div>
+                        {returnsFor(d.id).map(rt=>(
+                          <div key={rt.id} style={{fontSize:11,color:"var(--coral)",marginTop:2}}>
+                            ↩ {rt.quantity} retourné{rt.quantity>1?"s":""}{rt.reason?` · ${rt.reason}`:""} · {dateFR(rt.date)}
+                          </div>
+                        ))}
+                      </div>
+                      <div style={{fontWeight:700,color:"var(--ink)",whiteSpace:"nowrap"}}>{money(lineTotal(d),currency)}</div>
+                      <button style={btnGhost} onClick={()=>startEdit(d)} title="Modifier"><Settings size={15}/></button>
+                      <button style={btnGhost} onClick={()=>setConfirmDel(d.id)} title="Supprimer"><Trash2 size={15}/></button>
+                    </div>
+                  ) : (
+                    <div style={{padding:"12px 14px",background:"var(--chalk)"}}>
+                      <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:10,marginBottom:10}}>
+                        <div style={{gridColumn:"1 / -1"}}>
+                          <label style={label}>Jour</label>
+                          <input type="date" style={input} value={editDraft.date} onChange={e=>setEditDraft({...editDraft,date:e.target.value})}/>
+                        </div>
+                        <div style={{gridColumn:"1 / -1"}}>
+                          <label style={label}>Client</label>
+                          <select style={input} value={editDraft.clientId} onChange={e=>setEditDraft({...editDraft,clientId:e.target.value})}>
+                            {clients.map(c=><option key={c.id} value={c.id}>{c.name} · {driverLabel(c.driver,drivers)}</option>)}
+                          </select>
+                        </div>
+                        <div style={{gridColumn:"1 / -1"}}>
+                          <label style={label}>Produit</label>
+                          <ProductPicker products={products} currency={currency} value={editDraft.productId} onChange={pid=>setEditDraft({...editDraft,productId:pid})}/>
+                        </div>
+                        <div>
+                          <label style={label}>Quantité</label>
+                          <input type="number" min="1" style={input} value={editDraft.quantity} onChange={e=>setEditDraft({...editDraft,quantity:e.target.value})}/>
+                        </div>
+                      </div>
+                      <div style={{display:"flex",gap:8}}>
+                        <button style={{...btn,flex:1,background:"var(--sage)"}} onClick={()=>saveEdit(d)}><Check size={15}/> Enregistrer</button>
+                        <button style={{...btn,flex:1,background:"#fff",color:"var(--ink)",border:"1px solid var(--line)"}} onClick={cancelEdit}>Annuler</button>
+                      </div>
+                    </div>
+                  )}
+                  {confirmDel===d.id && (
+                    <div style={{padding:"10px 14px",background:"var(--coral-lt)",borderTop:"1px solid rgba(200,75,60,.2)"}}>
+                      <p style={{fontSize:13,color:"var(--coral)",fontWeight:600,margin:"0 0 8px"}}>
+                        Supprimer cette commande ({d.productName} × {d.quantity} pour {d.clientName}) ?
+                      </p>
+                      <div style={{display:"flex",gap:8}}>
+                        <button style={{...btn,flex:1,background:"var(--coral)"}} onClick={()=>removeOrder(d.id)}><Trash2 size={15}/> Confirmer la suppression</button>
+                        <button style={{...btn,flex:1,background:"#fff",color:"var(--ink)",border:"1px solid var(--line)"}} onClick={()=>setConfirmDel(null)}>Annuler</button>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              );
+            })}
+          </Section>
+        </>
+      )}
+
+      {tab==="settings" && (
+        <>
+          <Section title="Général" icon={<Settings size={18}/>}>
+            <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:12}}>
+              <div>
+                <label style={label}>Nom de l'établissement</label>
+                <input style={input} value={settings.business} onChange={e=>setSettings({...settings,business:e.target.value})}/>
+              </div>
+              <div>
+                <label style={label}>Monnaie</label>
+                <input style={input} value={settings.currency} onChange={e=>setSettings({...settings,currency:e.target.value})}/>
+              </div>
+            </div>
+          </Section>
+
+          {/* ---- Sauvegarde de secours ---- */}
+          <Section title="Sauvegarde de secours" icon={<Download size={18}/>}>
+            <p style={{fontSize:13,color:"var(--muted)",margin:"0 0 12px"}}>
+              Téléchargez un fichier de secours contenant <strong>toutes les données</strong> (produits, clients, chauffeurs,
+              livraisons, encaissements, historique, mots de passe). À refaire régulièrement, par exemple chaque fin de semaine.
+            </p>
+            <div style={{display:"flex",gap:8,flexWrap:"wrap"}}>
+              <button style={{...btn,flex:1,minWidth:160}} onClick={()=>{
+                const data = {
+                  exportedAt: new Date().toISOString(),
+                  version: 1,
+                  products, clients, deliveries, payments, reports, settings, clientPrices,
+                };
+                try {
+                  const blob = new Blob([JSON.stringify(data,null,2)],{type:"application/json"});
+                  const url  = URL.createObjectURL(blob);
+                  const a    = document.createElement("a");
+                  a.href = url;
+                  a.download = `sauvegarde-patisserie-${today()}.json`;
+                  document.body.appendChild(a); a.click(); document.body.removeChild(a);
+                  URL.revokeObjectURL(url);
+                } catch(e) { alert("Export impossible dans cet environnement."); }
+              }}>
+                <Download size={16}/> Exporter une sauvegarde
+              </button>
+              <label style={{...btn,flex:1,minWidth:160,background:"var(--surface)",color:"var(--wheat)",border:"1px solid var(--line)",cursor:"pointer"}}>
+                <Upload size={16}/> Restaurer une sauvegarde
+                <input type="file" accept=".json,application/json" style={{display:"none"}}
+                  onChange={e=>{
+                    const f = e.target.files && e.target.files[0];
+                    if (!f) return;
+                    const reader = new FileReader();
+                    reader.onload = (ev) => {
+                      try {
+                        const data = JSON.parse(ev.target.result);
+                        if (!data || !data.products || !data.settings) { alert("Fichier de sauvegarde invalide."); return; }
+                        if (!window.confirm(`Restaurer la sauvegarde du ${data.exportedAt ? new Date(data.exportedAt).toLocaleDateString("fr-FR") : "?"} ?\nLes données actuelles seront remplacées.`)) return;
+                        onRestore(data);
+                        alert("Sauvegarde restaurée avec succès ✔");
+                      } catch(err) { alert("Impossible de lire ce fichier."); }
+                    };
+                    reader.readAsText(f);
+                    e.target.value = "";
+                  }}/>
+              </label>
+            </div>
+          </Section>
+
+          {/* ---- Chauffeurs ---- */}
+          <Section title="Chauffeurs" icon={<Truck size={18}/>}>
+            {drivers.map(d=>(
+              <div key={d.id} style={{borderBottom:"1px solid var(--line)",padding:"10px 0"}}>
+                <div style={{display:"flex",gap:8,alignItems:"center",marginBottom:6}}>
+                  <input style={{...input,flex:1}} value={d.name} placeholder="Nom affiché"
+                    onChange={e=>setDrivers(drivers.map(x=>x.id===d.id?{...x,name:e.target.value}:x))}/>
+                  <button style={{...btnGhost,opacity:drivers.length>1?1:0.3}} disabled={drivers.length<=1}
+                    title={drivers.length<=1?"Il faut au moins 1 chauffeur":"Supprimer"}
+                    onClick={()=>{ if(drivers.length<=1)return; setDrivers(drivers.filter(x=>x.id!==d.id)); }}>
+                    <Trash2 size={16}/>
+                  </button>
+                </div>
+                <div style={{display:"flex",gap:8}}>
+                  <div style={{flex:1}}>
+                    <label style={{...label,fontSize:10,marginBottom:3}}>Utilisateur</label>
+                    <input style={{...input,padding:"8px 10px",fontSize:13}} value={d.user||""} autoCapitalize="none"
+                      onChange={e=>setDrivers(drivers.map(x=>x.id===d.id?{...x,user:e.target.value}:x))}/>
+                  </div>
+                  <div style={{flex:1}}>
+                    <label style={{...label,fontSize:10,marginBottom:3}}>Mot de passe</label>
+                    <input style={{...input,padding:"8px 10px",fontSize:13}} value={d.pass||""}
+                      onChange={e=>setDrivers(drivers.map(x=>x.id===d.id?{...x,pass:e.target.value}:x))}/>
+                  </div>
+                </div>
+              </div>
+            ))}
+            <div style={{display:"flex",gap:8,marginTop:10}}>
+              <input placeholder="Nom du nouveau chauffeur" style={{...input,flex:2}} value={nd} onChange={e=>setNd(e.target.value)}/>
+              <button style={btn} onClick={()=>{
+                if(!nd.trim())return;
+                const newId = uid();
+                setDrivers([...drivers,{id:newId,name:nd.trim(),user:nd.trim().toLowerCase().replace(/\s+/g,""),pass:"0000"}]);
+                setNd("");
+              }}><Plus size={16}/></button>
+            </div>
+            <p style={{fontSize:11,color:"var(--muted)",marginTop:6}}>Chaque chauffeur a son propre identifiant et mot de passe. Un nouveau chauffeur reçoit le mot de passe « 0000 » à changer ici.</p>
+          </Section>
+
+          {/* ---- Accès Laboratoire & Propriétaire ---- */}
+          <Section title="Accès & mots de passe" icon={<Lock size={18}/>}>
+            {[["labo","Laboratoire"],["proprietaire","Propriétaire"]].map(([k,labName])=>(
+              <div key={k} style={{borderBottom:"1px solid var(--line)",padding:"10px 0"}}>
+                <div style={{fontWeight:700,color:"var(--ink)",fontSize:14,marginBottom:6}}>{labName}</div>
+                <div style={{display:"flex",gap:8}}>
+                  <div style={{flex:1}}>
+                    <label style={{...label,fontSize:10,marginBottom:3}}>Utilisateur</label>
+                    <input style={{...input,padding:"8px 10px",fontSize:13}} autoCapitalize="none"
+                      value={settings.auth?.[k]?.user||""}
+                      onChange={e=>setSettings({...settings,auth:{...settings.auth,[k]:{...settings.auth?.[k],user:e.target.value}}})}/>
+                  </div>
+                  <div style={{flex:1}}>
+                    <label style={{...label,fontSize:10,marginBottom:3}}>Mot de passe</label>
+                    <input style={{...input,padding:"8px 10px",fontSize:13}}
+                      value={settings.auth?.[k]?.pass||""}
+                      onChange={e=>setSettings({...settings,auth:{...settings.auth,[k]:{...settings.auth?.[k],pass:e.target.value}}})}/>
+                  </div>
+                </div>
+              </div>
+            ))}
+            <p style={{fontSize:11,color:"var(--muted)",marginTop:8}}>
+              ⚠️ Notez bien le mot de passe Propriétaire : c'est le seul accès aux réglages. L'accès Tableau est réservé au Propriétaire.
+            </p>
+          </Section>
+
+          {/* ---- Produits ---- */}
+          <Section title="Produits & prix" icon={<Package size={18}/>}>
+            {products.map(p=>(
+              <div key={p.id} style={{display:"flex",gap:8,alignItems:"center",padding:"6px 0",borderBottom:"1px solid var(--line)"}}>
+                <input style={{...input,flex:2}} value={p.name} onChange={e=>setProducts(products.map(x=>x.id===p.id?{...x,name:e.target.value}:x))}/>
+                <input type="number" step="0.001" style={{...input,flex:1}} value={p.price} onChange={e=>setProducts(products.map(x=>x.id===p.id?{...x,price:parseFloat(e.target.value)||0}:x))}/>
+                <button style={btnGhost} onClick={()=>setProducts(products.filter(x=>x.id!==p.id))}><Trash2 size={16}/></button>
+              </div>
+            ))}
+            <div style={{display:"flex",gap:8,marginTop:10}}>
+              <input placeholder="Nouveau produit" style={{...input,flex:2}} value={np.name} onChange={e=>setNp({...np,name:e.target.value})}/>
+              <input placeholder="Prix" type="number" step="0.001" style={{...input,flex:1}} value={np.price} onChange={e=>setNp({...np,price:e.target.value})}/>
+              <button style={btn} onClick={()=>{ if(!np.name)return; setProducts([...products,{id:uid(),name:np.name,price:parseFloat(np.price)||0}]); setNp({name:"",price:""}); }}><Plus size={16}/></button>
+            </div>
+          </Section>
+
+          {/* ---- Clients ---- */}
+          <Section title="Clients & chauffeur affecté" icon={<Users size={18}/>}>
+            {clients.map(c=>(
+              <div key={c.id} style={{display:"flex",gap:8,alignItems:"center",padding:"6px 0",borderBottom:"1px solid var(--line)"}}>
+                <input style={{...input,flex:2}} value={c.name} onChange={e=>setClients(clients.map(x=>x.id===c.id?{...x,name:e.target.value}:x))}/>
+                <select style={{...input,flex:1}} value={c.driver} onChange={e=>setClients(clients.map(x=>x.id===c.id?{...x,driver:e.target.value}:x))}>
+                  {drivers.map(d=><option key={d.id} value={d.id}>{d.name}</option>)}
+                </select>
+                <button style={btnGhost} onClick={()=>setClients(clients.filter(x=>x.id!==c.id))}><Trash2 size={16}/></button>
+              </div>
+            ))}
+            <div style={{display:"flex",gap:8,marginTop:10}}>
+              <input placeholder="Nouveau client" style={{...input,flex:2}} value={nc.name} onChange={e=>setNc({...nc,name:e.target.value})}/>
+              <select style={{...input,flex:1}} value={nc.driver||drivers[0]?.id||""} onChange={e=>setNc({...nc,driver:e.target.value})}>
+                {drivers.map(d=><option key={d.id} value={d.id}>{d.name}</option>)}
+              </select>
+              <button style={btn} onClick={()=>{ if(!nc.name)return; setClients([...clients,{id:uid(),name:nc.name,driver:nc.driver||drivers[0]?.id||""}]); setNc({name:"",driver:drivers[0]?.id||""}); }}><Plus size={16}/></button>
+            </div>
+          </Section>
+
+          {/* ---- Tarifs spéciaux par client ---- */}
+          <Section title="Tarifs spéciaux par client" icon={<Users size={18}/>}>
+            <p style={{fontSize:13,color:"var(--muted)",margin:"0 0 12px"}}>
+              Laissez vide (ou 0) pour utiliser le prix catalogue. Les livraisons déjà enregistrées conservent leur prix d'origine.
+            </p>
+            {clients.map(c => {
+              const drName = driverLabel(c.driver, drivers);
+              return (
+                <div key={c.id} style={{border:"1px solid var(--line)",borderRadius:12,marginBottom:12,overflow:"hidden"}}>
+                  <div style={{background:"var(--chalk)",padding:"10px 14px",fontWeight:700,color:"var(--ink)",fontSize:14}}>
+                    {c.name} <span style={{fontSize:12,fontWeight:400,color:"var(--muted)"}}>· {drName}</span>
+                  </div>
+                  <div style={{padding:"8px 14px"}}>
+                    {products.map(p => {
+                      const specific = (clientPrices||[]).find(pc => pc.clientId===c.id && pc.productId===p.id);
+                      return (
+                        <div key={p.id} style={{display:"flex",alignItems:"center",gap:8,padding:"5px 0",borderBottom:"1px solid var(--line)"}}>
+                          <div style={{flex:2,fontSize:13,color:"var(--ink)"}}>{p.name}</div>
+                          <div style={{fontSize:12,color:"var(--muted)",whiteSpace:"nowrap"}}>cat. {money(p.price,currency)}</div>
+                          <input
+                            type="number" step="0.001" min="0"
+                            placeholder={fmt(p.price)}
+                            style={{...input,width:100,padding:"6px 8px",fontSize:13,borderColor:specific?"var(--wheat)":"var(--line)"}}
+                            value={specific ? specific.prix : ""}
+                            onChange={e => setClientPrices(c.id, p.id, e.target.value)}
+                          />
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              );
+            })}
+          </Section>
+        </>
+      )}
+    </div>
+  );
+}
+
+/* ===================== TABLEAU JOURNALIER ===================== */
+function DailyReport({ deliveries, payments, reports, drivers, settings, currency, onSaveReport, onDeleteReport, onReset, returns }) {
+  const [date,          setDate]          = useState(today());
+  const [view,          setView]          = useState("jour");
+  const [savedTick,     setSavedTick]     = useState(false);
+  const [openDate,      setOpenDate]      = useState(null);
+  const [confirmReset,  setConfirmReset]  = useState(false);
+
+  useEffect(()=>{ setSavedTick(false); setConfirmReset(false); },[date]);
+
+  const dayDeliveries = deliveries.filter(d=>d.date===date);
+  const recFor = (cid) => payments.filter(p=>p.clientId===cid&&p.date===date).reduce((s,p)=>s+(Number(p.amount)||0),0);
+
+  const rows = useMemo(()=>{
+    const m = {};
+    dayDeliveries.forEach(d=>{
+      m[d.clientId]=m[d.clientId]||{clientId:d.clientId,client:d.clientName,driver:d.driver,items:[],rempli:0};
+      // Afficher quantité nette et mentionner les retours si applicable
+      const rQty = Number(d.returnedQty)||0;
+      const net  = netQty(d);
+      const itemStr = rQty>0
+        ? `${d.productName} ×${net} (−${rQty} retour)`
+        : `${d.productName} ×${net}`;
+      m[d.clientId].items.push(itemStr);
+      m[d.clientId].rempli+=lineTotal(d);
+    });
+    return Object.values(m)
+      .map(r=>{ const rec=recFor(r.clientId); return {...r,rec,ecart:rec-r.rempli}; })
+      .sort((a,b)=>a.driver===b.driver?a.client.localeCompare(b.client):a.driver.localeCompare(b.driver));
+  },[dayDeliveries,payments,date]);
+
+  const tot = rows.reduce((a,r)=>({rempli:a.rempli+r.rempli,rec:a.rec+r.rec,ecart:a.ecart+r.ecart}),{rempli:0,rec:0,ecart:0});
+
+  // Totaux par produit — quantités nettes (retours déduits)
+  const perProduct = useMemo(() => {
+    const m = {};
+    dayDeliveries.forEach(d => {
+      if (!m[d.productId]) m[d.productId] = { name:d.productName, qty:0, returned:0, total:0, unitPrice:d.unitPrice };
+      m[d.productId].qty      += netQty(d);            // quantité nette
+      m[d.productId].returned += Number(d.returnedQty)||0;
+      m[d.productId].total    += lineTotal(d);
+    });
+    return Object.values(m).sort((a,b) => b.qty - a.qty);
+  }, [dayDeliveries]);
+  const alreadySaved = reports.some(r=>r.date===date);
+
+  const saveReport = () => {
+    onSaveReport({date,savedAt:new Date().toISOString(),rempli:tot.rempli,rec:tot.rec,ecart:tot.ecart,
+      rows:rows.map(r=>({client:r.client,driver:r.driver,items:r.items,rempli:r.rempli,rec:r.rec,ecart:r.ecart}))});
+    setSavedTick(true);
+  };
+
+  const th    = {textAlign:"left",padding:"8px 10px",fontSize:11,textTransform:"uppercase",letterSpacing:".03em",color:"#fff",background:"var(--ink)",whiteSpace:"nowrap"};
+  const td    = {padding:"8px 10px",fontSize:13,color:"var(--ink)",borderBottom:"1px solid var(--line)",whiteSpace:"nowrap"};
+  const tdNum = {...td,textAlign:"right",fontWeight:600};
+
+  const exportCSV = () => {
+    const head  = ["Jour","Chauffeur","Client","Detail","Rempli","Recupere","Ecart"];
+    const lines = rows.map(r=>[date,driverLabel(r.driver,drivers),r.client,r.items.join(" / "),fmt(r.rempli),fmt(r.rec),fmt(r.ecart)]);
+    lines.push(["","","TOTAL","",fmt(tot.rempli),fmt(tot.rec),fmt(tot.ecart)]);
+    lines.push([]);
+    lines.push(["--- RECAPITULATIF PAR PRODUIT ---","","","","","",""]);
+    lines.push(["Produit","Quantite totale","Montant","","","",""]);
+    perProduct.forEach(p => lines.push([p.name, p.qty+" pcs", fmt(p.total),"","","",""]));
+    lines.push(["TOTAL", perProduct.reduce((s,p)=>s+p.qty,0)+" pcs", fmt(tot.rempli),"","","",""]);
+    const csv = [head,...lines].map(l=>l.map(c=>`"${String(c||"").replace(/"/g,'""')}"`).join(";")).join("\n");
+    try {
+      const blob = new Blob(["\uFEFF"+csv],{type:"text/csv;charset=utf-8;"});
+      const url  = URL.createObjectURL(blob);
+      const a    = document.createElement("a"); a.href=url; a.download=`tableau-${date}.csv`;
+      document.body.appendChild(a); a.click(); document.body.removeChild(a); URL.revokeObjectURL(url);
+    } catch(e) {}
+  };
+
+  return (
+    <div>
+      {/* Onglets Jour / Historique */}
+      <div style={{display:"flex",gap:8,marginBottom:14}}>
+        {[["jour","Tableau du jour",<CalendarDays size={15}/>],["hist",`Historique (${reports.length} j)`,<LayoutDashboard size={15}/>]].map(([k,lab,ic])=>(
+          <button key={k} onClick={()=>setView(k)} style={{...btn,flex:1,background:view===k?C.brown:"#fff",color:view===k?"#fff":C.brown,border:"1px solid var(--line)"}}>
+            {ic} {lab}
+          </button>
+        ))}
+      </div>
+
+      {/* ---- HISTORIQUE ---- */}
+      {view==="hist" && (
+        <Section title="Historique complet" icon={<CalendarDays size={18}/>}>
+          {!reports.length && <p style={{color:"var(--muted)",margin:0}}>Aucun tableau enregistré. Revenez sur « Tableau du jour » et appuyez sur Sauvegarder.</p>}
+          {[...reports].sort((a,b)=>a.date<b.date?1:-1).map(r=>{
+            const ok   = Math.abs(r.ecart)<=0.0001;
+            const open = openDate===r.date;
+            return (
+              <div key={r.date} style={{border:"1px solid var(--line)",borderRadius:12,marginBottom:10,overflow:"hidden"}}>
+                <div style={{display:"flex",alignItems:"center",gap:10,padding:"10px 12px",background:"var(--chalk)"}}>
+                  <div style={{flex:1,minWidth:0}}>
+                    <div style={{fontWeight:700,color:"var(--ink)",textTransform:"capitalize"}}>{dateFR(r.date)}</div>
+                    <div style={{fontSize:12,color:"var(--muted)"}}>Rempli {money(r.rempli,currency)} · Récupéré {money(r.rec,currency)}</div>
+                  </div>
+                  <span style={{fontWeight:700,fontSize:13,color:ok?C.green:C.red,whiteSpace:"nowrap"}}>
+                    {ok?"OK":`${r.ecart>=0?"+":"−"}${money(Math.abs(r.ecart),currency)}`}
+                  </span>
+                  <button style={{...btn,padding:"7px 10px",fontSize:12}} onClick={()=>setOpenDate(open?null:r.date)}>{open?"Fermer":"Voir"}</button>
+                  <button style={btnGhost} onClick={()=>onDeleteReport(r.date)}><Trash2 size={16}/></button>
+                </div>
+                {open && (
+                  <div style={{padding:"8px 12px 12px"}}>
+                    {r.rows.map((row,i)=>(
+                      <div key={i} style={{display:"flex",justifyContent:"space-between",fontSize:13,padding:"4px 0",borderBottom:"1px solid var(--line)"}}>
+                        <span style={{color:"var(--ink)"}}>{row.client} <span style={{color:"var(--muted)",fontSize:11}}>({driverLabel(row.driver,drivers)})</span></span>
+                        <span style={{color:Math.abs(row.ecart)<=0.0001?C.green:C.red,fontWeight:600}}>
+                          {money(row.rec,currency)} / {money(row.rempli,currency)}
+                        </span>
+                      </div>
+                    ))}
+                    <div style={{display:"flex",justifyContent:"space-between",fontWeight:800,color:"var(--ink)",marginTop:6}}>
+                      <span>Total</span><span>{money(r.rec,currency)} / {money(r.rempli,currency)}</span>
+                    </div>
+                  </div>
+                )}
+              </div>
+            );
+          })}
+        </Section>
+      )}
+
+      {/* ---- TABLEAU DU JOUR ---- */}
+      {view==="jour" && (
+        <>
+          <Section title="Tableau journalier" icon={<CalendarDays size={18}/>}
+            right={<input type="date" style={{...input,width:"auto",padding:"8px 10px"}} value={date} onChange={e=>setDate(e.target.value)}/>}>
+            <div style={{display:"flex",gap:10,flexWrap:"wrap",marginBottom:12}}>
+              <KPI label="Rempli (Labo)"  value={money(tot.rempli,currency)}/>
+              <KPI label="Récupéré"       value={money(tot.rec,currency)} tone="green"/>
+              <KPI label="Écart" value={`${tot.ecart>=0?"+":"−"}${money(Math.abs(tot.ecart),currency)}`} tone={Math.abs(tot.ecart)<=0.0001?"green":"red"}/>
+            </div>
+            <div style={{display:"flex",gap:8,flexWrap:"wrap"}}>
+              <button style={{...btn,background:savedTick?C.green:C.brown}} onClick={saveReport} disabled={!rows.length}>
+                <Check size={15}/> {savedTick?"Enregistré ✓":alreadySaved?"Mettre à jour":"Sauvegarder"}
+              </button>
+              <button style={{...btn,background:"var(--surface)",color:"var(--wheat)",border:"1px solid var(--line)"}} onClick={()=>window.print()}><Printer size={15}/> Imprimer</button>
+              <button style={{...btn,background:"var(--surface)",color:"var(--wheat)",border:"1px solid var(--line)"}} onClick={exportCSV}><CalendarDays size={15}/> Export CSV</button>
+            </div>
+
+            {/* ---- Remise à zéro après sauvegarde ---- */}
+            {savedTick && rows.length>0 && !confirmReset && (
+              <button style={{...btn,background:"var(--surface)",color:"var(--coral)",border:`1px solid var(--coral)`,marginTop:10,width:"100%"}}
+                onClick={()=>setConfirmReset(true)}>
+                <RotateCcw size={15}/> Remettre à zéro pour un nouveau jour
+              </button>
+            )}
+            {confirmReset && (
+              <div style={{marginTop:10,padding:12,background:"#FFF3F2",border:`1px solid var(--coral)`,borderRadius:12}}>
+                <p style={{margin:"0 0 8px",fontSize:13,color:"var(--coral)",fontWeight:600}}>
+                  ⚠️ Supprimer toutes les sorties et encaissements du {dateFR(date)} ?
+                  Le tableau sauvegardé sera conservé dans l'historique.
+                </p>
+                <div style={{display:"flex",gap:8}}>
+                  <button style={{...btn,flex:1,background:"var(--coral)",padding:"11px"}} onClick={()=>{ onReset(date); setSavedTick(false); setConfirmReset(false); }}>
+                    <RotateCcw size={15}/> Confirmer la remise à zéro
+                  </button>
+                  <button style={{...btn,flex:1,background:"var(--surface)",color:"var(--wheat)",border:"1px solid var(--line)",padding:"11px"}} onClick={()=>setConfirmReset(false)}>
+                    Annuler
+                  </button>
+                </div>
+              </div>
+            )}
+          </Section>
+
+          <Section title={dateFR(date)} icon={<LayoutDashboard size={18}/>}>
+            {!rows.length ? (
+              <p style={{color:"var(--muted)",margin:0}}>Aucune sortie ce jour. Le tableau se remplit après les sorties du labo et la saisie des chauffeurs.</p>
+            ) : (
+              <div style={{overflowX:"auto",borderRadius:12,border:"1px solid var(--line)"}}>
+                <table style={{borderCollapse:"collapse",width:"100%",minWidth:560}}>
+                  <thead>
+                    <tr>
+                      <th style={th}>Client</th>
+                      <th style={th}>Détail</th>
+                      <th style={{...th,textAlign:"right"}}>Rempli</th>
+                      <th style={{...th,textAlign:"right"}}>Récupéré</th>
+                      <th style={{...th,textAlign:"right"}}>Écart</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {drivers.map(dr=>{
+                      const drRows = rows.filter(r=>r.driver===dr.id);
+                      if (!drRows.length) return null;
+                      const sub = drRows.reduce((a,r)=>({rempli:a.rempli+r.rempli,rec:a.rec+r.rec,ecart:a.ecart+r.ecart}),{rempli:0,rec:0,ecart:0});
+                      return (
+                        <React.Fragment key={dr.id}>
+                          <tr><td colSpan={5} style={{...td,background:"var(--chalk)",fontWeight:700,color:"var(--wheat)"}}>{dr.name}</td></tr>
+                          {drRows.map(r=>(
+                            <tr key={r.clientId}>
+                              <td style={{...td,fontWeight:600}}>{r.client}</td>
+                              <td style={{...td,whiteSpace:"normal",color:"var(--muted)",fontSize:12}}>{r.items.join(", ")}</td>
+                              <td style={tdNum}>{money(r.rempli,currency)}</td>
+                              <td style={{...tdNum,color:"var(--sage)"}}>{money(r.rec,currency)}</td>
+                              <td style={{...tdNum,color:Math.abs(r.ecart)<=0.0001?C.green:C.red}}>
+                                {Math.abs(r.ecart)<=0.0001?"OK":`${r.ecart>=0?"+":"−"}${money(Math.abs(r.ecart),currency)}`}
+                              </td>
+                            </tr>
+                          ))}
+                          <tr>
+                            <td style={{...td,fontStyle:"italic",color:"var(--muted)"}} colSpan={2}>Sous-total {dr.name}</td>
+                            <td style={tdNum}>{money(sub.rempli,currency)}</td>
+                            <td style={{...tdNum,color:"var(--sage)"}}>{money(sub.rec,currency)}</td>
+                            <td style={{...tdNum,color:Math.abs(sub.ecart)<=0.0001?C.green:C.red}}>{`${sub.ecart>=0?"+":"−"}${money(Math.abs(sub.ecart),currency)}`}</td>
+                          </tr>
+                        </React.Fragment>
+                      );
+                    })}
+                    <tr>
+                      <td style={{padding:"10px",fontWeight:800,color:"#fff",background:"var(--ink)"}} colSpan={2}>TOTAL JOUR</td>
+                      <td style={{padding:"10px",textAlign:"right",fontWeight:800,color:"#fff",background:"var(--ink)"}}>{money(tot.rempli,currency)}</td>
+                      <td style={{padding:"10px",textAlign:"right",fontWeight:800,color:"#fff",background:"var(--ink)"}}>{money(tot.rec,currency)}</td>
+                      <td style={{padding:"10px",textAlign:"right",fontWeight:800,background:"var(--ink)",color:Math.abs(tot.ecart)<=0.0001?"#A3D9CF":"#F5A09A"}}>
+                        {`${tot.ecart>=0?"+":"−"}${money(Math.abs(tot.ecart),currency)}`}
+                      </td>
+                    </tr>
+                  </tbody>
+                </table>
+              </div>
+            )}
+            {/* ---- Récapitulatif par produit ---- */}
+            {perProduct.length > 0 && (
+              <div style={{marginTop:16}}>
+                <div style={{...serif,fontSize:15,fontWeight:600,color:"var(--wheat)",marginBottom:8,paddingTop:12,borderTop:"2px solid var(--wheat)"}}>
+                  Récapitulatif par produit
+                </div>
+                <div style={{overflowX:"auto",borderRadius:12,border:"1px solid var(--line)"}}>
+                  <table style={{width:"100%",borderCollapse:"collapse",minWidth:300}}>
+                    <thead>
+                      <tr style={{background:"var(--ink)"}}>
+                        <th style={{padding:"8px 12px",fontSize:11,textTransform:"uppercase",letterSpacing:".03em",color:"#fff",textAlign:"left"}}>Produit</th>
+                        <th style={{padding:"8px 12px",fontSize:11,textTransform:"uppercase",letterSpacing:".03em",color:"#fff",textAlign:"right"}}>Quantité totale</th>
+                        <th style={{padding:"8px 12px",fontSize:11,textTransform:"uppercase",letterSpacing:".03em",color:"#fff",textAlign:"right"}}>Montant</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {perProduct.map((p,i) => (
+                        <tr key={p.name} style={{background:i%2===0?C.card:C.cream}}>
+                          <td style={{padding:"9px 12px",fontSize:14,color:"var(--ink)",fontWeight:500}}>
+                            {p.name}
+                            {p.returned>0 && <span style={{fontSize:11,color:"var(--coral)",marginLeft:6,display:"block"}}>↩ {p.returned} retourné{p.returned>1?"s":""}</span>}
+                          </td>
+                          <td style={{padding:"9px 12px",fontSize:14,color:"var(--ink)",fontWeight:700,textAlign:"right"}}>
+                            <span style={{background:"var(--wheat)",color:"#fff",borderRadius:20,padding:"2px 10px",fontSize:13}}>{p.qty} pcs</span>
+                          </td>
+                          <td style={{padding:"9px 12px",fontSize:14,color:"var(--ink)",fontWeight:600,textAlign:"right"}}>{money(p.total,currency)}</td>
+                        </tr>
+                      ))}
+                      <tr style={{borderTop:"2px solid var(--wheat)",background:"var(--chalk)"}}>
+                        <td style={{padding:"9px 12px",fontWeight:800,color:"var(--ink)"}}>TOTAL</td>
+                        <td style={{padding:"9px 12px",fontWeight:800,color:"var(--wheat)",textAlign:"right",...serif,fontSize:15}}>
+                          {perProduct.reduce((s,p)=>s+p.qty,0)} pcs
+                        </td>
+                        <td style={{padding:"9px 12px",fontWeight:800,color:"var(--wheat)",textAlign:"right",...serif,fontSize:15}}>
+                          {money(tot.rempli,currency)}
+                        </td>
+                      </tr>
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            )}
+
+            {rows.some(r=>Math.abs(r.ecart)>0.0001) && (
+              <p style={{display:"flex",alignItems:"center",gap:6,color:"var(--coral)",fontSize:13,marginTop:12}}>
+                <AlertTriangle size={15}/> Des écarts sont à signaler ce jour.
+              </p>
+            )}
+          </Section>
+        </>
+      )}
+    </div>
+  );
+}
+
+/* ===================== COUCHE API (remplace le stockage navigateur) ===================== */
+const API_URL = "api.php"; // chemin relatif : api.php doit être dans le même dossier que index.html
+
+async function apiCall(action, body) {
+  const opts = body
+    ? { method:"POST", headers:{"Content-Type":"application/json"}, body:JSON.stringify(body) }
+    : { method:"GET" };
+  const res = await fetch(`${API_URL}?action=${action}`, opts);
+  const data = await res.json().catch(()=>({}));
+  if (!res.ok) throw new Error(data.error || `Erreur API (${action})`);
+  return data;
+}
+
+// Convertit les lignes SQL (snake_case, jour) vers le format JS attendu par les composants
+// returnedByDelivery est un objet {livraisonId: quantitéTotaleRetournée} précalculé.
+function fromSqlDelivery(l, returnedByDelivery) {
+  return { id:l.id, date:l.jour, clientId:l.client_id, clientName:l.client_nom, driver:l.chauffeur_id,
+           productId:l.produit_id, productName:l.produit_nom, quantity:l.quantite, unitPrice:l.prix_unitaire,
+           returnedQty: (returnedByDelivery && returnedByDelivery[l.id]) || 0 };
+}
+function fromSqlReturn(rt) {
+  return { id:rt.id, livraisonId:rt.livraison_id, date:rt.jour, quantity:rt.quantite, reason:rt.motif || "" };
+}
+function fromSqlPayment(p) {
+  return { id:p.id, date:p.jour, clientId:p.client_id, clientName:p.client_nom, driver:p.chauffeur_id, amount:p.montant };
+}
+function fromSqlClient(c) { return { id:c.id, name:c.nom, driver:c.chauffeur_id }; }
+function fromSqlProduct(p) { return { id:p.id, name:p.nom, price:p.prix, category:p.categorie || "Autres" }; }
+function fromSqlDriver(d) { return { id:d.id, name:d.nom, user:d.utilisateur, pass:d.mot_de_passe }; }
+function fromSqlReport(r) {
+  return { date:r.jour, savedAt:null, rempli:r.rempli, rec:r.recupere, ecart:r.ecart, rows:r.detail || [] };
+}
+function fromSqlClientPrice(pc) {
+  return { clientId:pc.client_id, productId:pc.produit_id, prix:pc.prix };
+}
+
+/* ===================== APP (connecté à MySQL via api.php) ===================== */
+function App() {
+  const [loaded,       setLoaded]      = useState(false);
+  const [loadError,    setLoadError]   = useState(null);
+  const [session,      setSession]     = useState(null);
+  const [role,         setRole]        = useState("labo");
+  const [products,     setProductsS]   = useState(seedProducts);
+  const [clients,      setClientsS]    = useState(seedClients);
+  const [deliveries,   setDeliveriesS] = useState([]);
+  const [returns,      setReturnsS]    = useState([]);
+  const [payments,     setPaymentsS]   = useState([]);
+  const [reports,      setReportsS]    = useState([]);
+  const [settings,     setSettingsS]   = useState(seedSettings);
+  const [clientPrices, setClientPricesS] = useState([]);
+
+  useEffect(()=>{
+    const l = document.createElement("link"); l.rel="stylesheet";
+    l.href="https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&family=Inter:wght@400;500;600;700;800;900&display=swap";
+    document.head.appendChild(l);
+    return ()=>{ try{document.head.removeChild(l);}catch(e){} };
+  },[]);
+
+  // Chargement initial : tout vient de la base de données via api.php
+  const reloadAll = async () => {
+    const data = await apiCall("load_all");
+    setProductsS((data.produits||[]).map(fromSqlProduct));
+    setClientsS((data.clients||[]).map(fromSqlClient));
+    const returnedByDelivery = {};
+    (data.retours||[]).forEach(rt => { returnedByDelivery[rt.livraison_id] = (returnedByDelivery[rt.livraison_id]||0) + Number(rt.quantite||0); });
+    setDeliveriesS((data.livraisons||[]).map(l => fromSqlDelivery(l, returnedByDelivery)));
+    setReturnsS((data.retours||[]).map(fromSqlReturn));
+    setPaymentsS((data.encaissements||[]).map(fromSqlPayment));
+    setReportsS((data.rapports||[]).map(fromSqlReport));
+    setClientPricesS((data.prix_client||[]).map(fromSqlClientPrice));
+    const p = data.parametres || {};
+    setSettingsS({
+      business:  p.business  || seedSettings.business,
+      currency:  p.currency  || seedSettings.currency,
+      drivers:   (data.chauffeurs||[]).map(fromSqlDriver),
+      auth: {
+        labo:         { user:p.auth_labo_user||"labo",   pass:p.auth_labo_pass||"0000" },
+        proprietaire: { user:p.auth_proprio_user||"admin", pass:p.auth_proprio_pass||"9999" },
+      },
+    });
+  };
+
+  useEffect(()=>{
+    (async()=>{
+      try {
+        await reloadAll();
+      } catch(e) {
+        setLoadError(e.message || "Connexion à la base de données impossible.");
+      }
+      try {
+        const sess = sessionStorage.getItem("patisserie:session");
+        if (sess) { setSession(sess); setRole(sess==="proprietaire"?"proprietaire":sess); }
+      } catch(e){}
+      setLoaded(true);
+    })();
+  },[]);
+
+  const drivers  = settings.drivers || seedSettings.drivers;
+  const currency = settings.currency || "DT";
+
+  // ---- Produits ----
+  const setProducts = async (next) => {
+    setProductsS(next); // optimiste
+    const prevIds = new Set(products.map(p=>p.id));
+    for (const p of next) {
+      if (!prevIds.has(p.id) || products.find(x=>x.id===p.id && (x.name!==p.name || x.price!==p.price))) {
+        await apiCall("save_product", { id:p.id, nom:p.name, prix:p.price }).catch(()=>{});
+      }
+    }
+    const nextIds = new Set(next.map(p=>p.id));
+    for (const p of products) {
+      if (!nextIds.has(p.id)) await apiCall("delete_product", { id:p.id }).catch(()=>{});
+    }
+  };
+
+  // ---- Clients ----
+  const setClients = async (next) => {
+    setClientsS(next);
+    const prevIds = new Set(clients.map(c=>c.id));
+    for (const c of next) {
+      if (!prevIds.has(c.id) || clients.find(x=>x.id===c.id && (x.name!==c.name || x.driver!==c.driver))) {
+        await apiCall("save_client", { id:c.id, nom:c.name, chauffeur_id:c.driver }).catch(()=>{});
+      }
+    }
+    const nextIds = new Set(next.map(c=>c.id));
+    for (const c of clients) {
+      if (!nextIds.has(c.id)) await apiCall("delete_client", { id:c.id }).catch(()=>{});
+    }
+  };
+
+  // ---- Chauffeurs (vivent dans settings.drivers) ----
+  const setDrivers = async (drvs) => {
+    setSettingsS(prev => ({...prev, drivers:drvs}));
+    const prevIds = new Set(drivers.map(d=>d.id));
+    for (const d of drvs) {
+      if (!prevIds.has(d.id) || drivers.find(x=>x.id===d.id && (x.name!==d.name || x.user!==d.user || x.pass!==d.pass))) {
+        await apiCall("save_driver", { id:d.id, nom:d.name, utilisateur:d.user, mot_de_passe:d.pass }).catch(()=>{});
+      }
+    }
+    const nextIds = new Set(drvs.map(d=>d.id));
+    for (const d of drivers) {
+      if (!nextIds.has(d.id)) await apiCall("delete_driver", { id:d.id }).catch(()=>{});
+    }
+  };
+
+  // ---- Livraisons : ajout (validation labo), suppression, ET modification (Propriétaire) ----
+  // Référence toujours à jour (évite les états périmés lors d'actions rapprochées : ajouter puis modifier puis supprimer)
+  const deliveriesRef = useRef(deliveries);
+  useEffect(()=>{ deliveriesRef.current = deliveries; }, [deliveries]);
+
+  const setDeliveries = async (next) => {
+    const current  = deliveriesRef.current;
+    const prevById = new Map(current.map(d=>[d.id,d]));
+    const nextIds  = new Set(next.map(d=>d.id));
+
+    const added   = next.filter(d=>!prevById.has(d.id));
+    const removed = current.filter(d=>!nextIds.has(d.id));
+    const updated = next.filter(d=>{
+      const prev = prevById.get(d.id);
+      if (!prev) return false;
+      return prev.date!==d.date || prev.clientId!==d.clientId || prev.driver!==d.driver ||
+             prev.productId!==d.productId || prev.productName!==d.productName ||
+             prev.quantity!==d.quantity || prev.unitPrice!==d.unitPrice;
+    });
+
+    deliveriesRef.current = next; // garde la ref synchrone pour le prochain appel immédiat
+    setDeliveriesS(next); // optimiste : l'écran se met à jour immédiatement
+
+    if (added.length) {
+      const res = await apiCall("add_deliveries", { rows: added.map(d=>({
+        date:d.date, clientId:d.clientId, driver:d.driver,
+        productId:d.productId, productName:d.productName,
+        quantity:d.quantity, unitPrice:d.unitPrice,
+      })) }).catch(()=>null);
+      // Remplace les identifiants temporaires (générés côté navigateur) par les vrais identifiants
+      // attribués par la base de données, sinon une modification/suppression immédiate échouerait silencieusement.
+      if (res && res.ids && res.ids.length === added.length) {
+        const idMap = new Map(added.map((d,i)=>[d.id, res.ids[i]]));
+        deliveriesRef.current = deliveriesRef.current.map(d => idMap.has(d.id) ? {...d, id:idMap.get(d.id)} : d);
+        setDeliveriesS(deliveriesRef.current);
+      }
+    }
+    for (const d of removed) await apiCall("delete_delivery", { id:d.id }).catch(()=>{});
+    for (const d of updated) await apiCall("update_delivery", {
+      id:d.id, date:d.date, clientId:d.clientId, driver:d.driver,
+      productId:d.productId, productName:d.productName,
+      quantity:d.quantity, unitPrice:d.unitPrice,
+    }).catch(()=>{});
+  };
+
+  // ---- Encaissements : remplace tous les paiements d'un jour/chauffeur (validation tournée) ----
+  const setPayments = async (next) => {
+    setPaymentsS(next); // l'appel réel se fait via setPaymentsForDay (voir Chauffeur)
+  };
+  const setPaymentsForDay = async (date, driverId, rowsForThatDay, fullNextArray) => {
+    setPaymentsS(fullNextArray);
+    await apiCall("set_payments_for_day", {
+      date, driver:driverId,
+      rows: rowsForThatDay.map(p=>({ clientId:p.clientId, amount:p.amount })),
+    }).catch(()=>{});
+  };
+
+  // ---- Retours (articles non conformes rendus par un client sur une livraison précise) ----
+  const addReturn = async (livraisonId, quantity, date, reason) => {
+    const res = await apiCall("add_return", { livraisonId, quantity, date, motif: reason || "" }).catch(e => ({ error: e.message }));
+    if (res && res.error) { return { ok:false, error: res.error }; }
+    // Mise à jour optimiste : on incrémente returnedQty sur la livraison concernée
+    // et on ajoute la ligne de retour dans la liste locale.
+    setDeliveriesS(prev => prev.map(d => d.id===livraisonId ? { ...d, returnedQty:(Number(d.returnedQty)||0)+Number(quantity) } : d));
+    setReturnsS(prev => [...prev, { id:res.id, livraisonId, date, quantity:Number(quantity), reason:reason||"" }]);
+    return { ok:true };
+  };
+  const deleteReturn = async (returnId) => {
+    const ret = returns.find(r => r.id === returnId);
+    await apiCall("delete_return", { id: returnId }).catch(()=>{});
+    if (ret) {
+      setDeliveriesS(prev => prev.map(d => d.id===ret.livraisonId ? { ...d, returnedQty:Math.max(0,(Number(d.returnedQty)||0)-Number(ret.quantity)) } : d));
+    }
+    setReturnsS(prev => prev.filter(r => r.id !== returnId));
+  };
+
+  // ---- Réglages (business/monnaie/identifiants) ----
+  const setSettings = async (next) => {
+    setSettingsS(next);
+    await apiCall("save_settings", { parametres: {
+      business: next.business, currency: next.currency,
+      auth_labo_user: next.auth?.labo?.user, auth_labo_pass: next.auth?.labo?.pass,
+      auth_proprio_user: next.auth?.proprietaire?.user, auth_proprio_pass: next.auth?.proprietaire?.pass,
+    }}).catch(()=>{});
+    if (next.drivers && next.drivers !== drivers) await setDrivers(next.drivers);
+  };
+
+  // ---- Tarifs spéciaux par client ----
+  const setClientPrices = async (clientId, productId, priceStr) => {
+    const prix = parseFloat(priceStr) || 0;
+    setClientPricesS(prev => {
+      const filtered = prev.filter(pc => !(pc.clientId===clientId && pc.productId===productId));
+      return prix > 0 ? [...filtered, { clientId, productId, prix }] : filtered;
+    });
+    await apiCall("save_client_price", { clientId, produitId:productId, prix }).catch(()=>{});
+  };
+
+  // ---- Rapports journaliers ----
+  const saveReport = async (snapshot) => {
+    setReportsS(prev => [...prev.filter(r=>r.date!==snapshot.date), snapshot]);
+    await apiCall("save_report", {
+      date:snapshot.date, rempli:snapshot.rempli, recupere:snapshot.rec, ecart:snapshot.ecart, detail:snapshot.rows,
+    }).catch(()=>{});
+  };
+  const deleteReport = async (date) => {
+    setReportsS(prev => prev.filter(r=>r.date!==date));
+    await apiCall("delete_report", { date }).catch(()=>{});
+  };
+
+  // ---- Remise à zéro du jour ----
+  const resetDay = async (date) => {
+    setDeliveriesS(prev => prev.filter(d=>d.date!==date));
+    setPaymentsS(prev => prev.filter(p=>p.date!==date));
+    await apiCall("reset_day", { date }).catch(()=>{});
+  };
+
+  // ---- Restauration d'une sauvegarde JSON complète ----
+  const restoreBackup = async (data) => {
+    await apiCall("restore_backup", data).catch(()=>{});
+    await reloadAll();
+  };
+
+  // ---- Authentification (vérifiée côté serveur, contre la base) ----
+  const login = async (user, pass) => {
+    const r = await apiCall("login", { user, pass }).catch(()=>({ok:false}));
+    if (r.ok) {
+      setSession(r.role);
+      setRole(r.role==="proprietaire"?"proprietaire":r.role);
+      try { sessionStorage.setItem("patisserie:session", r.role); } catch(e){}
+      return true;
+    }
+    return false;
+  };
+  const logout = () => {
+    setSession(null);
+    try { sessionStorage.removeItem("patisserie:session"); } catch(e){}
+  };
+
+  const allRoles = [
+    ["labo",         "Laboratoire", <ChefHat size={17}/>],
+    ...drivers.map(d => [d.id, d.name, <Truck size={17}/>]),
+    ["proprietaire", "Propriétaire",<Crown size={17}/>],
+    ["tableau",      "Tableau",     <CalendarDays size={17}/>],
+  ];
+  const roles = session==="proprietaire" ? allRoles : allRoles.filter(([k]) => k===session);
+
+  // ---- Erreur de connexion à la base : message clair plutôt qu'un écran blanc ----
+  if (loaded && loadError) {
+    return (
+      <div style={{minHeight:"100vh",background:"var(--ink)",display:"flex",alignItems:"center",justifyContent:"center",padding:20}}>
+        <div style={{background:"var(--surface)",borderRadius:20,padding:28,maxWidth:420,textAlign:"center"}}>
+          <div style={{fontSize:40,marginBottom:10}}>⚠️</div>
+          <h2 style={{fontFamily:"'Instrument Serif',Georgia,serif",fontSize:22,marginBottom:8,color:"var(--ink)"}}>Connexion à la base impossible</h2>
+          <p style={{color:"var(--muted)",fontSize:14,marginBottom:14}}>{loadError}</p>
+          <p style={{color:"var(--muted)",fontSize:12}}>Vérifiez que api.php et config.php sont bien dans le même dossier que cette page, et que les identifiants de la base sont corrects.</p>
+        </div>
+      </div>
+    );
+  }
+
+  /* ----- Écran de connexion (vérifie auprès du serveur) ----- */
+  if (loaded && !session) {
+    return <LoginSQL settings={settings} onLogin={login}/>;
+  }
+
+  if (!loaded) {
+    return (
+      <div style={{minHeight:"100vh",background:"var(--cream,#FDFCF8)",display:"flex",alignItems:"center",justifyContent:"center"}}>
+        <p style={{color:"var(--muted,#7A8A96)"}}>Connexion à la base de données…</p>
+      </div>
+    );
+  }
+
+  return (
+    <div style={{background:"var(--chalk)",minHeight:"100vh",fontFamily:"'DM Sans',system-ui,sans-serif",color:"var(--ink)"}}>
+      <header style={{background:"var(--ink)",color:"#fff",padding:"14px 16px 12px",position:"sticky",top:0,zIndex:100,boxShadow:"0 4px 16px rgba(28,43,58,.10)"}}>
+        <div style={{maxWidth:768,margin:"0 auto",display:"flex",justifyContent:"space-between",alignItems:"center",gap:12}}>
+          <div style={{display:"flex",alignItems:"center",gap:10}}>
+            <span style={{fontSize:26,lineHeight:1}}>🥐</span>
+            <div>
+              <div style={{fontFamily:"'Instrument Serif',Georgia,serif",fontSize:20,fontWeight:400,color:"#fff",lineHeight:1.1}}>{settings.business||"Ma Pâtisserie"}</div>
+              <div style={{fontSize:11,color:"rgba(255,255,255,.55)",marginTop:1,letterSpacing:".02em"}}>Gestion · livraisons · encaissements</div>
+            </div>
+          </div>
+          <button onClick={logout} title="Se déconnecter" style={{background:"rgba(255,255,255,.10)",border:"1px solid rgba(255,255,255,.15)",color:"rgba(255,255,255,.85)",borderRadius:8,padding:"7px 12px",fontSize:12,fontWeight:600,cursor:"pointer",display:"inline-flex",alignItems:"center",gap:6,whiteSpace:"nowrap",minHeight:36}}>
+            <LogOut size={14}/> Quitter
+          </button>
+        </div>
+      </header>
+
+      <nav>
+        {/* Desktop top nav */}
+        <div style={{background:"var(--surface)",borderBottom:"1px solid var(--line)",position:"sticky",top:60,zIndex:90,overflowX:"auto",display:"none"}} className="top-nav-desktop">
+          <div style={{maxWidth:768,margin:"0 auto",display:"flex"}}>
+            {roles.map(([k,lab,ic])=>(
+              <button key={k} onClick={()=>setRole(k)} style={{flex:1,minWidth:80,padding:"11px 6px 10px",border:"none",borderBottom:`3px solid ${role===k?"var(--wheat)":"transparent"}`,background:"transparent",color:role===k?"var(--ink)":"var(--muted)",fontWeight:role===k?700:500,fontSize:11,cursor:"pointer",display:"flex",flexDirection:"column",alignItems:"center",gap:3,transition:"all .15s",fontFamily:"'Inter',sans-serif",whiteSpace:"nowrap"}}>
+                {ic}<span>{lab}</span>
+              </button>
+            ))}
+          </div>
+        </div>
+        {/* Mobile bottom nav */}
+        <div style={{position:"fixed",bottom:0,left:0,right:0,zIndex:100,background:"var(--surface)",borderTop:"1px solid var(--line)",paddingBottom:"env(safe-area-inset-bottom)",boxShadow:"0 -4px 20px rgba(28,43,58,.08)",display:"block"}} className="bottom-nav-mobile">
+          <div style={{display:"flex",maxWidth:768,margin:"0 auto"}}>
+            {roles.map(([k,lab,ic])=>(
+              <button key={k} onClick={()=>setRole(k)} style={{flex:1,display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",gap:2,padding:"9px 4px 7px",border:"none",background:"transparent",color:role===k?"var(--wheat)":"var(--muted)",fontSize:10,fontWeight:role===k?700:500,cursor:"pointer",lineHeight:1.2,minWidth:0,fontFamily:"'Inter',sans-serif",borderTop:`2px solid ${role===k?"var(--wheat)":"transparent"}`,transition:"color .15s"}}>
+                <span style={{fontSize:18,lineHeight:1}}>{ic}</span>
+                <span style={{overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap",maxWidth:"100%",padding:"0 2px"}}>{lab}</span>
+              </button>
+            ))}
+          </div>
+        </div>
+        {/* Inject CSS to show correct nav per breakpoint */}
+        <style>{`
+          @media(min-width:640px){.top-nav-desktop{display:block!important}.bottom-nav-mobile{display:none!important}}
+          @media(max-width:639px){.top-nav-desktop{display:none!important}.bottom-nav-mobile{display:block!important}}
+        `}</style>
+      </nav>
+
+      <main style={{maxWidth:768,margin:"0 auto",padding:"16px 16px 90px"}}><style>{`@media(min-width:640px){main{padding:20px 20px 40px!important}}`}</style>
+        {role==="labo" ? (
+          <Labo products={products} clients={clients} drivers={drivers} deliveries={deliveries} returns={returns} currency={currency} settings={settings}
+            clientPrices={clientPrices}
+            onAddMany={rows=>setDeliveries([...deliveries,...rows.map(r=>({...r,id:r.id||(Date.now()+Math.random()).toString(36)}))])}
+            onDelete={id=>setDeliveries(deliveries.filter(x=>x.id!==id))}
+            onUpdate={(id, patch)=>setDeliveries(deliveries.map(x=>x.id===id?{...x,...patch}:x))}
+            onAddReturn={addReturn} onDeleteReturn={deleteReturn}/>
+        ) : drivers.some(d=>d.id===role) ? (
+          <Chauffeur driver={role} drivers={drivers} deliveries={deliveries} payments={payments} currency={currency} settings={settings} returns={returns}
+            onReplacePayments={async (nextFullArray) => {
+              const todayRows = nextFullArray.filter(p=>p.driver===role);
+              const dateGroups = {};
+              todayRows.forEach(p=>{ (dateGroups[p.date]=dateGroups[p.date]||[]).push(p); });
+              const dates = Object.keys(dateGroups);
+              if (!dates.length) return; // aucune ligne → rien à persister
+              const targetDate = dates[dates.length-1];
+              await setPaymentsForDay(targetDate, role, dateGroups[targetDate]||[], nextFullArray);
+            }}/>
+        ) : role==="proprietaire" ? (
+          <Owner deliveries={deliveries} payments={payments} products={products} clients={clients} returns={returns}
+            reports={reports} onRestore={restoreBackup} setDeliveries={setDeliveries}
+            onAddReturn={addReturn} onDeleteReturn={deleteReturn}
+            drivers={drivers} settings={settings} currency={currency}
+            setProducts={setProducts} setClients={setClients} setDrivers={setDrivers} setSettings={setSettings}
+            clientPrices={clientPrices} setClientPrices={setClientPrices}/>
+        ) : (
+          <DailyReport deliveries={deliveries} payments={payments} reports={reports} returns={returns}
+            drivers={drivers} settings={settings} currency={currency}
+            onSaveReport={saveReport} onDeleteReport={deleteReport} onReset={resetDay}/>
+        )}
+        <p style={{textAlign:"center",color:"var(--muted)",fontSize:11,marginTop:24}}>
+          {drivers.length} chauffeur{drivers.length>1?"s":""} · {reports.length} rapport{reports.length>1?"s":""} sauvegardé{reports.length>1?"s":""} · monnaie : {currency} · connecté à la base de données
+        </p>
+      </main>
+    </div>
+  );
+}
+
+/* ===================== ÉCRAN DE CONNEXION (vérifie côté serveur) ===================== */
+function LoginSQL({ settings, onLogin }) {
+  const [user, setUser] = useState("");
+  const [pass, setPass] = useState("");
+  const [err,  setErr]  = useState("");
+  const [busy, setBusy] = useState(false);
+
+  const tryLogin = async () => {
+    if (!user.trim()) { setErr("Nom d'utilisateur requis."); return; }
+    setBusy(true); setErr("");
+    try {
+      const ok = await onLogin(user.trim(), pass);
+      if (!ok) setErr("Nom d'utilisateur ou mot de passe incorrect.");
+    } catch(e) {
+      setErr("Connexion au serveur impossible. Réessayez.");
+    }
+    setBusy(false);
+  };
+
+  return (
+    <div style={{minHeight:"100vh",background:"var(--chalk)",display:"flex",alignItems:"center",justifyContent:"center",padding:16,fontFamily:"'DM Sans',system-ui,sans-serif"}}>
+      <div style={{...cardBox,width:"100%",maxWidth:380,padding:28}}>
+        <div style={{textAlign:"center",marginBottom:22}}>
+          <div style={{fontSize:42}}>🥐</div>
+          <h1 style={{...serif,margin:"8px 0 2px",fontSize:24,color:"var(--ink)"}}>{settings.business||"Ma Pâtisserie"}</h1>
+          <p style={{margin:0,fontSize:13,color:"var(--muted)"}}>Connectez-vous pour accéder à votre interface</p>
+        </div>
+        <div style={{marginBottom:12}}>
+          <label style={label}>Nom d'utilisateur</label>
+          <input style={input} value={user} autoCapitalize="none" autoCorrect="off"
+            onChange={e=>{setUser(e.target.value);setErr("");}}
+            onKeyDown={e=>e.key==="Enter"&&tryLogin()}/>
+        </div>
+        <div style={{marginBottom:16}}>
+          <label style={label}>Mot de passe</label>
+          <input type="password" style={input} value={pass}
+            onChange={e=>{setPass(e.target.value);setErr("");}}
+            onKeyDown={e=>e.key==="Enter"&&tryLogin()}/>
+        </div>
+        {err && (
+          <p style={{display:"flex",alignItems:"center",gap:6,color:"var(--coral)",fontSize:13,margin:"0 0 12px",background:"var(--coral-lt)",padding:"8px 10px",borderRadius:8}}>
+            <AlertTriangle size={14}/> {err}
+          </p>
+        )}
+        <button style={{...btn,width:"100%",padding:"14px",fontSize:16,opacity:busy?0.7:1}} onClick={tryLogin} disabled={busy}>
+          <Lock size={16}/> {busy?"Connexion…":"Se connecter"}
+        </button>
+      </div>
+    </div>
+  );
+}
+
+const root = ReactDOM.createRoot(document.getElementById("root"));
+root.render(React.createElement(App));
+</script>
+</body>
+</html>

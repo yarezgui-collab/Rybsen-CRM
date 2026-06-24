@@ -1,0 +1,14 @@
+# Bloquer l'accès direct aux fichiers de rate-limit et de configuration
+<FilesMatch "^(config\.php|\.rl[a-f0-9]+\.json)$">
+    Order Allow,Deny
+    Deny from all
+</FilesMatch>
+
+# Forcer l'encodage UTF-8
+AddDefaultCharset UTF-8
+
+# Interdire la navigation dans les dossiers
+Options -Indexes
+
+# Page d'entrée par défaut
+DirectoryIndex index.html index.php
