@@ -1653,7 +1653,7 @@ function Owner({ deliveries, payments, products, clients, drivers, settings, rep
   };
 
   /* ---- Réglages locaux ---- */
-  const [np, setNp] = useState({name:"",price:""});
+  const [np, setNp] = useState({name:"",price:"",category:"Viennoiserie"});
   const [nc, setNc] = useState({name:"",driver:drivers[0]?.id||""});
   const [nd, setNd] = useState("");  // nouveau chauffeur
 
@@ -1973,16 +1973,22 @@ function Owner({ deliveries, payments, products, clients, drivers, settings, rep
           {/* ---- Produits ---- */}
           <Section title="Produits & prix" icon={<Package size={18}/>}>
             {products.map(p=>(
-              <div key={p.id} style={{display:"flex",gap:8,alignItems:"center",padding:"6px 0",borderBottom:"1px solid var(--line)"}}>
-                <input style={{...input,flex:2}} value={p.name} onChange={e=>setProducts(products.map(x=>x.id===p.id?{...x,name:e.target.value}:x))}/>
-                <input type="number" step="0.001" style={{...input,flex:1}} value={p.price} onChange={e=>setProducts(products.map(x=>x.id===p.id?{...x,price:parseFloat(e.target.value)||0}:x))}/>
+              <div key={p.id} style={{display:"flex",gap:8,alignItems:"center",padding:"6px 0",borderBottom:"1px solid var(--line)",flexWrap:"wrap"}}>
+                <input style={{...input,flex:"2 1 120px"}} value={p.name} onChange={e=>setProducts(products.map(x=>x.id===p.id?{...x,name:e.target.value}:x))}/>
+                <input type="number" step="0.001" style={{...input,flex:"1 1 70px"}} value={p.price} onChange={e=>setProducts(products.map(x=>x.id===p.id?{...x,price:parseFloat(e.target.value)||0}:x))}/>
+                <select style={{...input,flex:"1 1 110px",fontSize:12}} value={p.category||"Autres"} onChange={e=>setProducts(products.map(x=>x.id===p.id?{...x,category:e.target.value}:x))}>
+                  {Object.keys(CATEGORY_META).map(c=><option key={c} value={c}>{CATEGORY_META[c].emoji} {c}</option>)}
+                </select>
                 <button style={btnGhost} onClick={()=>setProducts(products.filter(x=>x.id!==p.id))}><Trash2 size={16}/></button>
               </div>
             ))}
-            <div style={{display:"flex",gap:8,marginTop:10}}>
-              <input placeholder="Nouveau produit" style={{...input,flex:2}} value={np.name} onChange={e=>setNp({...np,name:e.target.value})}/>
-              <input placeholder="Prix" type="number" step="0.001" style={{...input,flex:1}} value={np.price} onChange={e=>setNp({...np,price:e.target.value})}/>
-              <button style={btn} onClick={()=>{ if(!np.name)return; setProducts([...products,{id:uid(),name:np.name,price:parseFloat(np.price)||0}]); setNp({name:"",price:""}); }}><Plus size={16}/></button>
+            <div style={{display:"flex",gap:8,marginTop:10,flexWrap:"wrap"}}>
+              <input placeholder="Nouveau produit" style={{...input,flex:"2 1 120px"}} value={np.name} onChange={e=>setNp({...np,name:e.target.value})}/>
+              <input placeholder="Prix" type="number" step="0.001" style={{...input,flex:"1 1 70px"}} value={np.price} onChange={e=>setNp({...np,price:e.target.value})}/>
+              <select style={{...input,flex:"1 1 110px",fontSize:12}} value={np.category} onChange={e=>setNp({...np,category:e.target.value})}>
+                {Object.keys(CATEGORY_META).map(c=><option key={c} value={c}>{CATEGORY_META[c].emoji} {c}</option>)}
+              </select>
+              <button style={btn} onClick={()=>{ if(!np.name)return; setProducts([...products,{id:uid(),name:np.name,price:parseFloat(np.price)||0,category:np.category}]); setNp({name:"",price:"",category:"Viennoiserie"}); }}><Plus size={16}/></button>
             </div>
           </Section>
 
@@ -2491,8 +2497,8 @@ function App() {
     setProductsS(next); // optimiste
     const prevIds = new Set(products.map(p=>p.id));
     for (const p of next) {
-      if (!prevIds.has(p.id) || products.find(x=>x.id===p.id && (x.name!==p.name || x.price!==p.price))) {
-        await apiCall("save_product", { id:p.id, nom:p.name, prix:p.price }).catch(()=>{});
+      if (!prevIds.has(p.id) || products.find(x=>x.id===p.id && (x.name!==p.name || x.price!==p.price || x.category!==p.category))) {
+        await apiCall("save_product", { id:p.id, nom:p.name, prix:p.price, categorie:p.category||"Autres" }).catch(()=>{});
       }
     }
     const nextIds = new Set(next.map(p=>p.id));
