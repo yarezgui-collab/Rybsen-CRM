@@ -109,6 +109,18 @@ CREATE TABLE IF NOT EXISTS rapports_jour (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
 -- ------------------------------------------------------------
+-- Table : prix_client (tarifs spéciaux par client, écrasent le prix catalogue)
+-- ------------------------------------------------------------
+CREATE TABLE IF NOT EXISTS prix_client (
+  client_id  VARCHAR(40)   NOT NULL,
+  produit_id VARCHAR(40)   NOT NULL,
+  prix       DECIMAL(10,3) NOT NULL,
+  PRIMARY KEY (client_id, produit_id),
+  KEY idx_pc_client  (client_id),
+  KEY idx_pc_produit (produit_id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+-- ------------------------------------------------------------
 -- Table : parametres (nom établissement, monnaie, identifiants labo/propriétaire)
 -- ------------------------------------------------------------
 CREATE TABLE IF NOT EXISTS parametres (

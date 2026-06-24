@@ -97,6 +97,9 @@ try {
                 unset($r['detail_json']);
             }
 
+            $prixClient = $pdo->query("SELECT client_id, produit_id, prix FROM prix_client")->fetchAll();
+            foreach ($prixClient as &$pc) { $pc['prix'] = (float)$pc['prix']; }
+
             $paramsRows = $pdo->query("SELECT cle, valeur FROM parametres")->fetchAll();
             $params = [];
             foreach ($paramsRows as $row) { $params[$row['cle']] = $row['valeur']; }
@@ -110,6 +113,7 @@ try {
                 'retours'       => $retours,
                 'rapports'      => $rapports,
                 'parametres'    => $params,
+                'prix_client'   => $prixClient,
             ]);
             break;
         }
@@ -378,14 +382,32 @@ try {
                 $jour, (float)$input['rempli'], (float)$input['recupere'], (float)$input['ecart'],
                 json_encode($input['detail'] ?? [], JSON_UNESCAPED_UNICODE),
             ]);
-            // Purge automatique des rapports de plus de 90 jours
-            $pdo->prepare("DELETE FROM rapports_jour WHERE jour < (CURDATE() - INTERVAL 90 DAY)")->execute();
             out(['ok' => true]);
             break;
         }
         case 'delete_report': {
             $stmt = $pdo->prepare("DELETE FROM rapports_jour WHERE jour = ?");
             $stmt->execute([$input['date'] ?? '']);
+            out(['ok' => true]);
+            break;
+        }
+
+        // ============================================================
+        // TARIFS SPÉCIAUX PAR CLIENT
+        // ============================================================
+        case 'save_client_price': {
+            $clientId  = $input['clientId']  ?? '';
+            $produitId = $input['produitId'] ?? '';
+            $prix      = (float)($input['prix'] ?? 0);
+            if ($clientId === '' || $produitId === '') err('Client et produit requis');
+            if ($prix <= 0) {
+                $pdo->prepare("DELETE FROM prix_client WHERE client_id = ? AND produit_id = ?")->execute([$clientId, $produitId]);
+            } else {
+                $pdo->prepare("
+                    INSERT INTO prix_client (client_id, produit_id, prix) VALUES (?,?,?)
+                    ON DUPLICATE KEY UPDATE prix = VALUES(prix)
+                ")->execute([$clientId, $produitId, $prix]);
+            }
             out(['ok' => true]);
             break;
         }
@@ -416,7 +438,7 @@ try {
             $pdo->beginTransaction();
             $pdo->exec("SET FOREIGN_KEY_CHECKS=0");
             try {
-                foreach (['retours','encaissements','livraisons','clients','chauffeurs','produits','rapports_jour'] as $t) {
+                foreach (['retours','encaissements','livraisons','clients','chauffeurs','produits','rapports_jour','prix_client'] as $t) {
                     $pdo->exec("DELETE FROM $t");
                 }
 
@@ -440,6 +462,9 @@ try {
 
                 $stmtR = $pdo->prepare("INSERT INTO rapports_jour (jour,rempli,recupere,ecart,detail_json) VALUES (?,?,?,?,?)");
                 foreach ($data['reports'] ?? [] as $r) $stmtR->execute([$r['date'],(float)$r['rempli'],(float)$r['rec'],(float)$r['ecart'],json_encode($r['rows'] ?? [], JSON_UNESCAPED_UNICODE)]);
+
+                $stmtPC = $pdo->prepare("INSERT INTO prix_client (client_id, produit_id, prix) VALUES (?,?,?)");
+                foreach ($data['clientPrices'] ?? [] as $pc) $stmtPC->execute([$pc['clientId'], $pc['productId'], (float)$pc['prix']]);
 
                 $settings = $data['settings'] ?? [];
                 $stmtS = $pdo->prepare("INSERT INTO parametres (cle,valeur) VALUES (?,?) ON DUPLICATE KEY UPDATE valeur=VALUES(valeur)");

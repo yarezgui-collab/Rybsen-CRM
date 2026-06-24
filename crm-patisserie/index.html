@@ -426,6 +426,14 @@ const netQty    = (d) => Math.max(0, (Number(d.quantity)||0) - (Number(d.returne
 const lineTotal = (d) => netQty(d)*(Number(d.unitPrice)||0);
 const driverLabel = (id, drivers) => (drivers||[]).find(d=>d.id===id)?.name || id;
 
+// Retourne le prix unitaire d'un produit pour un client donné :
+// cherche d'abord un tarif spécial, revient au prix catalogue sinon.
+function getUnitPrice(clientId, productId, clientPrices, products) {
+  const specific = (clientPrices||[]).find(pc => pc.clientId===clientId && pc.productId===productId);
+  if (specific) return specific.prix;
+  return (products||[]).find(p => p.id===productId)?.price || 0;
+}
+
 // Regroupe les produits qui ont 3 variantes (Margarine / 60/40 / Pur beurre) sous un seul
 // "produit de base" pour simplifier la saisie. Un produit sans variante reste seul dans son groupe.
 const VARIANT_SUFFIXES = ["Margarine", "60/40", "Pur beurre"];
@@ -656,7 +664,7 @@ const CATEGORY_META = {
   "Autres":          { emoji:"📦", color:"#7A8A96" },
 };
 
-function ProductPicker({ products, currency, value, onChange }) {
+function ProductPicker({ products, currency, value, onChange, getPrice }) {
   const groups = useMemo(() => groupProductsByBase(products), [products]);
   const catGroups = useMemo(() => groupByCategory(groups), [groups]);
   const selected = products.find(p => p.id === value) || null;
@@ -725,7 +733,7 @@ function ProductPicker({ products, currency, value, onChange }) {
           <option value="">— {activeCat} : choisir un produit —</option>
           {filteredGroups.map(g => (
             <option key={g.base} value={g.base}>
-              {g.base}{g.single && g.variants.length===0 ? ` (${money(g.single.price,currency)})` : ""}
+              {g.base}{g.single && g.variants.length===0 ? ` (${money(getPrice ? getPrice(g.single.id) : g.single.price, currency)})` : ""}
             </option>
           ))}
         </select>
@@ -746,7 +754,7 @@ function ProductPicker({ products, currency, value, onChange }) {
                   display:"flex", flexDirection:"column", alignItems:"center", gap:2, minHeight:44,
                 }}>
                 <span>{v.suffix}</span>
-                <span style={{fontSize:12,color:"var(--muted)",fontVariantNumeric:"tabular-nums"}}>{money(v.product.price,currency)}</span>
+                <span style={{fontSize:12,color:"var(--muted)",fontVariantNumeric:"tabular-nums"}}>{money(getPrice ? getPrice(v.product.id) : v.product.price, currency)}</span>
               </button>
             );
           })}
@@ -757,7 +765,7 @@ function ProductPicker({ products, currency, value, onChange }) {
 }
 
 
-function Labo({ products, clients, drivers, deliveries, returns, currency, settings, onAddMany, onDelete, onUpdate, onAddReturn, onDeleteReturn }) {
+function Labo({ products, clients, drivers, deliveries, returns, currency, settings, onAddMany, onDelete, onUpdate, onAddReturn, onDeleteReturn, clientPrices }) {
   const [date,      setDate]      = useState(today());
   const [clientId,  setClientId]  = useState("");
   const [productId, setProductId] = useState("");
@@ -787,7 +795,8 @@ function Labo({ products, clients, drivers, deliveries, returns, currency, setti
     if (!client || !product || !(Number(editDraft.quantity)>0)) return;
     onUpdate(orig.id, {
       date:editDraft.date, clientId:client.id, clientName:client.name, driver:client.driver,
-      productId:product.id, productName:product.name, quantity:Number(editDraft.quantity), unitPrice:product.price,
+      productId:product.id, productName:product.name, quantity:Number(editDraft.quantity),
+      unitPrice:getUnitPrice(client.id, product.id, clientPrices, products),
     });
     cancelEditLine();
   };
@@ -811,29 +820,32 @@ function Labo({ products, clients, drivers, deliveries, returns, currency, setti
 
   const client  = clients.find(c => c.id === clientId);
   const product = products.find(p => p.id === productId);
-  const preview = product ? (Number(qty)||0)*product.price : 0;
+  const preview = (product && client) ? (Number(qty)||0)*getUnitPrice(client.id, product.id, clientPrices, products) : 0;
 
-  // Dernière commande connue pour chaque client (toute date confondue)
-  const lastOrderByClient = useMemo(() => {
+  // Commande de référence : même jour J-7, ou J-14 si aucune commande la semaine dernière
+  const refOrderByClient = useMemo(() => {
+    const offsetDate = (n) => {
+      const d = new Date(date + "T00:00:00");
+      d.setDate(d.getDate() - n);
+      return d.toISOString().slice(0, 10);
+    };
+    const t7  = offsetDate(7);
+    const t14 = offsetDate(14);
     const m = {};
-    [...deliveries].forEach(d => {
-      if (!m[d.clientId] || d.date > m[d.clientId].date) {
-        m[d.clientId] = { date:d.date, lines:[] };
-      }
-    });
-    [...deliveries].forEach(d => {
-      if (m[d.clientId] && d.date === m[d.clientId].date) {
-        m[d.clientId].lines.push(d);
-      }
+    [t7, t14].forEach(target => {
+      deliveries.filter(d => d.date === target).forEach(d => {
+        if (!m[d.clientId]) m[d.clientId] = { date: target, lines: [] };
+        if (m[d.clientId].date === target) m[d.clientId].lines.push(d);
+      });
     });
     return m;
-  }, [deliveries]);
+  }, [deliveries, date]);
 
   // Reprendre la dernière commande d'un client : ajoute ses lignes au brouillon (quantités modifiables)
   const [reorderQtys, setReorderQtys] = useState({});  // clientId -> {productId: qty}
 
   const openReorder = (cid) => {
-    const last = lastOrderByClient[cid];
+    const last = refOrderByClient[cid];
     if (!last) return;
     const qtys = {};
     last.lines.forEach(l => { qtys[l.productId] = l.quantity; });
@@ -841,7 +853,7 @@ function Labo({ products, clients, drivers, deliveries, returns, currency, setti
   };
 
   const addReorder = (cid) => {
-    const last = lastOrderByClient[cid];
+    const last = refOrderByClient[cid];
     const qtys = reorderQtys[cid];
     if (!last || !qtys) return;
     const c = clients.find(x => x.id === cid);
@@ -850,11 +862,10 @@ function Labo({ products, clients, drivers, deliveries, returns, currency, setti
       .map(l => {
         const q = Number(qtys[l.productId]) || 0;
         if (q <= 0) return null;
-        const p = products.find(x => x.id === l.productId);
         return {
           tmpId:uid(), date, clientId:c.id, clientName:c.name,
           driver:c.driver, productId:l.productId, productName:l.productName,
-          quantity:q, unitPrice: p ? p.price : l.unitPrice,
+          quantity:q, unitPrice: getUnitPrice(cid, l.productId, clientPrices, products),
         };
       })
       .filter(Boolean);
@@ -868,7 +879,7 @@ function Labo({ products, clients, drivers, deliveries, returns, currency, setti
     setDraft(d => [...d, {
       tmpId:uid(), date, clientId:client.id, clientName:client.name,
       driver:client.driver, productId:product.id, productName:product.name,
-      quantity:Number(qty), unitPrice:product.price,
+      quantity:Number(qty), unitPrice:getUnitPrice(client.id, product.id, clientPrices, products),
     }]);
     setProductId(""); setQty("");
   };
@@ -1069,13 +1080,13 @@ function Labo({ products, clients, drivers, deliveries, returns, currency, setti
       <div>
 
       {/* ---------- COMMANDES RAPIDES ---------- */}
-      {clients.some(c => lastOrderByClient[c.id]) && (
+      {clients.some(c => refOrderByClient[c.id]) && (
         <Section title="Commandes rapides" icon={<RotateCcw size={18}/>}>
           <p style={{fontSize:13,color:"var(--muted)",margin:"0 0 10px"}}>
-            Reprenez la dernière commande d'un client. Ajustez les quantités puis ajoutez au brouillon.
+            Reprend la commande du même jour J-7 (ou J-14 si aucune commande la semaine dernière). Ajustez les quantités puis ajoutez au brouillon.
           </p>
-          {clients.filter(c => lastOrderByClient[c.id]).map(c => {
-            const last  = lastOrderByClient[c.id];
+          {clients.filter(c => refOrderByClient[c.id]).map(c => {
+            const last  = refOrderByClient[c.id];
             const open  = !!reorderQtys[c.id];
             const drName = driverLabel(c.driver, drivers);
             return (
@@ -1084,7 +1095,7 @@ function Labo({ products, clients, drivers, deliveries, returns, currency, setti
                 <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",padding:"10px 12px",background:"var(--chalk)"}}>
                   <div>
                     <div style={{fontWeight:700,color:"var(--ink)"}}>{c.name}</div>
-                    <div style={{fontSize:12,color:"var(--muted)"}}>{drName} · dernière commande : {dateFR(last.date)}</div>
+                    <div style={{fontSize:12,color:"var(--muted)"}}>{drName} · réf. {dateFR(last.date)}{last.date === (()=>{const d=new Date(date+"T00:00:00");d.setDate(d.getDate()-14);return d.toISOString().slice(0,10);})() ? " (J-14)" : " (J-7)"}</div>
                   </div>
                   <button style={{...btn,padding:"7px 12px",fontSize:12,background:open?C.muted:C.wheat}}
                     onClick={() => open ? setReorderQtys(p=>{const n={...p};delete n[c.id];return n;}) : openReorder(c.id)}>
@@ -1095,14 +1106,14 @@ function Labo({ products, clients, drivers, deliveries, returns, currency, setti
                 {open && (
                   <div style={{padding:"10px 12px"}}>
                     {last.lines.map(l => {
-                      const p = products.find(x=>x.id===l.productId);
+                      const unitPr = getUnitPrice(c.id, l.productId, clientPrices, products);
                       const q = reorderQtys[c.id]?.[l.productId] ?? l.quantity;
-                      const tot = (Number(q)||0)*(p?p.price:l.unitPrice);
+                      const tot = (Number(q)||0)*unitPr;
                       return (
                         <div key={l.productId} style={{display:"flex",alignItems:"center",gap:10,padding:"7px 0",borderBottom:"1px solid var(--line)"}}>
                           <div style={{flex:1,fontSize:14,color:"var(--ink)"}}>
                             {l.productName}
-                            <span style={{fontSize:12,color:"var(--muted)",marginLeft:6}}>({money(p?p.price:l.unitPrice,currency)})</span>
+                            <span style={{fontSize:12,color:"var(--muted)",marginLeft:6}}>({money(unitPr,currency)})</span>
                           </div>
                           <input type="number" min="0" style={{...input,width:72,padding:"7px 8px",textAlign:"center"}}
                             value={q}
@@ -1141,7 +1152,8 @@ function Labo({ products, clients, drivers, deliveries, returns, currency, setti
           <div style={{gridColumn:"1 / -1"}}>
             <label style={label}>Produit</label>
             {client ? (
-              <ProductPicker products={products} currency={currency} value={productId} onChange={setProductId}/>
+              <ProductPicker products={products} currency={currency} value={productId} onChange={setProductId}
+                getPrice={pid=>getUnitPrice(client.id, pid, clientPrices, products)}/>
             ) : (
               <p style={{fontSize:13,color:"var(--muted)",margin:0,padding:"10px 12px",background:"var(--chalk)",borderRadius:10}}>
                 Choisissez d'abord un client ci-dessus.
@@ -1273,7 +1285,9 @@ function Labo({ products, clients, drivers, deliveries, returns, currency, setti
                                 </div>
                                 <div style={{gridColumn:"1 / -1"}}>
                                   <label style={label}>Produit</label>
-                                  <ProductPicker products={products} currency={currency} value={editDraft.productId} onChange={pid=>setEditDraft({...editDraft,productId:pid})}/>
+                                  <ProductPicker products={products} currency={currency} value={editDraft.productId}
+                                    onChange={pid=>setEditDraft({...editDraft,productId:pid})}
+                                    getPrice={editDraft.clientId ? (pid=>getUnitPrice(editDraft.clientId, pid, clientPrices, products)) : undefined}/>
                                 </div>
                                 <div>
                                   <label style={label}>Quantité</label>
@@ -1507,7 +1521,7 @@ function Chauffeur({ driver, drivers, deliveries, payments, settings, currency, 
 }
 
 /* ===================== PROPRIÉTAIRE ===================== */
-function Owner({ deliveries, payments, products, clients, drivers, settings, reports, setProducts, setClients, setDrivers, setSettings, currency, onRestore, setDeliveries, returns, onAddReturn, onDeleteReturn }) {
+function Owner({ deliveries, payments, products, clients, drivers, settings, reports, setProducts, setClients, setDrivers, setSettings, currency, onRestore, setDeliveries, returns, onAddReturn, onDeleteReturn, clientPrices, setClientPrices }) {
   const [tab,    setTab]    = useState("dash");
   const [filter, setFilter] = useState("all");
 
@@ -1803,7 +1817,7 @@ function Owner({ deliveries, payments, products, clients, drivers, settings, rep
                 const data = {
                   exportedAt: new Date().toISOString(),
                   version: 1,
-                  products, clients, deliveries, payments, reports, settings,
+                  products, clients, deliveries, payments, reports, settings, clientPrices,
                 };
                 try {
                   const blob = new Blob([JSON.stringify(data,null,2)],{type:"application/json"});
@@ -1940,6 +1954,41 @@ function Owner({ deliveries, payments, products, clients, drivers, settings, rep
               <button style={btn} onClick={()=>{ if(!nc.name)return; setClients([...clients,{id:uid(),name:nc.name,driver:nc.driver||drivers[0]?.id||""}]); setNc({name:"",driver:drivers[0]?.id||""}); }}><Plus size={16}/></button>
             </div>
           </Section>
+
+          {/* ---- Tarifs spéciaux par client ---- */}
+          <Section title="Tarifs spéciaux par client" icon={<Users size={18}/>}>
+            <p style={{fontSize:13,color:"var(--muted)",margin:"0 0 12px"}}>
+              Laissez vide (ou 0) pour utiliser le prix catalogue. Les livraisons déjà enregistrées conservent leur prix d'origine.
+            </p>
+            {clients.map(c => {
+              const drName = driverLabel(c.driver, drivers);
+              return (
+                <div key={c.id} style={{border:"1px solid var(--line)",borderRadius:12,marginBottom:12,overflow:"hidden"}}>
+                  <div style={{background:"var(--chalk)",padding:"10px 14px",fontWeight:700,color:"var(--ink)",fontSize:14}}>
+                    {c.name} <span style={{fontSize:12,fontWeight:400,color:"var(--muted)"}}>· {drName}</span>
+                  </div>
+                  <div style={{padding:"8px 14px"}}>
+                    {products.map(p => {
+                      const specific = (clientPrices||[]).find(pc => pc.clientId===c.id && pc.productId===p.id);
+                      return (
+                        <div key={p.id} style={{display:"flex",alignItems:"center",gap:8,padding:"5px 0",borderBottom:"1px solid var(--line)"}}>
+                          <div style={{flex:2,fontSize:13,color:"var(--ink)"}}>{p.name}</div>
+                          <div style={{fontSize:12,color:"var(--muted)",whiteSpace:"nowrap"}}>cat. {money(p.price,currency)}</div>
+                          <input
+                            type="number" step="0.001" min="0"
+                            placeholder={fmt(p.price)}
+                            style={{...input,width:100,padding:"6px 8px",fontSize:13,borderColor:specific?"var(--wheat)":"var(--line)"}}
+                            value={specific ? specific.prix : ""}
+                            onChange={e => setClientPrices(c.id, p.id, e.target.value)}
+                          />
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              );
+            })}
+          </Section>
         </>
       )}
     </div>
@@ -2024,7 +2073,7 @@ function DailyReport({ deliveries, payments, reports, drivers, settings, currenc
     <div>
       {/* Onglets Jour / Historique */}
       <div style={{display:"flex",gap:8,marginBottom:14}}>
-        {[["jour","Tableau du jour",<CalendarDays size={15}/>],["hist",`Historique (${reports.length}/90j)`,<LayoutDashboard size={15}/>]].map(([k,lab,ic])=>(
+        {[["jour","Tableau du jour",<CalendarDays size={15}/>],["hist",`Historique (${reports.length} j)`,<LayoutDashboard size={15}/>]].map(([k,lab,ic])=>(
           <button key={k} onClick={()=>setView(k)} style={{...btn,flex:1,background:view===k?C.brown:"#fff",color:view===k?"#fff":C.brown,border:"1px solid var(--line)"}}>
             {ic} {lab}
           </button>
@@ -2033,7 +2082,7 @@ function DailyReport({ deliveries, payments, reports, drivers, settings, currenc
 
       {/* ---- HISTORIQUE ---- */}
       {view==="hist" && (
-        <Section title="Historique (90 derniers jours)" icon={<CalendarDays size={18}/>}>
+        <Section title="Historique complet" icon={<CalendarDays size={18}/>}>
           {!reports.length && <p style={{color:"var(--muted)",margin:0}}>Aucun tableau enregistré. Revenez sur « Tableau du jour » et appuyez sur Sauvegarder.</p>}
           {[...reports].sort((a,b)=>a.date<b.date?1:-1).map(r=>{
             const ok   = Math.abs(r.ecart)<=0.0001;
@@ -2257,20 +2306,24 @@ function fromSqlDriver(d) { return { id:d.id, name:d.nom, user:d.utilisateur, pa
 function fromSqlReport(r) {
   return { date:r.jour, savedAt:null, rempli:r.rempli, rec:r.recupere, ecart:r.ecart, rows:r.detail || [] };
 }
+function fromSqlClientPrice(pc) {
+  return { clientId:pc.client_id, productId:pc.produit_id, prix:pc.prix };
+}
 
 /* ===================== APP (connecté à MySQL via api.php) ===================== */
 function App() {
-  const [loaded,      setLoaded]     = useState(false);
-  const [loadError,   setLoadError]  = useState(null);
-  const [session,     setSession]    = useState(null);
-  const [role,        setRole]       = useState("labo");
-  const [products,    setProductsS]  = useState(seedProducts);
-  const [clients,     setClientsS]   = useState(seedClients);
-  const [deliveries,  setDeliveriesS]= useState([]);
-  const [returns,     setReturnsS]   = useState([]);
-  const [payments,    setPaymentsS]  = useState([]);
-  const [reports,     setReportsS]   = useState([]);
-  const [settings,    setSettingsS]  = useState(seedSettings);
+  const [loaded,       setLoaded]      = useState(false);
+  const [loadError,    setLoadError]   = useState(null);
+  const [session,      setSession]     = useState(null);
+  const [role,         setRole]        = useState("labo");
+  const [products,     setProductsS]   = useState(seedProducts);
+  const [clients,      setClientsS]    = useState(seedClients);
+  const [deliveries,   setDeliveriesS] = useState([]);
+  const [returns,      setReturnsS]    = useState([]);
+  const [payments,     setPaymentsS]   = useState([]);
+  const [reports,      setReportsS]    = useState([]);
+  const [settings,     setSettingsS]   = useState(seedSettings);
+  const [clientPrices, setClientPricesS] = useState([]);
 
   useEffect(()=>{
     const l = document.createElement("link"); l.rel="stylesheet";
@@ -2290,6 +2343,7 @@ function App() {
     setReturnsS((data.retours||[]).map(fromSqlReturn));
     setPaymentsS((data.encaissements||[]).map(fromSqlPayment));
     setReportsS((data.rapports||[]).map(fromSqlReport));
+    setClientPricesS((data.prix_client||[]).map(fromSqlClientPrice));
     const p = data.parametres || {};
     setSettingsS({
       business:  p.business  || seedSettings.business,
@@ -2452,10 +2506,19 @@ function App() {
     if (next.drivers && next.drivers !== drivers) await setDrivers(next.drivers);
   };
 
+  // ---- Tarifs spéciaux par client ----
+  const setClientPrices = async (clientId, productId, priceStr) => {
+    const prix = parseFloat(priceStr) || 0;
+    setClientPricesS(prev => {
+      const filtered = prev.filter(pc => !(pc.clientId===clientId && pc.productId===productId));
+      return prix > 0 ? [...filtered, { clientId, productId, prix }] : filtered;
+    });
+    await apiCall("save_client_price", { clientId, produitId:productId, prix }).catch(()=>{});
+  };
+
   // ---- Rapports journaliers ----
   const saveReport = async (snapshot) => {
-    const cutoff = new Date(Date.now()-90*86400000).toISOString().slice(0,10);
-    setReportsS(prev => [...prev.filter(r=>r.date!==snapshot.date), snapshot].filter(r=>r.date>=cutoff));
+    setReportsS(prev => [...prev.filter(r=>r.date!==snapshot.date), snapshot]);
     await apiCall("save_report", {
       date:snapshot.date, rempli:snapshot.rempli, recupere:snapshot.rec, ecart:snapshot.ecart, detail:snapshot.rows,
     }).catch(()=>{});
@@ -2578,6 +2641,7 @@ function App() {
       <main style={{maxWidth:768,margin:"0 auto",padding:"16px 16px 90px"}}><style>{`@media(min-width:640px){main{padding:20px 20px 40px!important}}`}</style>
         {role==="labo" ? (
           <Labo products={products} clients={clients} drivers={drivers} deliveries={deliveries} returns={returns} currency={currency} settings={settings}
+            clientPrices={clientPrices}
             onAddMany={rows=>setDeliveries([...deliveries,...rows.map(r=>({...r,id:r.id||(Date.now()+Math.random()).toString(36)}))])}
             onDelete={id=>setDeliveries(deliveries.filter(x=>x.id!==id))}
             onUpdate={(id, patch)=>setDeliveries(deliveries.map(x=>x.id===id?{...x,...patch}:x))}
@@ -2598,7 +2662,8 @@ function App() {
             reports={reports} onRestore={restoreBackup} setDeliveries={setDeliveries}
             onAddReturn={addReturn} onDeleteReturn={deleteReturn}
             drivers={drivers} settings={settings} currency={currency}
-            setProducts={setProducts} setClients={setClients} setDrivers={setDrivers} setSettings={setSettings}/>
+            setProducts={setProducts} setClients={setClients} setDrivers={setDrivers} setSettings={setSettings}
+            clientPrices={clientPrices} setClientPrices={setClientPrices}/>
         ) : (
           <DailyReport deliveries={deliveries} payments={payments} reports={reports} returns={returns}
             drivers={drivers} settings={settings} currency={currency}
