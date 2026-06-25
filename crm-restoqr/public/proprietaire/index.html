@@ -1,0 +1,384 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Tableau de bord — Le Médina</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,500;9..144,600;9..144,700&family=Inter:wght@400;500;600;700;800&family=DM+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --semolina:#F2E8D8; --paprika:#C1502E; --olive:#5B6B3F; --char:#2A211B; --clay:#8C6A52;
+    --line:rgba(42,33,27,0.1); --cream-card:#FBF6EC; --warn:#C18A2E; --danger:#B33A2E; --info:#3D6B8C;
+  }
+  *{box-sizing:border-box; margin:0; padding:0;}
+  body{ background:#EDE3D1; color:var(--char); font-family:'Inter',sans-serif; -webkit-font-smoothing:antialiased; padding-bottom:40px; }
+  .mono{ font-family:'DM Mono', monospace; }
+
+  .topbar{ position:sticky; top:0; z-index:40; background:var(--char); color:var(--semolina); padding:16px 22px;
+    display:flex; align-items:center; justify-content:space-between; }
+  .topbar h1{ font-family:'Fraunces',serif; font-size:18px; font-weight:600; }
+  .topbar .sub{ font-size:11px; opacity:0.5; margin-top:2px; }
+  .topbar .right{ display:flex; align-items:center; gap:14px; }
+  .logout-btn{ background:rgba(242,232,216,0.1); border:none; color:var(--semolina); font-size:11px; font-weight:700;
+    padding:7px 12px; border-radius:8px; cursor:pointer; opacity:0.7; }
+
+  .period-tabs{ display:flex; gap:8px; padding:16px 22px 4px; }
+  .ptab{ padding:8px 16px; border-radius:100px; font-size:12.5px; font-weight:700; background:var(--cream-card);
+    border:1px solid var(--line); color:var(--char); opacity:0.55; cursor:pointer; }
+  .ptab.active{ opacity:1; background:var(--char); color:var(--semolina); border-color:var(--char); }
+
+  .wrap{ padding:14px 22px 30px; max-width:1100px; margin:0 auto; }
+
+  /* ---------- ALERTES ---------- */
+  .alerts{ display:flex; flex-direction:column; gap:8px; margin-bottom:20px; }
+  .alert{ padding:12px 14px; border-radius:12px; font-size:12.5px; font-weight:600; display:flex; align-items:center; gap:10px; }
+  .alert.haute{ background:rgba(179,58,46,0.12); color:var(--danger); border:1px solid rgba(179,58,46,0.2); }
+  .alert.moyenne{ background:rgba(193,138,46,0.12); color:var(--warn); border:1px solid rgba(193,138,46,0.2); }
+  .alert .ic{ font-size:15px; }
+
+  /* ---------- KPI GRID ---------- */
+  .kpi-grid{ display:grid; grid-template-columns:repeat(2,1fr); gap:12px; margin-bottom:22px; }
+  .kpi-card{ background:var(--cream-card); border-radius:16px; padding:18px; border:1px solid var(--line); }
+  .kpi-card .label{ font-size:11px; text-transform:uppercase; letter-spacing:0.05em; color:var(--clay); font-weight:700; margin-bottom:8px; }
+  .kpi-card .value{ font-family:'Fraunces',serif; font-size:24px; font-weight:600; line-height:1.15; word-break:break-word; }
+  .kpi-card .delta{ font-size:11.5px; font-weight:700; margin-top:6px; display:inline-flex; align-items:center; gap:3px; }
+  .delta.up{ color:var(--olive); }
+  .delta.down{ color:var(--danger); }
+  .delta.flat{ color:var(--clay); }
+
+  /* ---------- SECTIONS ---------- */
+  .section{ background:var(--cream-card); border-radius:18px; padding:20px; border:1px solid var(--line); margin-bottom:16px; }
+  .section-head{ display:flex; align-items:center; justify-content:space-between; margin-bottom:16px; }
+  .section-head h2{ font-family:'Fraunces',serif; font-size:17px; font-weight:600; }
+  .section-head .meta{ font-size:11px; color:var(--clay); }
+
+  /* ---------- TOP ARTICLES ---------- */
+  .top-row{ display:flex; align-items:center; gap:12px; padding:10px 0; border-bottom:1px solid var(--line); }
+  .top-row:last-child{ border-bottom:none; }
+  .top-rank{ width:22px; height:22px; border-radius:50%; background:var(--char); color:var(--semolina); font-size:10.5px;
+    font-weight:700; display:flex; align-items:center; justify-content:center; flex:0 0 auto; }
+  .top-name{ flex:1; font-size:13.5px; font-weight:700; }
+  .top-bar-bg{ flex:1; height:6px; background:var(--line); border-radius:4px; overflow:hidden; margin:0 10px; }
+  .top-bar-fill{ height:100%; background:var(--paprika); border-radius:4px; }
+  .top-qty{ font-size:12px; color:var(--clay); font-weight:700; min-width:50px; text-align:right; }
+
+  /* ---------- HEURES DE POINTE (mini bar chart CSS) ---------- */
+  .hours-chart{ display:flex; align-items:flex-end; gap:3px; height:120px; padding-top:10px; }
+  .hour-bar{ flex:1; display:flex; flex-direction:column; align-items:center; justify-content:flex-end; height:100%; gap:4px; }
+  .hour-bar .bar{ width:100%; background:var(--paprika); border-radius:4px 4px 0 0; min-height:2px; opacity:0.85; }
+  .hour-bar.peak .bar{ opacity:1; background:var(--char); }
+  .hour-bar .lbl{ font-size:9px; color:var(--clay); font-weight:600; }
+
+  /* ---------- SERVEURS ---------- */
+  .server-row{ display:flex; align-items:center; gap:12px; padding:12px 0; border-bottom:1px solid var(--line); }
+  .server-row:last-child{ border-bottom:none; }
+  .server-avatar{ width:34px; height:34px; border-radius:50%; background:var(--olive); color:#fff; font-size:12px;
+    font-weight:700; display:flex; align-items:center; justify-content:center; flex:0 0 auto; }
+  .server-info{ flex:1; }
+  .server-name{ font-size:13.5px; font-weight:700; }
+  .server-meta{ font-size:11px; color:var(--clay); margin-top:1px; }
+  .server-ca{ font-family:'Fraunces',serif; font-weight:600; font-size:14.5px; }
+
+  /* ---------- PREVISIONS ---------- */
+  .forecast-box{ display:flex; gap:20px; align-items:center; }
+  .forecast-figure{ text-align:center; }
+  .forecast-figure .v{ font-family:'Fraunces',serif; font-size:24px; font-weight:600; color:var(--paprika); }
+  .forecast-figure .k{ font-size:10.5px; color:var(--clay); text-transform:uppercase; letter-spacing:0.04em; margin-top:3px; }
+  .forecast-note{ font-size:12px; color:var(--clay); line-height:1.5; flex:1; }
+
+  /* ---------- EXPORT ---------- */
+  .export-row{ display:flex; gap:10px; }
+  .export-btn{ flex:1; background:var(--char); color:var(--semolina); border:none; padding:13px; border-radius:12px;
+    font-size:13px; font-weight:700; cursor:pointer; display:flex; align-items:center; justify-content:center; gap:8px; }
+  .export-btn.secondary{ background:transparent; border:1px solid var(--line); color:var(--char); }
+
+  .empty-mini{ text-align:center; padding:24px; color:var(--clay); font-size:12.5px; }
+  .loading-overlay{ text-align:center; padding:60px; color:var(--clay); }
+  .spinner{ width:30px; height:30px; border:3px solid var(--line); border-top-color:var(--paprika); border-radius:50%;
+    margin:0 auto 14px; animation:spin 0.8s linear infinite; }
+  @keyframes spin{ to{ transform:rotate(360deg); } }
+
+  @media (min-width:760px){
+    .kpi-grid{ grid-template-columns:repeat(4,1fr); }
+    .two-col{ display:grid; grid-template-columns:1.3fr 1fr; gap:16px; align-items:start; }
+  }
+</style>
+</head>
+<body>
+
+  <div class="topbar">
+    <div>
+      <h1>Le Médina</h1>
+      <div class="sub" id="lastUpdate">Synchronisation…</div>
+    </div>
+    <div class="right">
+      <button class="logout-btn" id="logoutBtn">Quitter</button>
+    </div>
+  </div>
+
+  <div class="period-tabs">
+    <button class="ptab active" data-periode="jour">Aujourd'hui</button>
+    <button class="ptab" data-periode="semaine">Cette semaine</button>
+    <button class="ptab" data-periode="mois">Ce mois</button>
+  </div>
+
+  <div class="wrap" id="wrap">
+    <div class="loading-overlay" id="loadingOverlay">
+      <div class="spinner"></div>
+      <p>Chargement des statistiques…</p>
+    </div>
+
+    <div id="content" style="display:none;">
+      <div class="alerts" id="alerts"></div>
+
+      <div class="kpi-grid" id="kpiGrid"></div>
+
+      <div class="two-col">
+        <div>
+          <div class="section">
+            <div class="section-head">
+              <h2>Articles les plus vendus</h2>
+              <span class="meta" id="topArticlesMeta"></span>
+            </div>
+            <div id="topArticles"></div>
+          </div>
+
+          <div class="section">
+            <div class="section-head">
+              <h2>Heures de pointe</h2>
+              <span class="meta">Commandes par heure</span>
+            </div>
+            <div class="hours-chart" id="hoursChart"></div>
+          </div>
+        </div>
+
+        <div>
+          <div class="section">
+            <div class="section-head"><h2>Performance équipe</h2></div>
+            <div id="serverPerf"></div>
+          </div>
+
+          <div class="section">
+            <div class="section-head"><h2>Prévision</h2></div>
+            <div class="forecast-box" id="forecastBox"></div>
+          </div>
+
+          <div class="section">
+            <div class="section-head"><h2>Export comptable</h2></div>
+            <div class="export-row">
+              <button class="export-btn" id="exportCsv">⬇ Export CSV</button>
+              <button class="export-btn secondary" id="exportPrint">🖨 Imprimer</button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+<script>
+const API_BASE = '/api';
+const REFRESH_INTERVAL_MS = 15000; // dashboard propriétaire : rafraîchissement un peu plus espacé que le serveur
+
+const TOKEN = localStorage.getItem('qrmenu_token');
+const USER = JSON.parse(localStorage.getItem('qrmenu_user') || 'null');
+if(!TOKEN || !USER || USER.role !== 'proprietaire'){
+  window.location.href = '../login.html';
+}
+
+document.getElementById('logoutBtn').addEventListener('click', async () => {
+  await fetch(`${API_BASE}/logout.php`, { method:'POST', headers:{ 'Authorization':'Bearer '+TOKEN } }).catch(()=>{});
+  localStorage.removeItem('qrmenu_token');
+  localStorage.removeItem('qrmenu_user');
+  window.location.href = '../login.html';
+});
+
+let currentPeriode = 'jour';
+let lastData = null;
+
+function fmtMoney(n){ return n.toFixed(3).replace('.', ',') + ' DT'; }
+
+async function loadStats(){
+  try{
+    const res = await fetch(`${API_BASE}/stats.php?periode=${currentPeriode}`, {
+      headers: { 'Authorization': 'Bearer ' + TOKEN },
+    });
+    if(res.status === 401){
+      localStorage.removeItem('qrmenu_token'); localStorage.removeItem('qrmenu_user');
+      window.location.href = '../login.html';
+      return;
+    }
+    const data = await res.json();
+    if(!data.success) throw new Error(data.error);
+
+    lastData = data;
+    document.getElementById('loadingOverlay').style.display = 'none';
+    document.getElementById('content').style.display = 'block';
+    document.getElementById('lastUpdate').textContent = 'Mis à jour à ' + new Date().toLocaleTimeString('fr-FR', {hour:'2-digit',minute:'2-digit'});
+
+    renderAlerts(data.alertes);
+    renderKpis(data.kpis, currentPeriode);
+    renderTopArticles(data.top_articles);
+    renderHoursChart(data.par_heure);
+    renderServerPerf(data.par_serveur);
+    renderForecast(data.previsions);
+
+  }catch(e){
+    document.getElementById('lastUpdate').textContent = 'Synchronisation impossible — nouvel essai en cours…';
+  }
+}
+
+function renderAlerts(alertes){
+  const el = document.getElementById('alerts');
+  if(!alertes || alertes.length === 0){ el.innerHTML = ''; return; }
+  const icons = { retard:'⏱️', whatsapp:'📵', ca:'📉' };
+  el.innerHTML = alertes.map(a => `
+    <div class="alert ${a.gravite}"><span class="ic">${icons[a.type] || '⚠️'}</span> ${a.message}</div>
+  `).join('');
+}
+
+function renderKpis(kpis, periode){
+  const periodLabel = { jour:'vs hier', semaine:'vs sem. dernière', mois:'vs mois dernier' }[periode];
+  let deltaHTML = '';
+  if(kpis.ca_variation_pct !== null){
+    const cls = kpis.ca_variation_pct > 0 ? 'up' : kpis.ca_variation_pct < 0 ? 'down' : 'flat';
+    const arrow = kpis.ca_variation_pct > 0 ? '↑' : kpis.ca_variation_pct < 0 ? '↓' : '→';
+    deltaHTML = `<div class="delta ${cls}">${arrow} ${Math.abs(kpis.ca_variation_pct)}% ${periodLabel}</div>`;
+  } else {
+    deltaHTML = `<div class="delta flat">Pas de données comparatives</div>`;
+  }
+
+  document.getElementById('kpiGrid').innerHTML = `
+    <div class="kpi-card">
+      <div class="label">Chiffre d'affaires</div>
+      <div class="value">${fmtMoney(kpis.ca)}</div>
+      ${deltaHTML}
+    </div>
+    <div class="kpi-card">
+      <div class="label">Commandes</div>
+      <div class="value">${kpis.nb_commandes}</div>
+      <div class="delta flat">Période en cours</div>
+    </div>
+    <div class="kpi-card">
+      <div class="label">Panier moyen</div>
+      <div class="value">${fmtMoney(kpis.panier_moyen)}</div>
+    </div>
+    <div class="kpi-card">
+      <div class="label">Prévision demain</div>
+      <div class="value mono" style="font-size:21px;">${fmtMoney(lastData?.previsions?.projection_demain || 0)}</div>
+    </div>
+  `;
+}
+
+function renderTopArticles(items){
+  const el = document.getElementById('topArticles');
+  document.getElementById('topArticlesMeta').textContent = items.length ? `Top ${items.length}` : '';
+  if(!items || items.length === 0){
+    el.innerHTML = `<div class="empty-mini">Aucune vente sur cette période.</div>`;
+    return;
+  }
+  const maxQty = Math.max(...items.map(i => i.quantite));
+  el.innerHTML = items.map((it, i) => `
+    <div class="top-row">
+      <div class="top-rank">${i+1}</div>
+      <div class="top-name">${it.nom}</div>
+      <div class="top-bar-bg"><div class="top-bar-fill" style="width:${(it.quantite/maxQty*100).toFixed(0)}%"></div></div>
+      <div class="top-qty">${it.quantite}× · ${fmtMoney(it.ca)}</div>
+    </div>
+  `).join('');
+}
+
+function renderHoursChart(parHeure){
+  const el = document.getElementById('hoursChart');
+  if(!parHeure || parHeure.length === 0){
+    el.innerHTML = `<div class="empty-mini">Aucune commande sur cette période.</div>`;
+    return;
+  }
+  const maxNb = Math.max(...parHeure.map(h => h.nb_commandes));
+  const peakHeure = parHeure.find(h => h.nb_commandes === maxNb)?.heure;
+  // Affiche toutes les heures 8h-23h pour une vue restaurant cohérente
+  const hours = [];
+  for(let h = 8; h <= 23; h++){
+    const found = parHeure.find(x => x.heure === h);
+    hours.push({ heure: h, nb_commandes: found ? found.nb_commandes : 0 });
+  }
+  const maxDisplay = Math.max(...hours.map(h => h.nb_commandes), 1);
+  el.innerHTML = hours.map(h => `
+    <div class="hour-bar ${h.heure === peakHeure ? 'peak' : ''}">
+      <div class="bar" style="height:${h.nb_commandes > 0 ? Math.max((h.nb_commandes/maxDisplay*100), 8).toFixed(0) : 0}%"></div>
+      <div class="lbl">${h.heure}h</div>
+    </div>
+  `).join('');
+}
+
+function renderServerPerf(serveurs){
+  const el = document.getElementById('serverPerf');
+  if(!serveurs || serveurs.length === 0){
+    el.innerHTML = `<div class="empty-mini">Aucune donnée serveur sur cette période.</div>`;
+    return;
+  }
+  el.innerHTML = serveurs.map(s => `
+    <div class="server-row">
+      <div class="server-avatar">${s.nom.split(' ').map(w=>w[0]).slice(0,2).join('').toUpperCase()}</div>
+      <div class="server-info">
+        <div class="server-name">${s.nom}</div>
+        <div class="server-meta">${s.nb_commandes} commandes${s.temps_moyen_min ? ' · ' + s.temps_moyen_min + ' min en moy.' : ''}</div>
+      </div>
+      <div class="server-ca">${fmtMoney(s.ca)}</div>
+    </div>
+  `).join('');
+}
+
+function renderForecast(prev){
+  document.getElementById('forecastBox').innerHTML = `
+    <div class="forecast-figure">
+      <div class="v">${fmtMoney(prev.ca_moyen_7j)}</div>
+      <div class="k">Moy. 7 jours</div>
+    </div>
+    <div class="forecast-note">
+      Basé sur la moyenne mobile des 7 derniers jours. Cette estimation s'affine automatiquement à mesure que l'historique de commandes grandit.
+    </div>
+  `;
+}
+
+// ---------- EXPORT CSV ----------
+document.getElementById('exportCsv').addEventListener('click', () => {
+  if(!lastData) return;
+  let csv = 'Métrique,Valeur\n';
+  csv += `Chiffre d'affaires,${lastData.kpis.ca}\n`;
+  csv += `Nombre de commandes,${lastData.kpis.nb_commandes}\n`;
+  csv += `Panier moyen,${lastData.kpis.panier_moyen}\n\n`;
+  csv += 'Article,Quantité,CA\n';
+  lastData.top_articles.forEach(a => { csv += `${a.nom},${a.quantite},${a.ca}\n`; });
+  csv += '\nServeur,Commandes,CA\n';
+  lastData.par_serveur.forEach(s => { csv += `${s.nom},${s.nb_commandes},${s.ca}\n`; });
+
+  const blob = new Blob(['\ufeff' + csv], { type: 'text/csv;charset=utf-8;' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = `lemedina-stats-${currentPeriode}-${new Date().toISOString().slice(0,10)}.csv`;
+  a.click();
+  URL.revokeObjectURL(url);
+});
+
+document.getElementById('exportPrint').addEventListener('click', () => window.print());
+
+// ---------- PERIOD SWITCH ----------
+document.querySelectorAll('.ptab').forEach(tab => {
+  tab.addEventListener('click', () => {
+    document.querySelectorAll('.ptab').forEach(t => t.classList.remove('active'));
+    tab.classList.add('active');
+    currentPeriode = tab.dataset.periode;
+    document.getElementById('loadingOverlay').style.display = 'block';
+    document.getElementById('content').style.display = 'none';
+    loadStats();
+  });
+});
+
+// ---------- INIT + AUTO-REFRESH ----------
+loadStats();
+setInterval(loadStats, REFRESH_INTERVAL_MS);
+</script>
+</body>
+</html>

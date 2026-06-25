@@ -1,0 +1,16 @@
+# Credentials — ne jamais versionner
+includes/config.php
+
+# Rate limiting temp files
+/tmp/qrmenu_rl/
+
+# install.php (à supprimer après déploiement)
+install.php
+
+# macOS
+.DS_Store
+__MACOSX/
+
+# IDE
+.idea/
+.vscode/
