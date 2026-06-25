@@ -10,36 +10,29 @@ on:
 
 jobs:
   deploy:
-    name: SFTP → patisserie (rybsen.fr/pby)
+    name: FTP → patisserie (rybsen.fr/pby)
     runs-on: ubuntu-latest
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      - name: Install sshpass
-        run: sudo apt-get install -y sshpass
+      - name: Install lftp
+        run: sudo apt-get install -y lftp
 
-      - name: Deploy via SFTP
+      - name: Deploy via FTP
         env:
-          SFTP_HOST: ${{ secrets.PATISSERIE_SFTP_HOST }}
-          SFTP_PORT: ${{ secrets.PATISSERIE_SFTP_PORT }}
-          SFTP_USER: ${{ secrets.PATISSERIE_SFTP_USER }}
-          SFTP_PASS: ${{ secrets.PATISSERIE_SFTP_PASSWORD }}
+          FTP_HOST: ${{ secrets.PATISSERIE_SFTP_HOST }}
+          FTP_PORT: ${{ secrets.PATISSERIE_SFTP_PORT }}
+          FTP_USER: ${{ secrets.PATISSERIE_SFTP_USER }}
+          FTP_PASS: ${{ secrets.PATISSERIE_SFTP_PASSWORD }}
         run: |
-          cat > /tmp/sftp_batch.txt << 'BATCH'
-          cd domains/rybsen.fr/public_html/pby
-          put crm-patisserie/index.html index.html
-          put crm-patisserie/api.php api.php
-          put crm-patisserie/default.php default.php
-          BATCH
-
-          [ -f crm-patisserie/.htaccess ] && echo "put crm-patisserie/.htaccess .htaccess" >> /tmp/sftp_batch.txt
-          echo "bye" >> /tmp/sftp_batch.txt
-
-          sshpass -p "$SFTP_PASS" sftp \
-            -oBatchMode=no \
-            -oStrictHostKeyChecking=no \
-            -oPasswordAuthentication=yes \
-            -P "$SFTP_PORT" \
-            -b /tmp/sftp_batch.txt \
-            "$SFTP_USER@$SFTP_HOST"
+          lftp -u "$FTP_USER","$FTP_PASS" -p "$FTP_PORT" "ftp://$FTP_HOST" << 'LFTP'
+            set ftp:ssl-allow no
+            set net:max-retries 3
+            cd domains/rybsen.fr/public_html/pby
+            put crm-patisserie/index.html -o index.html
+            put crm-patisserie/api.php -o api.php
+            put crm-patisserie/default.php -o default.php
+            put crm-patisserie/.htaccess -o .htaccess
+            bye
+          LFTP
