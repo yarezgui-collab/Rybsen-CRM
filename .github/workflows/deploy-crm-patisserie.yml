@@ -10,6 +10,7 @@ on:
 
 jobs:
   deploy:
+    name: SFTP → patisserie (rybsen.fr/pby)
     runs-on: ubuntu-latest
     steps:
       - name: Checkout repository
@@ -18,44 +19,23 @@ jobs:
       - name: Install sshpass
         run: sudo apt-get install -y sshpass
 
-      - name: Debug SFTP directory structure
-        env:
-          SFTP_HOST: ${{ secrets.SFTP_HOST }}
-          SFTP_PORT: ${{ secrets.SFTP_PORT }}
-          SFTP_USER: ${{ secrets.SFTP_USER }}
-          SFTP_PASS: ${{ secrets.SFTP_PASSWORD }}
-        run: |
-          printf 'pwd\nls -la\nls -la domains/rybsen.fr/public_html\nbye\n' > /tmp/sftp_debug.txt
-          sshpass -p "$SFTP_PASS" sftp \
-            -oBatchMode=no \
-            -oStrictHostKeyChecking=no \
-            -oPasswordAuthentication=yes \
-            -P "$SFTP_PORT" \
-            -b /tmp/sftp_debug.txt \
-            "$SFTP_USER@$SFTP_HOST" 2>&1 || true
-
       - name: Deploy via SFTP
         env:
-          SFTP_HOST: ${{ secrets.SFTP_HOST }}
-          SFTP_PORT: ${{ secrets.SFTP_PORT }}
-          SFTP_USER: ${{ secrets.SFTP_USER }}
-          SFTP_PASS: ${{ secrets.SFTP_PASSWORD }}
+          SFTP_HOST: ${{ secrets.PATISSERIE_SFTP_HOST }}
+          SFTP_PORT: ${{ secrets.PATISSERIE_SFTP_PORT }}
+          SFTP_USER: ${{ secrets.PATISSERIE_SFTP_USER }}
+          SFTP_PASS: ${{ secrets.PATISSERIE_SFTP_PASSWORD }}
         run: |
-          # Write SFTP batch commands
-          cat > /tmp/sftp_batch.txt << 'EOF'
+          cat > /tmp/sftp_batch.txt << 'BATCH'
           cd domains/rybsen.fr/public_html/pby
           put crm-patisserie/index.html index.html
           put crm-patisserie/api.php api.php
           put crm-patisserie/default.php default.php
-          EOF
+          BATCH
 
-          # Add .htaccess if it exists
           [ -f crm-patisserie/.htaccess ] && echo "put crm-patisserie/.htaccess .htaccess" >> /tmp/sftp_batch.txt
-
           echo "bye" >> /tmp/sftp_batch.txt
 
-          # Execute SFTP upload
-          # -oBatchMode=no is required so sshpass can inject the password
           sshpass -p "$SFTP_PASS" sftp \
             -oBatchMode=no \
             -oStrictHostKeyChecking=no \
