@@ -133,6 +133,8 @@ async function loadDashboard() {
   document.getElementById('kpi-urgentes').textContent = stats.taches_urgentes;
   document.getElementById('kpi-cand').textContent = stats.candidatures_en_cours + ' candidatures actives';
 
+  const e = RYBSEN.escape.bind(RYBSEN);
+
   // Relances
   const inv = await RYBSEN.api('inv_list');
   const today = new Date().toISOString().split('T')[0];
@@ -141,12 +143,15 @@ async function loadDashboard() {
   if (relances.length === 0) {
     rb.innerHTML = '<tr><td colspan="4" style="text-align:center;padding:20px;color:#999">✅ Aucune relance en retard</td></tr>';
   } else {
-    rb.innerHTML = relances.slice(0, 6).map(i => `<tr>
-      <td><strong>${i.nom}</strong><br><small style="color:#999">${i.email||''}</small></td>
-      <td>${i.organisation||'—'}</td>
-      <td><span class="badge ${i.score_chaleur==='🔥 Chaud'?'badge-red':i.score_chaleur==='🟡 Tiède'?'badge-gold':'badge-grey'}">${i.score_chaleur}</span></td>
-      <td><a href="/modules/investisseurs.php" class="btn btn-teal btn-sm">Ouvrir</a></td>
-    </tr>`).join('');
+    rb.innerHTML = relances.slice(0, 6).map(i => {
+      const chaleurClass = i.score_chaleur === '🔥 Chaud' ? 'badge-red' : i.score_chaleur === '🟡 Tiède' ? 'badge-gold' : 'badge-grey';
+      return `<tr>
+        <td><strong>${e(i.nom)}</strong><br><small style="color:#999">${e(i.email) || ''}</small></td>
+        <td>${e(i.organisation) || '—'}</td>
+        <td><span class="badge ${chaleurClass}">${e(i.score_chaleur)}</span></td>
+        <td><a href="/modules/investisseurs.php" class="btn btn-teal btn-sm">Ouvrir</a></td>
+      </tr>`;
+    }).join('');
   }
 
   // Tasks
@@ -155,11 +160,11 @@ async function loadDashboard() {
   document.getElementById('tasks-body').innerHTML = urgent.length === 0
     ? '<tr><td colspan="4" style="text-align:center;padding:20px;color:#999">✅ Aucune tâche urgente</td></tr>'
     : urgent.map(t => {
-        const d = t.deadline ? Math.ceil((new Date(t.deadline)-new Date())/86400000) : null;
+        const d = t.deadline ? Math.ceil((new Date(t.deadline) - new Date()) / 86400000) : null;
         const dStr = d !== null ? (d < 0 ? `<span style="color:red">${Math.abs(d)}j retard</span>` : `${d}j`) : '—';
         return `<tr>
-          <td>${t.priorite} ${t.titre}</td>
-          <td><span class="badge badge-grey">${t.module_lie}</span></td>
+          <td>${e(t.priorite)} ${e(t.titre)}</td>
+          <td><span class="badge badge-grey">${e(t.module_lie)}</span></td>
           <td>${dStr}</td>
           <td><button onclick="markDone(${t.id})" class="btn btn-outline btn-sm">✓</button></td>
         </tr>`;
@@ -171,9 +176,9 @@ async function loadDashboard() {
   document.getElementById('pipeline-body').innerHTML = pipeline.length === 0
     ? '<tr><td colspan="4" style="text-align:center;padding:20px;color:#999">Aucun prospect actif</td></tr>'
     : pipeline.map(c => `<tr>
-        <td><strong>${c.nom_entreprise}</strong></td>
-        <td>${c.pays||'—'}</td>
-        <td><span class="badge ${stadeColors[c.stade]||'badge-grey'}">${c.stade}</span></td>
+        <td><strong>${e(c.nom_entreprise)}</strong></td>
+        <td>${e(c.pays) || '—'}</td>
+        <td><span class="badge ${stadeColors[c.stade] || 'badge-grey'}">${e(c.stade)}</span></td>
         <td>${c.probabilite_closing}%</td>
       </tr>`).join('');
 
@@ -183,10 +188,10 @@ async function loadDashboard() {
   document.getElementById('cand-body').innerHTML = active.length === 0
     ? '<tr><td colspan="4" style="text-align:center;padding:20px;color:#999">Aucune candidature active</td></tr>'
     : active.map(c => `<tr>
-        <td><strong>${c.programme}</strong><br><small style="color:#999">${c.organisme||''}</small></td>
-        <td>${c.montant_demande ? new Intl.NumberFormat('fr-FR').format(c.montant_demande)+' '+c.devise : '—'}</td>
-        <td><span class="badge ${candColors[c.statut]||'badge-grey'}">${c.statut}</span></td>
-        <td>${c.priorite}</td>
+        <td><strong>${e(c.programme)}</strong><br><small style="color:#999">${e(c.organisme) || ''}</small></td>
+        <td>${c.montant_demande ? new Intl.NumberFormat('fr-FR').format(c.montant_demande) + ' ' + e(c.devise) : '—'}</td>
+        <td><span class="badge ${candColors[c.statut] || 'badge-grey'}">${e(c.statut)}</span></td>
+        <td>${e(c.priorite)}</td>
       </tr>`).join('');
 }
 

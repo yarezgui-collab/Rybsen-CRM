@@ -49,30 +49,87 @@ require_once '../includes/header.php';
 </div>
 
 <script>
-let allLic=[];
-const statColors={'Cible identifiée':'badge-grey','Approche initiale':'badge-navy','Intérêt confirmé':'badge-teal','Négociation':'badge-gold','Accord signé':'badge-green','Refusé':'badge-red'};
-async function loadLic(){allLic=await RYBSEN.api('lic_list');renderLic();}
-function renderLic(){
-  const body=document.getElementById('lic-body');
-  body.innerHTML=allLic.map(l=>`<tr>
-    <td>${l.priorite}</td>
-    <td><strong>${l.constructeur}</strong></td>
-    <td>${l.pays||'—'}</td>
-    <td>${l.parc_machines_mondial?new Intl.NumberFormat('fr-FR').format(l.parc_machines_mondial):'—'}</td>
-    <td>${l.contact_nom||'—'}${l.contact_email?`<br><small><a href="mailto:${l.contact_email}" style="color:#4A9B8F">${l.contact_email}</a></small>`:''}</td>
-    <td><span class="badge ${statColors[l.statut]||'badge-grey'}">${l.statut}</span></td>
-    <td>${l.prerequis_brevet=='1'?'<span class="badge badge-gold">⚠️ EP requis</span>':'<span class="badge badge-green">✓ OK</span>'}</td>
-    <td><button onclick='editLicById(${l.id})' class="btn btn-outline btn-sm">✏️</button></td>
-  </tr>`).join('');
+let allLic = [];
+const statColors = {
+  'Cible identifiée': 'badge-grey', 'Approche initiale': 'badge-navy', 'Intérêt confirmé': 'badge-teal',
+  'Négociation': 'badge-gold', 'Accord signé': 'badge-green', 'Refusé': 'badge-red'
+};
+
+async function loadLic() {
+  allLic = await RYBSEN.api('lic_list');
+  renderLic();
+}
+
+function renderLic() {
+  const e = RYBSEN.escape.bind(RYBSEN);
+  const body = document.getElementById('lic-body');
+  if (!allLic.length) {
+    body.innerHTML = '<tr><td colspan="8" style="text-align:center;padding:30px;color:#999">Aucun constructeur</td></tr>';
+    return;
+  }
+  body.innerHTML = allLic.map(l => `
+    <tr>
+      <td>${e(l.priorite)}</td>
+      <td><strong>${e(l.constructeur)}</strong></td>
+      <td>${e(l.pays) || '—'}</td>
+      <td>${l.parc_machines_mondial ? new Intl.NumberFormat('fr-FR').format(l.parc_machines_mondial) : '—'}</td>
+      <td>
+        ${e(l.contact_nom) || '—'}
+        ${l.contact_email ? `<br><small><a href="mailto:${e(l.contact_email)}" style="color:#4A9B8F">${e(l.contact_email)}</a></small>` : ''}
+      </td>
+      <td><span class="badge ${statColors[l.statut] || 'badge-grey'}">${e(l.statut)}</span></td>
+      <td>${parseInt(l.prerequis_brevet) === 1 ? '<span class="badge badge-gold">⚠️ EP requis</span>' : '<span class="badge badge-green">✓ OK</span>'}</td>
+      <td><button onclick="editLicById(${l.id})" class="btn btn-outline btn-sm">✏️</button></td>
+    </tr>`).join('');
 }
 
 function editLicById(id) {
   const l = allLic.find(x => x.id === id);
   if (l) editLic(l);
 }
-function openAdd(){document.getElementById('modal-lic-title').textContent='Ajouter constructeur';document.getElementById('lic-id').value='';['lic-nom','lic-pays','lic-parc','lic-cnom','lic-cemail','lic-notes'].forEach(i=>document.getElementById(i).value='');RYBSEN.openModal('modal-lic');}
-function editLic(l){document.getElementById('modal-lic-title').textContent='Modifier constructeur';document.getElementById('lic-id').value=l.id;document.getElementById('lic-nom').value=l.constructeur;document.getElementById('lic-pays').value=l.pays||'';document.getElementById('lic-parc').value=l.parc_machines_mondial||'';document.getElementById('lic-prio').value=l.priorite;document.getElementById('lic-statut').value=l.statut;document.getElementById('lic-cnom').value=l.contact_nom||'';document.getElementById('lic-cemail').value=l.contact_email||'';document.getElementById('lic-brevet').value=l.prerequis_brevet||0;document.getElementById('lic-notes').value=l.notes||'';RYBSEN.openModal('modal-lic');}
-async function saveLic(){const nom=document.getElementById('lic-nom').value.trim();if(!nom){RYBSEN.toast('Nom requis','error');return;}const r=await RYBSEN.api('lic_save',{id:document.getElementById('lic-id').value,constructeur:nom,pays:document.getElementById('lic-pays').value,parc_machines_mondial:document.getElementById('lic-parc').value||0,priorite:document.getElementById('lic-prio').value,statut:document.getElementById('lic-statut').value,contact_nom:document.getElementById('lic-cnom').value,contact_email:document.getElementById('lic-cemail').value,prerequis_brevet:document.getElementById('lic-brevet').value,notes:document.getElementById('lic-notes').value});if(r.ok){RYBSEN.closeModal('modal-lic');RYBSEN.toast('Enregistré ✓');loadLic();}else RYBSEN.toast(r.error||'Erreur','error');}
+
+function openAdd() {
+  document.getElementById('modal-lic-title').textContent = 'Ajouter constructeur';
+  document.getElementById('lic-id').value = '';
+  ['lic-nom','lic-pays','lic-parc','lic-cnom','lic-cemail','lic-notes']
+    .forEach(id => document.getElementById(id).value = '');
+  RYBSEN.openModal('modal-lic');
+}
+
+function editLic(l) {
+  document.getElementById('modal-lic-title').textContent = 'Modifier constructeur';
+  document.getElementById('lic-id').value = l.id;
+  document.getElementById('lic-nom').value = l.constructeur;
+  document.getElementById('lic-pays').value = l.pays || '';
+  document.getElementById('lic-parc').value = l.parc_machines_mondial || '';
+  document.getElementById('lic-prio').value = l.priorite;
+  document.getElementById('lic-statut').value = l.statut;
+  document.getElementById('lic-cnom').value = l.contact_nom || '';
+  document.getElementById('lic-cemail').value = l.contact_email || '';
+  document.getElementById('lic-brevet').value = l.prerequis_brevet || 0;
+  document.getElementById('lic-notes').value = l.notes || '';
+  RYBSEN.openModal('modal-lic');
+}
+
+async function saveLic() {
+  const nom = document.getElementById('lic-nom').value.trim();
+  if (!nom) { RYBSEN.toast('Nom requis', 'error'); return; }
+  const r = await RYBSEN.api('lic_save', {
+    id: document.getElementById('lic-id').value,
+    constructeur: nom,
+    pays: document.getElementById('lic-pays').value,
+    parc_machines_mondial: document.getElementById('lic-parc').value || 0,
+    priorite: document.getElementById('lic-prio').value,
+    statut: document.getElementById('lic-statut').value,
+    contact_nom: document.getElementById('lic-cnom').value,
+    contact_email: document.getElementById('lic-cemail').value,
+    prerequis_brevet: document.getElementById('lic-brevet').value,
+    notes: document.getElementById('lic-notes').value
+  });
+  if (r.ok) { RYBSEN.closeModal('modal-lic'); RYBSEN.toast('Enregistré ✓'); loadLic(); }
+  else RYBSEN.toast(r.error || 'Erreur', 'error');
+}
+
 loadLic();
 </script>
 <?php require_once '../includes/footer.php'; ?>

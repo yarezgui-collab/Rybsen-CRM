@@ -25,7 +25,7 @@ require_once '../includes/header.php';
 <div class="modal-overlay" id="modal-msg">
   <div class="modal">
     <div class="modal-header">
-      <div class="modal-title">Ajouter un message</div>
+      <div class="modal-title" id="modal-msg-title">Ajouter un message</div>
       <button class="modal-close" onclick="RYBSEN.closeModal('modal-msg')">✕</button>
     </div>
     <div class="modal-body">
@@ -50,38 +50,103 @@ require_once '../includes/header.php';
 </div>
 
 <script>
-let allMsg=[];
-const statColors={'Envoyé':'badge-navy','Répondu':'badge-green','Sans réponse':'badge-red','À envoyer':'badge-gold'};
-async function loadMsg(){allMsg=await RYBSEN.api('msg_list');renderMsg();}
-function renderMsg(){
-  const q=document.getElementById('search-msg').value.toLowerCase();
-  const c=document.getElementById('filter-canal').value;
-  const s=document.getElementById('filter-statut-msg').value;
-  const filtered=allMsg.filter(m=>(!q||(m.destinataire+m.organisation+m.objet||'').toLowerCase().includes(q))&&(!c||m.canal===c)&&(!s||m.statut===s));
-  const body=document.getElementById('msg-body');
-  if(!filtered.length){body.innerHTML='<tr><td colspan="8" style="text-align:center;padding:30px;color:#999">Aucun message</td></tr>';return;}
-  body.innerHTML=filtered.map(m=>`<tr>
-    <td><strong>${m.destinataire}</strong></td>
-    <td>${m.organisation||'—'}</td>
-    <td><span class="badge badge-navy">${m.canal}</span></td>
-    <td>${m.objet||'—'}</td>
-    <td><span class="badge ${statColors[m.statut]||'badge-grey'}">${m.statut}</span></td>
-    <td>${m.date_envoi?new Date(m.date_envoi).toLocaleDateString('fr-FR'):'—'}</td>
-    <td>${m.date_reponse?new Date(m.date_reponse).toLocaleDateString('fr-FR'):'—'}</td>
-    <td><button onclick='editMsgById(${m.id})' class="btn btn-outline btn-sm">✏️</button>
-        <button onclick="delMsg(${m.id})" class="btn btn-danger btn-sm">🗑</button></td>
-  </tr>`).join('');
+let allMsg = [];
+const statColors = {
+  'Envoyé': 'badge-navy', 'Répondu': 'badge-green', 'Sans réponse': 'badge-red', 'À envoyer': 'badge-gold'
+};
+
+async function loadMsg() {
+  allMsg = await RYBSEN.api('msg_list');
+  renderMsg();
+}
+
+function renderMsg() {
+  const e = RYBSEN.escape.bind(RYBSEN);
+  const q = document.getElementById('search-msg').value.toLowerCase();
+  const c = document.getElementById('filter-canal').value;
+  const s = document.getElementById('filter-statut-msg').value;
+  const filtered = allMsg.filter(m =>
+    (!q || (m.destinataire + (m.organisation||'') + (m.objet||'')).toLowerCase().includes(q)) &&
+    (!c || m.canal === c) &&
+    (!s || m.statut === s)
+  );
+  const body = document.getElementById('msg-body');
+  if (!filtered.length) {
+    body.innerHTML = '<tr><td colspan="8" style="text-align:center;padding:30px;color:#999">Aucun message</td></tr>';
+    return;
+  }
+  body.innerHTML = filtered.map(m => `
+    <tr>
+      <td><strong>${e(m.destinataire)}</strong></td>
+      <td>${e(m.organisation) || '—'}</td>
+      <td><span class="badge badge-navy">${e(m.canal)}</span></td>
+      <td>${e(m.objet) || '—'}</td>
+      <td><span class="badge ${statColors[m.statut] || 'badge-grey'}">${e(m.statut)}</span></td>
+      <td>${m.date_envoi ? new Date(m.date_envoi).toLocaleDateString('fr-FR') : '—'}</td>
+      <td>${m.date_reponse ? new Date(m.date_reponse).toLocaleDateString('fr-FR') : '—'}</td>
+      <td>
+        <button onclick="editMsgById(${m.id})" class="btn btn-outline btn-sm">✏️</button>
+        <button onclick="delMsg(${m.id})" class="btn btn-danger btn-sm">🗑</button>
+      </td>
+    </tr>`).join('');
 }
 
 function editMsgById(id) {
   const m = allMsg.find(x => x.id === id);
   if (m) editMsg(m);
 }
-function openAdd(){document.getElementById('msg-id').value='';['msg-dest','msg-org','msg-objet','msg-denvoi','msg-drep','msg-notes'].forEach(i=>document.getElementById(i).value='');document.getElementById('msg-denvoi').value=new Date().toISOString().split('T')[0];RYBSEN.openModal('modal-msg');}
-function editMsg(m){document.getElementById('msg-id').value=m.id;document.getElementById('msg-dest').value=m.destinataire;document.getElementById('msg-org').value=m.organisation||'';document.getElementById('msg-canal').value=m.canal;document.getElementById('msg-statut').value=m.statut;document.getElementById('msg-objet').value=m.objet||'';document.getElementById('msg-denvoi').value=m.date_envoi||'';document.getElementById('msg-drep').value=m.date_reponse||'';document.getElementById('msg-module').value=m.module_lie;document.getElementById('msg-notes').value=m.notes||'';RYBSEN.openModal('modal-msg');}
-async function saveMsg(){const dest=document.getElementById('msg-dest').value.trim();if(!dest){RYBSEN.toast('Destinataire requis','error');return;}const r=await RYBSEN.api('msg_save',{id:document.getElementById('msg-id').value,destinataire:dest,organisation:document.getElementById('msg-org').value,canal:document.getElementById('msg-canal').value,statut:document.getElementById('msg-statut').value,objet:document.getElementById('msg-objet').value,date_envoi:document.getElementById('msg-denvoi').value||null,date_reponse:document.getElementById('msg-drep').value||null,module_lie:document.getElementById('msg-module').value,notes:document.getElementById('msg-notes').value});if(r.ok){RYBSEN.closeModal('modal-msg');RYBSEN.toast('Enregistré ✓');loadMsg();}else RYBSEN.toast(r.error||'Erreur','error');}
-async function delMsg(id){if(!RYBSEN.confirmDelete())return;const r=await RYBSEN.api('msg_delete',{id});if(r.ok){RYBSEN.toast('Supprimé');loadMsg();}}
-['search-msg','filter-canal','filter-statut-msg'].forEach(id=>document.getElementById(id).addEventListener('input',()=>renderMsg()));
+
+function openAdd() {
+  document.getElementById('modal-msg-title').textContent = 'Ajouter un message';
+  document.getElementById('msg-id').value = '';
+  ['msg-dest','msg-org','msg-objet','msg-drep','msg-notes'].forEach(id => document.getElementById(id).value = '');
+  document.getElementById('msg-denvoi').value = new Date().toISOString().split('T')[0];
+  RYBSEN.openModal('modal-msg');
+}
+
+function editMsg(m) {
+  document.getElementById('modal-msg-title').textContent = 'Modifier message';
+  document.getElementById('msg-id').value = m.id;
+  document.getElementById('msg-dest').value = m.destinataire;
+  document.getElementById('msg-org').value = m.organisation || '';
+  document.getElementById('msg-canal').value = m.canal;
+  document.getElementById('msg-statut').value = m.statut;
+  document.getElementById('msg-objet').value = m.objet || '';
+  document.getElementById('msg-denvoi').value = m.date_envoi || '';
+  document.getElementById('msg-drep').value = m.date_reponse || '';
+  document.getElementById('msg-module').value = m.module_lie;
+  document.getElementById('msg-notes').value = m.notes || '';
+  RYBSEN.openModal('modal-msg');
+}
+
+async function saveMsg() {
+  const dest = document.getElementById('msg-dest').value.trim();
+  if (!dest) { RYBSEN.toast('Destinataire requis', 'error'); return; }
+  const r = await RYBSEN.api('msg_save', {
+    id: document.getElementById('msg-id').value,
+    destinataire: dest,
+    organisation: document.getElementById('msg-org').value,
+    canal: document.getElementById('msg-canal').value,
+    statut: document.getElementById('msg-statut').value,
+    objet: document.getElementById('msg-objet').value,
+    date_envoi: document.getElementById('msg-denvoi').value || null,
+    date_reponse: document.getElementById('msg-drep').value || null,
+    module_lie: document.getElementById('msg-module').value,
+    notes: document.getElementById('msg-notes').value
+  });
+  if (r.ok) { RYBSEN.closeModal('modal-msg'); RYBSEN.toast('Enregistré ✓'); loadMsg(); }
+  else RYBSEN.toast(r.error || 'Erreur', 'error');
+}
+
+async function delMsg(id) {
+  if (!RYBSEN.confirmDelete()) return;
+  const r = await RYBSEN.api('msg_delete', { id });
+  if (r.ok) { RYBSEN.toast('Supprimé'); loadMsg(); }
+}
+
+['search-msg','filter-canal','filter-statut-msg'].forEach(id =>
+  document.getElementById(id).addEventListener('input', renderMsg)
+);
 loadMsg();
 </script>
 <?php require_once '../includes/footer.php'; ?>

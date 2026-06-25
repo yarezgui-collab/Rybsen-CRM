@@ -77,38 +77,63 @@ require_once '../includes/header.php';
 
 <script>
 let allCli = [];
-const stadeColors={'Prospect':'badge-grey','Devis envoyé':'badge-navy','Négociation':'badge-gold','Bon de commande':'badge-teal','Installé':'badge-green','Perdu':'badge-red','En pause':'badge-grey'};
-const stagesPipeline = ['Prospect','Devis envoyé','Négociation','Bon de commande','Installé'];
+const stadeColors = {
+  'Prospect': 'badge-grey', 'Devis envoyé': 'badge-navy', 'Négociation': 'badge-gold',
+  'Bon de commande': 'badge-teal', 'Installé': 'badge-green', 'Perdu': 'badge-red', 'En pause': 'badge-grey'
+};
+const stagesPipeline = ['Prospect', 'Devis envoyé', 'Négociation', 'Bon de commande', 'Installé'];
 
-async function loadCli(){allCli=await RYBSEN.api('cli_list');renderCli(allCli);}
-
-function renderCli(data){
-  const q=document.getElementById('search-cli').value.toLowerCase();
-  const s=document.getElementById('filter-stade').value;
-  const sec=document.getElementById('filter-secteur').value;
-  const src=document.getElementById('filter-source').value;
-  const filtered=data.filter(c=>(!q||(c.nom_entreprise+c.pays+c.contact_nom||'').toLowerCase().includes(q))&&(!s||c.stade===s)&&(!sec||c.secteur===sec)&&(!src||c.source===src));
-  const body=document.getElementById('cli-body');
-  if(!filtered.length){body.innerHTML='<tr><td colspan="9" style="text-align:center;padding:30px;color:#999">Aucun prospect</td></tr>';return;}
-  body.innerHTML=filtered.map(c=>`<tr style="cursor:pointer" onclick='if(event.target.closest("button"))return; openDetailById(${c.id})'>
-    <td><strong>${c.nom_entreprise}</strong>${c.machine_attribuee?`<br><small style="color:#4A9B8F">${c.machine_attribuee}</small>`:''}</td>
-    <td>${c.pays||'—'}<br><small style="color:#999">${c.secteur}</small></td>
-    <td><span class="badge badge-grey">${c.source}</span></td>
-    <td>${c.contact_nom||'—'}${c.contact_email?`<br><small><a href="mailto:${c.contact_email}" style="color:#4A9B8F">${c.contact_email}</a></small>`:''}</td>
-    <td><span class="badge ${stadeColors[c.stade]||'badge-grey'}">${c.stade}</span></td>
-    <td>${c.prix_ht?new Intl.NumberFormat('fr-FR').format(c.prix_ht)+' €':'—'}</td>
-    <td><div style="display:flex;align-items:center;gap:6px"><div class="progress-bar" style="width:60px"><div class="progress-fill" style="width:${c.probabilite_closing}%"></div></div>${c.probabilite_closing}%</div></td>
-    <td>${c.date_closing_prevu?new Date(c.date_closing_prevu).toLocaleDateString('fr-FR'):'—'}</td>
-    <td><button onclick='editCliById(${c.id})' class="btn btn-outline btn-sm">✏️</button>
-        <button onclick="delCli(${c.id})" class="btn btn-danger btn-sm">🗑</button></td>
-  </tr>`).join('');
+async function loadCli() {
+  allCli = await RYBSEN.api('cli_list');
+  applyFiltersCli();
 }
 
-function escapeHtml(str) {
-  if (str === null || str === undefined) return '';
-  const div = document.createElement('div');
-  div.textContent = str;
-  return div.innerHTML;
+function applyFiltersCli() {
+  const q = document.getElementById('search-cli').value.toLowerCase();
+  const s = document.getElementById('filter-stade').value;
+  const sec = document.getElementById('filter-secteur').value;
+  const src = document.getElementById('filter-source').value;
+  renderCli(allCli.filter(c =>
+    (!q || (c.nom_entreprise + (c.pays||'') + (c.contact_nom||'')).toLowerCase().includes(q)) &&
+    (!s || c.stade === s) &&
+    (!sec || c.secteur === sec) &&
+    (!src || c.source === src)
+  ));
+}
+
+function renderCli(data) {
+  const e = RYBSEN.escape.bind(RYBSEN);
+  const body = document.getElementById('cli-body');
+  if (!data.length) {
+    body.innerHTML = '<tr><td colspan="9" style="text-align:center;padding:30px;color:#999">Aucun prospect</td></tr>';
+    return;
+  }
+  body.innerHTML = data.map(c => `
+    <tr style="cursor:pointer" onclick="if(event.target.closest('button'))return; openDetailById(${c.id})">
+      <td>
+        <strong>${e(c.nom_entreprise)}</strong>
+        ${c.machine_attribuee ? `<br><small style="color:#4A9B8F">${e(c.machine_attribuee)}</small>` : ''}
+      </td>
+      <td>${e(c.pays) || '—'}<br><small style="color:#999">${e(c.secteur)}</small></td>
+      <td><span class="badge badge-grey">${e(c.source)}</span></td>
+      <td>
+        ${e(c.contact_nom) || '—'}
+        ${c.contact_email ? `<br><small><a href="mailto:${e(c.contact_email)}" style="color:#4A9B8F">${e(c.contact_email)}</a></small>` : ''}
+      </td>
+      <td><span class="badge ${stadeColors[c.stade] || 'badge-grey'}">${e(c.stade)}</span></td>
+      <td>${c.prix_ht ? new Intl.NumberFormat('fr-FR').format(c.prix_ht) + ' €' : '—'}</td>
+      <td>
+        <div style="display:flex;align-items:center;gap:6px">
+          <div class="progress-bar" style="width:60px"><div class="progress-fill" style="width:${c.probabilite_closing}%"></div></div>
+          ${c.probabilite_closing}%
+        </div>
+      </td>
+      <td>${c.date_closing_prevu ? new Date(c.date_closing_prevu).toLocaleDateString('fr-FR') : '—'}</td>
+      <td>
+        <button onclick="editCliById(${c.id})" class="btn btn-outline btn-sm">✏️</button>
+        <button onclick="delCli(${c.id})" class="btn btn-danger btn-sm">🗑</button>
+      </td>
+    </tr>`).join('');
 }
 
 function openDetailById(id) {
@@ -122,38 +147,97 @@ function editCliById(id) {
 }
 
 function openDetail(c) {
+  const e = RYBSEN.escape.bind(RYBSEN);
   const isLost = c.stade === 'Perdu' || c.stade === 'En pause';
   const pipelineStage = isLost ? stagesPipeline[0] : (stagesPipeline.includes(c.stade) ? c.stade : stagesPipeline[0]);
   document.getElementById('detail-body').innerHTML = `
     ${RYBSEN.renderPipeline(stagesPipeline, pipelineStage, isLost)}
     <div class="kpi-grid" style="margin-bottom:16px">
-      <div class="kpi-card teal"><div class="kpi-label">Prix HT</div><div class="kpi-value" style="font-size:22px">${c.prix_ht?new Intl.NumberFormat('fr-FR').format(c.prix_ht)+' €':'—'}</div></div>
+      <div class="kpi-card teal"><div class="kpi-label">Prix HT</div><div class="kpi-value" style="font-size:22px">${c.prix_ht ? new Intl.NumberFormat('fr-FR').format(c.prix_ht) + ' €' : '—'}</div></div>
       <div class="kpi-card gold"><div class="kpi-label">Probabilité</div><div class="kpi-value" style="font-size:22px">${c.probabilite_closing}%</div></div>
-      <div class="kpi-card navy"><div class="kpi-label">ROI estimé</div><div class="kpi-value" style="font-size:22px">${c.roi_estime_mois||'—'} mois</div></div>
+      <div class="kpi-card navy"><div class="kpi-label">ROI estimé</div><div class="kpi-value" style="font-size:22px">${c.roi_estime_mois || '—'} mois</div></div>
     </div>
     <div class="form-grid">
-      <div class="form-group"><label>Entreprise</label><div>${escapeHtml(c.nom_entreprise)}</div></div>
-      <div class="form-group"><label>Pays / Secteur</label><div>${escapeHtml(c.pays)||'—'} · ${escapeHtml(c.secteur)}</div></div>
-      <div class="form-group"><label>Contact</label><div>${escapeHtml(c.contact_nom)||'—'}</div></div>
-      <div class="form-group"><label>Email</label><div>${escapeHtml(c.contact_email)||'—'}</div></div>
-      <div class="form-group"><label>Source</label><div>${escapeHtml(c.source)}</div></div>
-      <div class="form-group"><label>Machine attribuée</label><div>${escapeHtml(c.machine_attribuee)||'—'}</div></div>
-      <div class="form-group full"><label>Notes</label><div>${escapeHtml(c.notes)||'—'}</div></div>
-    </div>
-  `;
+      <div class="form-group"><label>Entreprise</label><div>${e(c.nom_entreprise)}</div></div>
+      <div class="form-group"><label>Pays / Secteur</label><div>${e(c.pays) || '—'} · ${e(c.secteur)}</div></div>
+      <div class="form-group"><label>Contact</label><div>${e(c.contact_nom) || '—'}</div></div>
+      <div class="form-group"><label>Email</label><div>${e(c.contact_email) || '—'}</div></div>
+      <div class="form-group"><label>Source</label><div>${e(c.source)}</div></div>
+      <div class="form-group"><label>Machine attribuée</label><div>${e(c.machine_attribuee) || '—'}</div></div>
+      <div class="form-group full"><label>Notes</label><div style="white-space:pre-wrap">${e(c.notes) || '—'}</div></div>
+    </div>`;
   document.getElementById('detail-title').textContent = c.nom_entreprise;
   RYBSEN.openModal('modal-detail');
 }
 
-function openAdd(){document.getElementById('modal-cli-title').textContent='Ajouter un prospect';document.getElementById('cli-id').value='';document.getElementById('cli-prix').value='30000';document.getElementById('cli-proba').value='20';document.getElementById('cli-roi').value='12';['cli-nom','cli-pays','cli-ville','cli-cnom','cli-cemail','cli-tel','cli-machine','cli-dclosing','cli-notes'].forEach(i=>document.getElementById(i).value='');RYBSEN.openModal('modal-cli');}
+function openAdd() {
+  document.getElementById('modal-cli-title').textContent = 'Ajouter un prospect';
+  document.getElementById('cli-id').value = '';
+  document.getElementById('cli-prix').value = '30000';
+  document.getElementById('cli-proba').value = '20';
+  document.getElementById('cli-roi').value = '12';
+  ['cli-nom','cli-pays','cli-ville','cli-cnom','cli-cemail','cli-tel','cli-machine','cli-dclosing','cli-notes']
+    .forEach(id => document.getElementById(id).value = '');
+  RYBSEN.openModal('modal-cli');
+}
 
-function editCli(c){document.getElementById('modal-cli-title').textContent='Modifier prospect';document.getElementById('cli-id').value=c.id;document.getElementById('cli-nom').value=c.nom_entreprise;document.getElementById('cli-pays').value=c.pays||'';document.getElementById('cli-ville').value=c.ville||'';document.getElementById('cli-secteur').value=c.secteur;document.getElementById('cli-source').value=c.source;document.getElementById('cli-stade').value=c.stade;document.getElementById('cli-cnom').value=c.contact_nom||'';document.getElementById('cli-cemail').value=c.contact_email||'';document.getElementById('cli-tel').value=c.contact_tel||'';document.getElementById('cli-version').value=c.version_aquaclean||'V1';document.getElementById('cli-prix').value=c.prix_ht||30000;document.getElementById('cli-proba').value=c.probabilite_closing||0;document.getElementById('cli-roi').value=c.roi_estime_mois||12;document.getElementById('cli-dclosing').value=c.date_closing_prevu||'';document.getElementById('cli-machine').value=c.machine_attribuee||'';document.getElementById('cli-notes').value=c.notes||'';RYBSEN.openModal('modal-cli');}
+function editCli(c) {
+  document.getElementById('modal-cli-title').textContent = 'Modifier prospect';
+  document.getElementById('cli-id').value = c.id;
+  document.getElementById('cli-nom').value = c.nom_entreprise;
+  document.getElementById('cli-pays').value = c.pays || '';
+  document.getElementById('cli-ville').value = c.ville || '';
+  document.getElementById('cli-secteur').value = c.secteur;
+  document.getElementById('cli-source').value = c.source;
+  document.getElementById('cli-stade').value = c.stade;
+  document.getElementById('cli-cnom').value = c.contact_nom || '';
+  document.getElementById('cli-cemail').value = c.contact_email || '';
+  document.getElementById('cli-tel').value = c.contact_tel || '';
+  document.getElementById('cli-version').value = c.version_aquaclean || 'V1';
+  document.getElementById('cli-prix').value = c.prix_ht || 30000;
+  document.getElementById('cli-proba').value = c.probabilite_closing || 0;
+  document.getElementById('cli-roi').value = c.roi_estime_mois || 12;
+  document.getElementById('cli-dclosing').value = c.date_closing_prevu || '';
+  document.getElementById('cli-machine').value = c.machine_attribuee || '';
+  document.getElementById('cli-notes').value = c.notes || '';
+  RYBSEN.openModal('modal-cli');
+}
 
-async function saveCli(){const nom=document.getElementById('cli-nom').value.trim();if(!nom){RYBSEN.toast('Nom requis','error');return;}const r=await RYBSEN.api('cli_save',{id:document.getElementById('cli-id').value,nom_entreprise:nom,pays:document.getElementById('cli-pays').value,ville:document.getElementById('cli-ville').value,secteur:document.getElementById('cli-secteur').value,source:document.getElementById('cli-source').value,stade:document.getElementById('cli-stade').value,contact_nom:document.getElementById('cli-cnom').value,contact_email:document.getElementById('cli-cemail').value,contact_tel:document.getElementById('cli-tel').value,version_aquaclean:document.getElementById('cli-version').value,prix_ht:document.getElementById('cli-prix').value||30000,probabilite_closing:document.getElementById('cli-proba').value||0,roi_estime_mois:document.getElementById('cli-roi').value||12,date_closing_prevu:document.getElementById('cli-dclosing').value||null,machine_attribuee:document.getElementById('cli-machine').value,notes:document.getElementById('cli-notes').value});if(r.ok){RYBSEN.closeModal('modal-cli');RYBSEN.toast('Enregistré ✓');loadCli();}else RYBSEN.toast(r.error||'Erreur','error');}
+async function saveCli() {
+  const nom = document.getElementById('cli-nom').value.trim();
+  if (!nom) { RYBSEN.toast('Nom requis', 'error'); return; }
+  const r = await RYBSEN.api('cli_save', {
+    id: document.getElementById('cli-id').value,
+    nom_entreprise: nom,
+    pays: document.getElementById('cli-pays').value,
+    ville: document.getElementById('cli-ville').value,
+    secteur: document.getElementById('cli-secteur').value,
+    source: document.getElementById('cli-source').value,
+    stade: document.getElementById('cli-stade').value,
+    contact_nom: document.getElementById('cli-cnom').value,
+    contact_email: document.getElementById('cli-cemail').value,
+    contact_tel: document.getElementById('cli-tel').value,
+    version_aquaclean: document.getElementById('cli-version').value,
+    prix_ht: document.getElementById('cli-prix').value || 30000,
+    probabilite_closing: document.getElementById('cli-proba').value || 0,
+    roi_estime_mois: document.getElementById('cli-roi').value || 12,
+    date_closing_prevu: document.getElementById('cli-dclosing').value || null,
+    machine_attribuee: document.getElementById('cli-machine').value,
+    notes: document.getElementById('cli-notes').value
+  });
+  if (r.ok) { RYBSEN.closeModal('modal-cli'); RYBSEN.toast('Enregistré ✓'); loadCli(); }
+  else RYBSEN.toast(r.error || 'Erreur', 'error');
+}
 
-async function delCli(id){if(!RYBSEN.confirmDelete())return;const r=await RYBSEN.api('cli_delete',{id});if(r.ok){RYBSEN.toast('Supprimé');loadCli();}}
+async function delCli(id) {
+  if (!RYBSEN.confirmDelete()) return;
+  const r = await RYBSEN.api('cli_delete', { id });
+  if (r.ok) { RYBSEN.toast('Supprimé'); loadCli(); }
+}
 
-['search-cli','filter-stade','filter-secteur','filter-source'].forEach(id=>document.getElementById(id).addEventListener('input',()=>renderCli(allCli)));
+['search-cli','filter-stade','filter-secteur','filter-source'].forEach(id =>
+  document.getElementById(id).addEventListener('input', applyFiltersCli)
+);
 loadCli();
 </script>
 <?php require_once '../includes/footer.php'; ?>

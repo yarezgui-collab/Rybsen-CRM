@@ -74,6 +74,7 @@ require_once '../includes/header.php';
         </div>
         <div class="form-group"><label>Connexions communes</label><input type="number" id="inv-conn" placeholder="0" min="0"></div>
         <div class="form-group"><label>Source rencontre</label><input type="text" id="inv-source" placeholder="GITEX Africa 2026"></div>
+        <div class="form-group"><label>Premier contact</label><input type="date" id="inv-dfirst"></div>
         <div class="form-group"><label>Dernier contact</label><input type="date" id="inv-dlast"></div>
         <div class="form-group"><label>Prochain contact</label><input type="date" id="inv-dnext"></div>
         <div class="form-group full"><label>Notes</label><textarea id="inv-notes" placeholder="Observations, contexte, stratégie..."></textarea></div>
@@ -90,9 +91,9 @@ require_once '../includes/header.php';
 let allInv = [];
 
 const statColors = {
-  'Identifié':'badge-grey','Contacté':'badge-navy','Relancé':'badge-gold',
-  'Meeting planifié':'badge-teal','Due Diligence':'badge-navy','Décision':'badge-gold',
-  'Investi':'badge-green','Refusé':'badge-red','En pause':'badge-grey'
+  'Identifié': 'badge-grey', 'Contacté': 'badge-navy', 'Relancé': 'badge-gold',
+  'Meeting planifié': 'badge-teal', 'Due Diligence': 'badge-navy', 'Décision': 'badge-gold',
+  'Investi': 'badge-green', 'Refusé': 'badge-red', 'En pause': 'badge-grey'
 };
 
 async function loadInv() {
@@ -106,24 +107,29 @@ function renderInv(data) {
     body.innerHTML = '<tr><td colspan="9" style="text-align:center;padding:30px;color:#999">Aucun investisseur</td></tr>';
     return;
   }
+  const today = new Date().toISOString().split('T')[0];
   body.innerHTML = data.map(i => {
+    const e = RYBSEN.escape;
     const tMin = i.ticket_min ? new Intl.NumberFormat('fr-FR').format(i.ticket_min) : '';
     const tMax = i.ticket_max ? new Intl.NumberFormat('fr-FR').format(i.ticket_max) : '';
     const ticket = tMin && tMax ? tMin + ' – ' + tMax : (tMin || tMax || '—');
-    const today = new Date().toISOString().split('T')[0];
-    const isOverdue = i.date_prochain_contact && i.date_prochain_contact <= today && !['Investi','Refusé'].includes(i.statut);
-    return `<tr style="${isOverdue?'background:#fff5f5':''}">
-      <td><strong>${i.nom}</strong>${i.connexions_communes>0?`<br><small style="color:#4A9B8F">👥 ${i.connexions_communes} connexions communes</small>`:''}</td>
-      <td>${i.organisation||'—'}</td>
-      <td><span class="badge badge-grey">${i.type}</span></td>
-      <td>${i.pays||'—'}</td>
-      <td style="white-space:nowrap">${ticket}</td>
-      <td><span class="badge ${i.score_chaleur==='🔥 Chaud'?'badge-red':i.score_chaleur==='🟡 Tiède'?'badge-gold':'badge-grey'}">${i.score_chaleur}</span></td>
-      <td><span class="badge ${statColors[i.statut]||'badge-grey'}">${i.statut}</span></td>
-      <td style="white-space:nowrap">${i.date_prochain_contact ? (isOverdue?'🔴 ':'') + new Date(i.date_prochain_contact).toLocaleDateString('fr-FR') : '—'}</td>
+    const isOverdue = i.date_prochain_contact && i.date_prochain_contact <= today && !['Investi', 'Refusé'].includes(i.statut);
+    const chaleurClass = i.score_chaleur === '🔥 Chaud' ? 'badge-red' : i.score_chaleur === '🟡 Tiède' ? 'badge-gold' : 'badge-grey';
+    return `<tr style="${isOverdue ? 'background:#fff5f5' : ''}">
       <td>
-        <button onclick='editInvById(${i.id})' class="btn btn-outline btn-sm">✏️</button>
-        ${i.email?`<a href="mailto:${i.email}" class="btn btn-teal btn-sm">📧</a>`:''}
+        <strong>${e(i.nom)}</strong>
+        ${i.connexions_communes > 0 ? `<br><small style="color:#4A9B8F">👥 ${i.connexions_communes} connexions communes</small>` : ''}
+      </td>
+      <td>${e(i.organisation) || '—'}</td>
+      <td><span class="badge badge-grey">${e(i.type)}</span></td>
+      <td>${e(i.pays) || '—'}</td>
+      <td style="white-space:nowrap">${ticket}</td>
+      <td><span class="badge ${chaleurClass}">${e(i.score_chaleur)}</span></td>
+      <td><span class="badge ${statColors[i.statut] || 'badge-grey'}">${e(i.statut)}</span></td>
+      <td style="white-space:nowrap">${i.date_prochain_contact ? (isOverdue ? '🔴 ' : '') + new Date(i.date_prochain_contact).toLocaleDateString('fr-FR') : '—'}</td>
+      <td>
+        <button onclick="editInvById(${i.id})" class="btn btn-outline btn-sm">✏️</button>
+        ${i.email ? `<a href="mailto:${e(i.email)}" class="btn btn-teal btn-sm">📧</a>` : ''}
         <button onclick="delInv(${i.id})" class="btn btn-danger btn-sm">🗑</button>
       </td>
     </tr>`;
@@ -139,20 +145,21 @@ function editInv(i) {
   document.getElementById('modal-inv-title').textContent = 'Modifier investisseur';
   document.getElementById('inv-id').value = i.id;
   document.getElementById('inv-nom').value = i.nom;
-  document.getElementById('inv-org').value = i.organisation||'';
+  document.getElementById('inv-org').value = i.organisation || '';
   document.getElementById('inv-type').value = i.type;
-  document.getElementById('inv-pays').value = i.pays||'';
-  document.getElementById('inv-email').value = i.email||'';
-  document.getElementById('inv-linkedin').value = i.linkedin||'';
-  document.getElementById('inv-tmin').value = i.ticket_min||'';
-  document.getElementById('inv-tmax').value = i.ticket_max||'';
+  document.getElementById('inv-pays').value = i.pays || '';
+  document.getElementById('inv-email').value = i.email || '';
+  document.getElementById('inv-linkedin').value = i.linkedin || '';
+  document.getElementById('inv-tmin').value = i.ticket_min || '';
+  document.getElementById('inv-tmax').value = i.ticket_max || '';
   document.getElementById('inv-chaleur').value = i.score_chaleur;
   document.getElementById('inv-statut').value = i.statut;
-  document.getElementById('inv-conn').value = i.connexions_communes||0;
-  document.getElementById('inv-source').value = i.source_rencontre||'';
-  document.getElementById('inv-dlast').value = i.date_dernier_contact||'';
-  document.getElementById('inv-dnext').value = i.date_prochain_contact||'';
-  document.getElementById('inv-notes').value = i.notes||'';
+  document.getElementById('inv-conn').value = i.connexions_communes || 0;
+  document.getElementById('inv-source').value = i.source_rencontre || '';
+  document.getElementById('inv-dfirst').value = i.date_premier_contact || '';
+  document.getElementById('inv-dlast').value = i.date_dernier_contact || '';
+  document.getElementById('inv-dnext').value = i.date_prochain_contact || '';
+  document.getElementById('inv-notes').value = i.notes || '';
   RYBSEN.openModal('modal-inv');
 }
 
@@ -161,24 +168,26 @@ async function saveInv() {
   if (!nom) { RYBSEN.toast('Le nom est requis', 'error'); return; }
   const data = {
     id: document.getElementById('inv-id').value,
-    nom, organisation: document.getElementById('inv-org').value,
+    nom,
+    organisation: document.getElementById('inv-org').value,
     type: document.getElementById('inv-type').value,
     pays: document.getElementById('inv-pays').value,
     email: document.getElementById('inv-email').value,
     linkedin: document.getElementById('inv-linkedin').value,
-    ticket_min: document.getElementById('inv-tmin').value||0,
-    ticket_max: document.getElementById('inv-tmax').value||0,
+    ticket_min: document.getElementById('inv-tmin').value || 0,
+    ticket_max: document.getElementById('inv-tmax').value || 0,
     score_chaleur: document.getElementById('inv-chaleur').value,
     statut: document.getElementById('inv-statut').value,
-    connexions_communes: document.getElementById('inv-conn').value||0,
+    connexions_communes: document.getElementById('inv-conn').value || 0,
     source_rencontre: document.getElementById('inv-source').value,
-    date_dernier_contact: document.getElementById('inv-dlast').value||null,
-    date_prochain_contact: document.getElementById('inv-dnext').value||null,
+    date_premier_contact: document.getElementById('inv-dfirst').value || null,
+    date_dernier_contact: document.getElementById('inv-dlast').value || null,
+    date_prochain_contact: document.getElementById('inv-dnext').value || null,
     notes: document.getElementById('inv-notes').value
   };
   const r = await RYBSEN.api('inv_save', data);
   if (r.ok) { RYBSEN.closeModal('modal-inv'); RYBSEN.toast('Investisseur enregistré ✓'); loadInv(); resetModal(); }
-  else RYBSEN.toast(r.error||'Erreur', 'error');
+  else RYBSEN.toast(r.error || 'Erreur', 'error');
 }
 
 async function delInv(id) {
@@ -190,23 +199,27 @@ async function delInv(id) {
 function resetModal() {
   document.getElementById('modal-inv-title').textContent = 'Ajouter un investisseur';
   document.getElementById('inv-id').value = '';
-  ['inv-nom','inv-org','inv-pays','inv-email','inv-linkedin','inv-tmin','inv-tmax','inv-conn','inv-source','inv-dlast','inv-dnext','inv-notes'].forEach(id => document.getElementById(id).value = '');
+  ['inv-nom','inv-org','inv-pays','inv-email','inv-linkedin','inv-tmin','inv-tmax',
+   'inv-conn','inv-source','inv-dfirst','inv-dlast','inv-dnext','inv-notes'
+  ].forEach(id => document.getElementById(id).value = '');
 }
 
-// Filters
 function applyFilters() {
   const q = document.getElementById('search-inv').value.toLowerCase();
   const type = document.getElementById('filter-type').value;
   const statut = document.getElementById('filter-statut').value;
   const chaleur = document.getElementById('filter-chaleur').value;
   renderInv(allInv.filter(i =>
-    (!q || (i.nom+i.organisation+i.email+i.notes).toLowerCase().includes(q)) &&
+    (!q || (i.nom + (i.organisation||'') + (i.email||'') + (i.notes||'')).toLowerCase().includes(q)) &&
     (!type || i.type === type) &&
     (!statut || i.statut === statut) &&
     (!chaleur || i.score_chaleur === chaleur)
   ));
 }
-['search-inv','filter-type','filter-statut','filter-chaleur'].forEach(id => document.getElementById(id).addEventListener('input', applyFilters));
+
+['search-inv','filter-type','filter-statut','filter-chaleur'].forEach(id =>
+  document.getElementById(id).addEventListener('input', applyFilters)
+);
 
 loadInv();
 </script>

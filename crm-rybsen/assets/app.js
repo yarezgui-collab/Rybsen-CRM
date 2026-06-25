@@ -69,6 +69,14 @@ const RYBSEN = {
     return diff;
   },
 
+  // HTML escape — à utiliser dans tous les template literals
+  escape(str) {
+    if (str === null || str === undefined) return '';
+    const d = document.createElement('div');
+    d.textContent = String(str);
+    return d.innerHTML;
+  },
+
   // Confirm delete
   confirmDelete(msg = 'Supprimer cet élément ?') {
     return confirm(msg);

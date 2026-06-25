@@ -134,9 +134,11 @@ function setView(v) {
 }
 
 function renderQuick() {
+  const e = RYBSEN.escape.bind(RYBSEN);
   const today = new Date().toISOString().split('T')[0];
-  const upcoming = allLi.filter(p => p.statut !== 'Publié' && p.statut !== 'Republié page' && (!p.date_publication || p.date_publication >= today))
-    .sort((a,b) => (a.date_publication||'9999').localeCompare(b.date_publication||'9999'));
+  const upcoming = allLi
+    .filter(p => p.statut !== 'Publié' && p.statut !== 'Republié page' && (!p.date_publication || p.date_publication >= today))
+    .sort((a, b) => (a.date_publication || '9999').localeCompare(b.date_publication || '9999'));
   const body = document.getElementById('quick-body');
   if (!upcoming.length) {
     body.innerHTML = '<div class="empty-state"><div class="empty-icon">✅</div><p>Aucun post à venir. Ajoute le prochain post du calendrier éditorial.</p></div>';
@@ -144,77 +146,88 @@ function renderQuick() {
   }
   body.innerHTML = upcoming.map(p => {
     const isToday = p.date_publication === today;
-    return `<div class="section-card" style="${isToday?'border-color:#E8A44C;border-width:2px':''}">
-      <div class="section-header">
-        <div class="section-title">${isToday?'🔴 AUJOURD\'HUI · ':''}#${p.numero||'—'} ${escapeHtmlLi(p.titre)}</div>
-        <span class="badge ${statColorsLi[p.statut]}">${p.statut}</span>
-      </div>
-      <div style="padding:16px 20px">
-        <p style="font-size:13px;color:#6B7A8A;margin-bottom:10px">${p.date_publication?new Date(p.date_publication).toLocaleDateString('fr-FR',{weekday:'long',day:'numeric',month:'long'}):'Date non définie'} à ${p.heure?p.heure.substring(0,5):'08:00'} · ${p.secteur}</p>
-        <div style="background:#FAFAF7;border-radius:8px;padding:14px;margin-bottom:10px;font-size:13px;white-space:pre-wrap">${escapeHtmlLi(p.texte_post)||'Pas de texte rédigé encore'}</div>
-        ${p.hashtags?`<p style="font-size:12px;color:#4A9B8F;margin-bottom:10px">${escapeHtmlLi(p.hashtags)}</p>`:''}
-        ${p.prompt_image?`<details style="margin-bottom:10px"><summary style="font-size:12px;cursor:pointer;color:#999">🎨 Prompt image IA</summary><p style="font-size:12px;color:#666;margin-top:6px">${escapeHtmlLi(p.prompt_image)}</p></details>`:''}
-        <div style="display:flex;gap:8px;flex-wrap:wrap">
-          <button onclick="quickAdvance(${p.id}, '${p.statut}')" class="btn btn-teal btn-sm">Marquer ${nextStatut(p.statut)}</button>
-          <button onclick="editLiById(${p.id})" class="btn btn-outline btn-sm">✏️ Modifier</button>
+    return `
+      <div class="section-card" style="${isToday ? 'border-color:#E8A44C;border-width:2px' : ''}">
+        <div class="section-header">
+          <div class="section-title">${isToday ? '🔴 AUJOURD\'HUI · ' : ''}#${p.numero || '—'} ${e(p.titre)}</div>
+          <span class="badge ${statColorsLi[p.statut] || 'badge-grey'}">${e(p.statut)}</span>
         </div>
-      </div>
-    </div>`;
+        <div style="padding:16px 20px">
+          <p style="font-size:13px;color:#6B7A8A;margin-bottom:10px">
+            ${p.date_publication ? new Date(p.date_publication).toLocaleDateString('fr-FR', {weekday:'long',day:'numeric',month:'long'}) : 'Date non définie'}
+            à ${p.heure ? p.heure.substring(0, 5) : '08:00'} · ${e(p.secteur)}
+          </p>
+          <div style="background:#FAFAF7;border-radius:8px;padding:14px;margin-bottom:10px;font-size:13px;white-space:pre-wrap">${e(p.texte_post) || 'Pas de texte rédigé encore'}</div>
+          ${p.hashtags ? `<p style="font-size:12px;color:#4A9B8F;margin-bottom:10px">${e(p.hashtags)}</p>` : ''}
+          ${p.prompt_image ? `<details style="margin-bottom:10px"><summary style="font-size:12px;cursor:pointer;color:#999">🎨 Prompt image IA</summary><p style="font-size:12px;color:#666;margin-top:6px">${e(p.prompt_image)}</p></details>` : ''}
+          <div style="display:flex;gap:8px;flex-wrap:wrap">
+            <button onclick="quickAdvance(${p.id})" class="btn btn-teal btn-sm">Marquer ${nextStatut(p.statut)}</button>
+            <button onclick="editLiById(${p.id})" class="btn btn-outline btn-sm">✏️ Modifier</button>
+          </div>
+        </div>
+      </div>`;
   }).join('');
 }
 
 function nextStatut(s) {
-  const order = ['À programmer','Prêt','Publié','Republié page'];
+  const order = ['À programmer', 'Prêt', 'Publié', 'Republié page'];
   const idx = order.indexOf(s);
-  return idx < order.length - 1 ? '« ' + order[idx+1] + ' »' : 'terminé';
+  return idx < order.length - 1 ? '« ' + order[idx + 1] + ' »' : 'terminé';
 }
 
-async function quickAdvance(id, current) {
-  const order = ['À programmer','Prêt','Publié','Republié page'];
-  const idx = order.indexOf(current);
+async function quickAdvance(id) {
+  const order = ['À programmer', 'Prêt', 'Publié', 'Republié page'];
+  const post = allLi.find(p => p.id === id);
+  if (!post) return;
+  const idx = order.indexOf(post.statut);
   if (idx >= order.length - 1) return;
-  const r = await RYBSEN.api('linkedin_set_statut', { id, statut: order[idx+1] });
+  const r = await RYBSEN.api('linkedin_set_statut', { id, statut: order[idx + 1] });
   if (r.ok) { RYBSEN.toast('Statut mis à jour ✓'); loadLi(); }
 }
 
 function renderKanban() {
-  const cols = {'À programmer':'kanban-aprog','Prêt':'kanban-pret','Publié':'kanban-publie','Republié page':'kanban-republie'};
+  const e = RYBSEN.escape.bind(RYBSEN);
+  const cols = { 'À programmer': 'kanban-aprog', 'Prêt': 'kanban-pret', 'Publié': 'kanban-publie', 'Republié page': 'kanban-republie' };
   Object.entries(cols).forEach(([statut, elId]) => {
     const items = allLi.filter(p => p.statut === statut);
-    document.getElementById(elId).innerHTML = items.length ? items.map(p => `
-      <div class="kanban-card" onclick="editLiById(${p.id})">
-        <div class="kc-title">#${p.numero||'—'} ${escapeHtmlLi(p.titre)}</div>
-        <div class="kc-date">${p.date_publication?new Date(p.date_publication).toLocaleDateString('fr-FR'):'Pas de date'} · ${p.secteur}</div>
-      </div>`).join('') : '<p style="font-size:12px;color:#999;text-align:center;padding:10px">Vide</p>';
+    document.getElementById(elId).innerHTML = items.length
+      ? items.map(p => `
+          <div class="kanban-card" onclick="editLiById(${p.id})">
+            <div class="kc-title">#${p.numero || '—'} ${e(p.titre)}</div>
+            <div class="kc-date">${p.date_publication ? new Date(p.date_publication).toLocaleDateString('fr-FR') : 'Pas de date'} · ${e(p.secteur)}</div>
+          </div>`).join('')
+      : '<p style="font-size:12px;color:#999;text-align:center;padding:10px">Vide</p>';
   });
 }
 
 function renderTable() {
+  const e = RYBSEN.escape.bind(RYBSEN);
   const q = (document.getElementById('search-li').value || '').toLowerCase();
   const s = document.getElementById('filter-li-statut').value;
   const sec = document.getElementById('filter-li-secteur').value;
   const filtered = allLi.filter(p =>
-    (!q || (p.titre + (p.texte_post||'')).toLowerCase().includes(q)) &&
-    (!s || p.statut === s) && (!sec || p.secteur === sec));
+    (!q || (p.titre + (p.texte_post || '')).toLowerCase().includes(q)) &&
+    (!s || p.statut === s) &&
+    (!sec || p.secteur === sec)
+  );
   const body = document.getElementById('li-body');
-  if (!filtered.length) { body.innerHTML = '<tr><td colspan="7" style="text-align:center;padding:30px;color:#999">Aucun post</td></tr>'; return; }
-  body.innerHTML = filtered.map(p => `<tr>
-    <td>${p.numero||'—'}</td>
-    <td><strong>${escapeHtmlLi(p.titre)}</strong></td>
-    <td>${p.date_publication?new Date(p.date_publication).toLocaleDateString('fr-FR'):'—'}</td>
-    <td>${p.heure?p.heure.substring(0,5):'—'}</td>
-    <td><span class="badge badge-grey">${p.secteur}</span></td>
-    <td><span class="badge ${statColorsLi[p.statut]}">${p.statut}</span></td>
-    <td><button onclick="editLiById(${p.id})" class="btn btn-outline btn-sm">✏️</button>
-        <button onclick="delLi(${p.id})" class="btn btn-danger btn-sm">🗑</button></td>
-  </tr>`).join('');
-}
-
-function escapeHtmlLi(str) {
-  if (!str) return '';
-  const div = document.createElement('div');
-  div.textContent = str;
-  return div.innerHTML;
+  if (!filtered.length) {
+    body.innerHTML = '<tr><td colspan="7" style="text-align:center;padding:30px;color:#999">Aucun post</td></tr>';
+    return;
+  }
+  body.innerHTML = filtered.map(p => `
+    <tr>
+      <td>${p.numero || '—'}</td>
+      <td><strong>${e(p.titre)}</strong></td>
+      <td>${p.date_publication ? new Date(p.date_publication).toLocaleDateString('fr-FR') : '—'}</td>
+      <td>${p.heure ? p.heure.substring(0, 5) : '—'}</td>
+      <td><span class="badge badge-grey">${e(p.secteur)}</span></td>
+      <td><span class="badge ${statColorsLi[p.statut] || 'badge-grey'}">${e(p.statut)}</span></td>
+      <td>
+        <button onclick="editLiById(${p.id})" class="btn btn-outline btn-sm">✏️</button>
+        <button onclick="delLi(${p.id})" class="btn btn-danger btn-sm">🗑</button>
+      </td>
+    </tr>`).join('');
 }
 
 function openAdd() {

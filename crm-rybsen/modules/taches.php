@@ -66,27 +66,40 @@ async function loadTasks() {
 }
 
 function renderTasks(data) {
+  const e = RYBSEN.escape.bind(RYBSEN);
   const filter = document.getElementById('filter-tache-statut').value;
   const filtered = filter ? data.filter(t => t.statut === filter) : data;
   const body = document.getElementById('tasks-body');
-  if (!filtered.length) { body.innerHTML = '<tr><td colspan="7" style="text-align:center;padding:30px;color:#999">Aucune tâche</td></tr>'; return; }
+  if (!filtered.length) {
+    body.innerHTML = '<tr><td colspan="7" style="text-align:center;padding:30px;color:#999">Aucune tâche</td></tr>';
+    return;
+  }
   body.innerHTML = filtered.map(t => {
-    const d = t.deadline ? Math.ceil((new Date(t.deadline)-new Date())/86400000) : null;
-    const dStr = d !== null ? (d < 0 ? `<span style="color:#dc2626;font-weight:600">${Math.abs(d)}j retard</span>` : d === 0 ? '<span style="color:#e8a44c;font-weight:600">Aujourd\'hui</span>' : `${d}j`) : '—';
-    const brevet = t.alerte_brevet=='1' ? ' ⚠️' : '';
-    return `<tr style="${t.statut==='Terminé'?'opacity:0.5':''}">
-      <td>${t.priorite}</td>
-      <td><strong>${t.titre}${brevet}</strong>${t.notes?`<br><small style="color:#999">${t.notes.substring(0,60)}...</small>`:''}</td>
-      <td><span class="badge badge-grey">${t.module_lie}</span></td>
-      <td>${t.resp_nom||'—'}</td>
-      <td>${dStr}</td>
-      <td><span class="badge ${t.statut==='Terminé'?'badge-green':t.statut==='En cours'?'badge-teal':'badge-grey'}">${t.statut}</span></td>
-      <td style="white-space:nowrap">
-        ${t.statut!=='Terminé'?`<button onclick="markDone(${t.id})" class="btn btn-teal btn-sm">✓ Fait</button>`:''}
-        <button onclick='editTaskById(${t.id})' class="btn btn-outline btn-sm">✏️</button>
-        <button onclick="delTask(${t.id})" class="btn btn-danger btn-sm">🗑</button>
-      </td>
-    </tr>`;
+    const d = t.deadline ? Math.ceil((new Date(t.deadline) - new Date()) / 86400000) : null;
+    const dStr = d !== null
+      ? (d < 0 ? `<span style="color:#dc2626;font-weight:600">${Math.abs(d)}j retard</span>`
+               : d === 0 ? '<span style="color:#e8a44c;font-weight:600">Aujourd\'hui</span>'
+               : `${d}j`)
+      : '—';
+    const brevet = parseInt(t.alerte_brevet) === 1 ? ' ⚠️' : '';
+    const statutClass = t.statut === 'Terminé' ? 'badge-green' : t.statut === 'En cours' ? 'badge-teal' : 'badge-grey';
+    return `
+      <tr style="${t.statut === 'Terminé' ? 'opacity:0.5' : ''}">
+        <td>${e(t.priorite)}</td>
+        <td>
+          <strong>${e(t.titre)}${brevet}</strong>
+          ${t.notes ? `<br><small style="color:#999">${e(t.notes.substring(0, 60))}…</small>` : ''}
+        </td>
+        <td><span class="badge badge-grey">${e(t.module_lie)}</span></td>
+        <td>${e(t.resp_nom) || '—'}</td>
+        <td>${dStr}</td>
+        <td><span class="badge ${statutClass}">${e(t.statut)}</span></td>
+        <td style="white-space:nowrap">
+          ${t.statut !== 'Terminé' ? `<button onclick="markDone(${t.id})" class="btn btn-teal btn-sm">✓ Fait</button>` : ''}
+          <button onclick="editTaskById(${t.id})" class="btn btn-outline btn-sm">✏️</button>
+          <button onclick="delTask(${t.id})" class="btn btn-danger btn-sm">🗑</button>
+        </td>
+      </tr>`;
   }).join('');
 }
 

@@ -50,26 +50,45 @@ require_once '../includes/header.php';
 
 <script>
 let allPart = [];
-async function loadPart(){allPart=await RYBSEN.api('part_list');renderPart();}
-function renderPart(){
-  const body=document.getElementById('part-body');
-  if(!allPart.length){body.innerHTML='<tr><td colspan="10" style="text-align:center;padding:30px;color:#999">Aucun partenaire</td></tr>';return;}
-  body.innerHTML=allPart.map(p=>{
-    const exp=p.date_expiration?new Date(p.date_expiration):null;
-    const expiring=exp&&(exp-new Date())<90*86400000;
-    return `<tr>
-      <td><strong>${p.nom}</strong></td>
-      <td><span class="badge badge-navy">${p.type}</span></td>
-      <td>${p.territoire||'—'}<br><small style="color:#999">${p.pays||''}</small></td>
-      <td>${p.contact_nom||'—'}${p.contact_email?`<br><small><a href="mailto:${p.contact_email}" style="color:#4A9B8F">${p.contact_email}</a></small>`:''}</td>
-      <td>${p.contrat_signe=='1'?'<span class="badge badge-green">✓ Signé</span>':'<span class="badge badge-grey">Non signé</span>'}<br><small style="color:#999">${p.type_contrat||''}</small></td>
-      <td>${p.marge_pct?p.marge_pct+'%':'—'}</td>
-      <td>${p.volume_objectif||0} / <strong>${p.volume_realise||0}</strong> unités</td>
-      <td><span class="badge ${p.statut==='Actif'?'badge-green':p.statut==='Phase 2'?'badge-gold':'badge-grey'}">${p.statut}</span></td>
-      <td style="${expiring?'color:#dc2626;font-weight:600':''}">${p.date_expiration?new Date(p.date_expiration).toLocaleDateString('fr-FR'):'—'}</td>
-      <td><button onclick='editPartById(${p.id})' class="btn btn-outline btn-sm">✏️</button>
-          <button onclick="delPart(${p.id})" class="btn btn-danger btn-sm">🗑</button></td>
-    </tr>`;
+
+async function loadPart() {
+  allPart = await RYBSEN.api('part_list');
+  renderPart();
+}
+
+function renderPart() {
+  const e = RYBSEN.escape.bind(RYBSEN);
+  const body = document.getElementById('part-body');
+  if (!allPart.length) {
+    body.innerHTML = '<tr><td colspan="10" style="text-align:center;padding:30px;color:#999">Aucun partenaire</td></tr>';
+    return;
+  }
+  body.innerHTML = allPart.map(p => {
+    const exp = p.date_expiration ? new Date(p.date_expiration) : null;
+    const expiring = exp && (exp - new Date()) < 90 * 86400000;
+    const statutClass = p.statut === 'Actif' ? 'badge-green' : p.statut === 'Phase 2' ? 'badge-gold' : 'badge-grey';
+    return `
+      <tr>
+        <td><strong>${e(p.nom)}</strong></td>
+        <td><span class="badge badge-navy">${e(p.type)}</span></td>
+        <td>${e(p.territoire) || '—'}<br><small style="color:#999">${e(p.pays) || ''}</small></td>
+        <td>
+          ${e(p.contact_nom) || '—'}
+          ${p.contact_email ? `<br><small><a href="mailto:${e(p.contact_email)}" style="color:#4A9B8F">${e(p.contact_email)}</a></small>` : ''}
+        </td>
+        <td>
+          ${parseInt(p.contrat_signe) === 1 ? '<span class="badge badge-green">✓ Signé</span>' : '<span class="badge badge-grey">Non signé</span>'}
+          <br><small style="color:#999">${e(p.type_contrat) || ''}</small>
+        </td>
+        <td>${p.marge_pct ? p.marge_pct + '%' : '—'}</td>
+        <td>${p.volume_objectif || 0} / <strong>${p.volume_realise || 0}</strong> unités</td>
+        <td><span class="badge ${statutClass}">${e(p.statut)}</span></td>
+        <td style="${expiring ? 'color:#dc2626;font-weight:600' : ''}">${p.date_expiration ? new Date(p.date_expiration).toLocaleDateString('fr-FR') : '—'}</td>
+        <td>
+          <button onclick="editPartById(${p.id})" class="btn btn-outline btn-sm">✏️</button>
+          <button onclick="delPart(${p.id})" class="btn btn-danger btn-sm">🗑</button>
+        </td>
+      </tr>`;
   }).join('');
 }
 
@@ -77,10 +96,63 @@ function editPartById(id) {
   const p = allPart.find(x => x.id === id);
   if (p) editPart(p);
 }
-function openAdd(){document.getElementById('modal-part-title').textContent='Ajouter un partenaire';document.getElementById('part-id').value='';['part-nom','part-territoire','part-pays','part-cnom','part-cemail','part-typecontrat','part-exp','part-marge','part-vobj','part-notes'].forEach(i=>document.getElementById(i).value='');RYBSEN.openModal('modal-part');}
-function editPart(p){document.getElementById('modal-part-title').textContent='Modifier partenaire';document.getElementById('part-id').value=p.id;document.getElementById('part-nom').value=p.nom;document.getElementById('part-type').value=p.type;document.getElementById('part-territoire').value=p.territoire||'';document.getElementById('part-pays').value=p.pays||'';document.getElementById('part-cnom').value=p.contact_nom||'';document.getElementById('part-cemail').value=p.contact_email||'';document.getElementById('part-contrat').value=p.contrat_signe||0;document.getElementById('part-typecontrat').value=p.type_contrat||'';document.getElementById('part-exp').value=p.date_expiration||'';document.getElementById('part-marge').value=p.marge_pct||'';document.getElementById('part-vobj').value=p.volume_objectif||0;document.getElementById('part-statut').value=p.statut;document.getElementById('part-notes').value=p.notes||'';RYBSEN.openModal('modal-part');}
-async function savePart(){const nom=document.getElementById('part-nom').value.trim();if(!nom){RYBSEN.toast('Nom requis','error');return;}const r=await RYBSEN.api('part_save',{id:document.getElementById('part-id').value,nom,type:document.getElementById('part-type').value,territoire:document.getElementById('part-territoire').value,pays:document.getElementById('part-pays').value,contact_nom:document.getElementById('part-cnom').value,contact_email:document.getElementById('part-cemail').value,contrat_signe:document.getElementById('part-contrat').value,type_contrat:document.getElementById('part-typecontrat').value,date_expiration:document.getElementById('part-exp').value||null,marge_pct:document.getElementById('part-marge').value||0,volume_objectif:document.getElementById('part-vobj').value||0,statut:document.getElementById('part-statut').value,notes:document.getElementById('part-notes').value});if(r.ok){RYBSEN.closeModal('modal-part');RYBSEN.toast('Enregistré ✓');loadPart();}else RYBSEN.toast(r.error||'Erreur','error');}
-async function delPart(id){if(!RYBSEN.confirmDelete())return;const r=await RYBSEN.api('part_delete',{id});if(r.ok){RYBSEN.toast('Supprimé');loadPart();}}
+
+function openAdd() {
+  document.getElementById('modal-part-title').textContent = 'Ajouter un partenaire';
+  document.getElementById('part-id').value = '';
+  ['part-nom','part-territoire','part-pays','part-cnom','part-cemail','part-typecontrat','part-exp','part-marge','part-vobj','part-notes']
+    .forEach(id => document.getElementById(id).value = '');
+  RYBSEN.openModal('modal-part');
+}
+
+function editPart(p) {
+  document.getElementById('modal-part-title').textContent = 'Modifier partenaire';
+  document.getElementById('part-id').value = p.id;
+  document.getElementById('part-nom').value = p.nom;
+  document.getElementById('part-type').value = p.type;
+  document.getElementById('part-territoire').value = p.territoire || '';
+  document.getElementById('part-pays').value = p.pays || '';
+  document.getElementById('part-cnom').value = p.contact_nom || '';
+  document.getElementById('part-cemail').value = p.contact_email || '';
+  document.getElementById('part-contrat').value = p.contrat_signe || 0;
+  document.getElementById('part-typecontrat').value = p.type_contrat || '';
+  document.getElementById('part-exp').value = p.date_expiration || '';
+  document.getElementById('part-marge').value = p.marge_pct || '';
+  document.getElementById('part-vobj').value = p.volume_objectif || 0;
+  document.getElementById('part-statut').value = p.statut;
+  document.getElementById('part-notes').value = p.notes || '';
+  RYBSEN.openModal('modal-part');
+}
+
+async function savePart() {
+  const nom = document.getElementById('part-nom').value.trim();
+  if (!nom) { RYBSEN.toast('Nom requis', 'error'); return; }
+  const r = await RYBSEN.api('part_save', {
+    id: document.getElementById('part-id').value,
+    nom,
+    type: document.getElementById('part-type').value,
+    territoire: document.getElementById('part-territoire').value,
+    pays: document.getElementById('part-pays').value,
+    contact_nom: document.getElementById('part-cnom').value,
+    contact_email: document.getElementById('part-cemail').value,
+    contrat_signe: document.getElementById('part-contrat').value,
+    type_contrat: document.getElementById('part-typecontrat').value,
+    date_expiration: document.getElementById('part-exp').value || null,
+    marge_pct: document.getElementById('part-marge').value || 0,
+    volume_objectif: document.getElementById('part-vobj').value || 0,
+    statut: document.getElementById('part-statut').value,
+    notes: document.getElementById('part-notes').value
+  });
+  if (r.ok) { RYBSEN.closeModal('modal-part'); RYBSEN.toast('Enregistré ✓'); loadPart(); }
+  else RYBSEN.toast(r.error || 'Erreur', 'error');
+}
+
+async function delPart(id) {
+  if (!RYBSEN.confirmDelete()) return;
+  const r = await RYBSEN.api('part_delete', { id });
+  if (r.ok) { RYBSEN.toast('Supprimé'); loadPart(); }
+}
+
 loadPart();
 </script>
 <?php require_once '../includes/footer.php'; ?>

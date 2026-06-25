@@ -52,32 +52,54 @@ require_once '../includes/header.php';
 </div>
 
 <script>
-let allFab=[];
-const statColors={'Conception':'badge-grey','Approvisionnement':'badge-grey','Composants commandés':'badge-navy','Assemblage Nielsen':'badge-gold','Câblage':'badge-gold','QA / Tests':'badge-teal','Prêt expédition':'badge-teal','Expédié':'badge-navy','Installé':'badge-green','SAV actif':'badge-green'};
-async function loadFab(){allFab=await RYBSEN.api('fab_list');renderFab();}
-function renderFab(){
-  const body=document.getElementById('fab-body');
-  if(!allFab.length){body.innerHTML='<tr><td colspan="8" style="text-align:center;padding:30px">Aucune unité</td></tr>';return;}
-  body.innerHTML=allFab.map(f=>{
-    const comp=[f.pompes_recues,f.hydraulique_recu,f.filtres_recus,f.assemblage_nielsen_ok].filter(x=>x=='1').length;
-    return `<tr>
-      <td><strong style="font-family:monospace;color:#1A3A52">${f.machine_id}</strong>${f.numero_serie?`<br><small style="color:#999">S/N: ${f.numero_serie}</small>`:''}</td>
-      <td>${f.client_nom||'—'}</td>
-      <td><span class="badge ${f.version==='V2'?'badge-gold':'badge-teal'}">${f.version}</span></td>
-      <td>${f.pays||'—'}</td>
-      <td><span class="badge ${statColors[f.statut]||'badge-grey'}">${f.statut}</span>${f.blocages?`<br><small style="color:#dc2626">⚠️ ${f.blocages.substring(0,40)}</small>`:''}</td>
-      <td>
-        <div style="display:flex;gap:4px;flex-wrap:wrap">
-          <span class="badge ${f.pompes_recues=='1'?'badge-green':'badge-grey'}" style="font-size:10px">Pompes</span>
-          <span class="badge ${f.hydraulique_recu=='1'?'badge-green':'badge-grey'}" style="font-size:10px">Hydraulique</span>
-          <span class="badge ${f.filtres_recus=='1'?'badge-green':'badge-grey'}" style="font-size:10px">Filtres</span>
-          <span class="badge ${f.assemblage_nielsen_ok=='1'?'badge-green':'badge-grey'}" style="font-size:10px">Nielsen</span>
-        </div>
-        <div style="margin-top:4px"><div class="progress-bar"><div class="progress-fill" style="width:${comp*25}%"></div></div></div>
-      </td>
-      <td>${f.date_installation?new Date(f.date_installation).toLocaleDateString('fr-FR'):'—'}</td>
-      <td><button onclick='editFabById(${f.id})' class="btn btn-outline btn-sm">✏️</button></td>
-    </tr>`;
+let allFab = [];
+const statColors = {
+  'Conception': 'badge-grey', 'Approvisionnement': 'badge-grey', 'Composants commandés': 'badge-navy',
+  'Assemblage Nielsen': 'badge-gold', 'Câblage': 'badge-gold', 'QA / Tests': 'badge-teal',
+  'Prêt expédition': 'badge-teal', 'Expédié': 'badge-navy', 'Installé': 'badge-green', 'SAV actif': 'badge-green'
+};
+
+async function loadFab() {
+  allFab = await RYBSEN.api('fab_list');
+  renderFab();
+}
+
+function renderFab() {
+  const e = RYBSEN.escape.bind(RYBSEN);
+  const body = document.getElementById('fab-body');
+  if (!allFab.length) {
+    body.innerHTML = '<tr><td colspan="8" style="text-align:center;padding:30px">Aucune unité</td></tr>';
+    return;
+  }
+  body.innerHTML = allFab.map(f => {
+    const comp = [f.pompes_recues, f.hydraulique_recu, f.filtres_recus, f.assemblage_nielsen_ok]
+      .filter(x => parseInt(x) === 1).length;
+    const b = v => parseInt(v) === 1;
+    return `
+      <tr>
+        <td>
+          <strong style="font-family:monospace;color:#1A3A52">${e(f.machine_id)}</strong>
+          ${f.numero_serie ? `<br><small style="color:#999">S/N: ${e(f.numero_serie)}</small>` : ''}
+        </td>
+        <td>${e(f.client_nom) || '—'}</td>
+        <td><span class="badge ${f.version === 'V2' ? 'badge-gold' : 'badge-teal'}">${e(f.version)}</span></td>
+        <td>${e(f.pays) || '—'}</td>
+        <td>
+          <span class="badge ${statColors[f.statut] || 'badge-grey'}">${e(f.statut)}</span>
+          ${f.blocages ? `<br><small style="color:#dc2626">⚠️ ${e(f.blocages.substring(0, 40))}</small>` : ''}
+        </td>
+        <td>
+          <div style="display:flex;gap:4px;flex-wrap:wrap">
+            <span class="badge ${b(f.pompes_recues) ? 'badge-green' : 'badge-grey'}" style="font-size:10px">Pompes</span>
+            <span class="badge ${b(f.hydraulique_recu) ? 'badge-green' : 'badge-grey'}" style="font-size:10px">Hydraulique</span>
+            <span class="badge ${b(f.filtres_recus) ? 'badge-green' : 'badge-grey'}" style="font-size:10px">Filtres</span>
+            <span class="badge ${b(f.assemblage_nielsen_ok) ? 'badge-green' : 'badge-grey'}" style="font-size:10px">Nielsen</span>
+          </div>
+          <div style="margin-top:4px"><div class="progress-bar"><div class="progress-fill" style="width:${comp * 25}%"></div></div></div>
+        </td>
+        <td>${f.date_installation ? new Date(f.date_installation).toLocaleDateString('fr-FR') : '—'}</td>
+        <td><button onclick="editFabById(${f.id})" class="btn btn-outline btn-sm">✏️</button></td>
+      </tr>`;
   }).join('');
 }
 
@@ -85,9 +107,59 @@ function editFabById(id) {
   const f = allFab.find(x => x.id === id);
   if (f) editFab(f);
 }
-function openAdd(){document.getElementById('modal-fab-title').textContent='Nouvelle unité';document.getElementById('fab-id').value='';['fab-mid','fab-pays','fab-dlancement','fab-dinstall','fab-serie','fab-blocages','fab-notes'].forEach(i=>document.getElementById(i).value='');['fab-pompes','fab-hydraulique','fab-filtres','fab-nielsen'].forEach(i=>document.getElementById(i).checked=false);RYBSEN.openModal('modal-fab');}
-function editFab(f){document.getElementById('modal-fab-title').textContent='Modifier unité';document.getElementById('fab-id').value=f.id;document.getElementById('fab-mid').value=f.machine_id;document.getElementById('fab-version').value=f.version||'V1';document.getElementById('fab-pays').value=f.pays||'';document.getElementById('fab-statut').value=f.statut;document.getElementById('fab-dlancement').value=f.date_lancement||'';document.getElementById('fab-dinstall').value=f.date_installation||'';document.getElementById('fab-serie').value=f.numero_serie||'';document.getElementById('fab-pompes').checked=f.pompes_recues=='1';document.getElementById('fab-hydraulique').checked=f.hydraulique_recu=='1';document.getElementById('fab-filtres').checked=f.filtres_recus=='1';document.getElementById('fab-nielsen').checked=f.assemblage_nielsen_ok=='1';document.getElementById('fab-blocages').value=f.blocages||'';document.getElementById('fab-notes').value=f.notes||'';RYBSEN.openModal('modal-fab');}
-async function saveFab(){const mid=document.getElementById('fab-mid').value.trim();if(!mid){RYBSEN.toast('Machine ID requis','error');return;}const r=await RYBSEN.api('fab_save',{id:document.getElementById('fab-id').value,machine_id:mid,version:document.getElementById('fab-version').value,pays:document.getElementById('fab-pays').value,statut:document.getElementById('fab-statut').value,pompes_recues:document.getElementById('fab-pompes').checked?1:0,hydraulique_recu:document.getElementById('fab-hydraulique').checked?1:0,filtres_recus:document.getElementById('fab-filtres').checked?1:0,assemblage_nielsen_ok:document.getElementById('fab-nielsen').checked?1:0,date_lancement:document.getElementById('fab-dlancement').value||null,date_installation:document.getElementById('fab-dinstall').value||null,numero_serie:document.getElementById('fab-serie').value,blocages:document.getElementById('fab-blocages').value,notes:document.getElementById('fab-notes').value});if(r.ok){RYBSEN.closeModal('modal-fab');RYBSEN.toast('Enregistré ✓');loadFab();}else RYBSEN.toast(r.error||'Erreur','error');}
+
+function openAdd() {
+  document.getElementById('modal-fab-title').textContent = 'Nouvelle unité';
+  document.getElementById('fab-id').value = '';
+  ['fab-mid','fab-pays','fab-dlancement','fab-dinstall','fab-serie','fab-blocages','fab-notes']
+    .forEach(id => document.getElementById(id).value = '');
+  ['fab-pompes','fab-hydraulique','fab-filtres','fab-nielsen']
+    .forEach(id => document.getElementById(id).checked = false);
+  RYBSEN.openModal('modal-fab');
+}
+
+function editFab(f) {
+  document.getElementById('modal-fab-title').textContent = 'Modifier unité';
+  document.getElementById('fab-id').value = f.id;
+  document.getElementById('fab-mid').value = f.machine_id;
+  document.getElementById('fab-version').value = f.version || 'V1';
+  document.getElementById('fab-pays').value = f.pays || '';
+  document.getElementById('fab-statut').value = f.statut;
+  document.getElementById('fab-dlancement').value = f.date_lancement || '';
+  document.getElementById('fab-dinstall').value = f.date_installation || '';
+  document.getElementById('fab-serie').value = f.numero_serie || '';
+  document.getElementById('fab-pompes').checked = parseInt(f.pompes_recues) === 1;
+  document.getElementById('fab-hydraulique').checked = parseInt(f.hydraulique_recu) === 1;
+  document.getElementById('fab-filtres').checked = parseInt(f.filtres_recus) === 1;
+  document.getElementById('fab-nielsen').checked = parseInt(f.assemblage_nielsen_ok) === 1;
+  document.getElementById('fab-blocages').value = f.blocages || '';
+  document.getElementById('fab-notes').value = f.notes || '';
+  RYBSEN.openModal('modal-fab');
+}
+
+async function saveFab() {
+  const mid = document.getElementById('fab-mid').value.trim();
+  if (!mid) { RYBSEN.toast('Machine ID requis', 'error'); return; }
+  const r = await RYBSEN.api('fab_save', {
+    id: document.getElementById('fab-id').value,
+    machine_id: mid,
+    version: document.getElementById('fab-version').value,
+    pays: document.getElementById('fab-pays').value,
+    statut: document.getElementById('fab-statut').value,
+    pompes_recues: document.getElementById('fab-pompes').checked ? 1 : 0,
+    hydraulique_recu: document.getElementById('fab-hydraulique').checked ? 1 : 0,
+    filtres_recus: document.getElementById('fab-filtres').checked ? 1 : 0,
+    assemblage_nielsen_ok: document.getElementById('fab-nielsen').checked ? 1 : 0,
+    date_lancement: document.getElementById('fab-dlancement').value || null,
+    date_installation: document.getElementById('fab-dinstall').value || null,
+    numero_serie: document.getElementById('fab-serie').value,
+    blocages: document.getElementById('fab-blocages').value,
+    notes: document.getElementById('fab-notes').value
+  });
+  if (r.ok) { RYBSEN.closeModal('modal-fab'); RYBSEN.toast('Enregistré ✓'); loadFab(); }
+  else RYBSEN.toast(r.error || 'Erreur', 'error');
+}
+
 loadFab();
 </script>
 <?php require_once '../includes/footer.php'; ?>
