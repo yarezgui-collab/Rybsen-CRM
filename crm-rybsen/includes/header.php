@@ -35,9 +35,12 @@
   <a href="/modules/licensing.php" class="nav-item <?= ($activePage??'')==='licensing' ? 'active':'' ?>">
     <span class="nav-icon">🔩</span><span class="nav-text">Licensing Constructeurs</span>
   </a>
-  <div class="nav-section-label">MARKETING</div>
+  <div class="nav-section-label">FACTURATION</div>
   <a href="/modules/linkedin.php" class="nav-item <?= ($activePage??'')==='linkedin' ? 'active':'' ?>">
     <span class="nav-icon">📅</span><span class="nav-text">Calendrier LinkedIn</span>
+  </a>
+  <a href="/modules/facturation.php" class="nav-item <?= ($activePage??'')==='facturation' ? 'active':'' ?>">
+    <span class="nav-icon">🧾</span><span class="nav-text">Facturation</span>
   </a>
   <div class="nav-section-label">PRODUCTION</div>
   <a href="/modules/fabrication.php" class="nav-item <?= ($activePage??'')==='fabrication' ? 'active':'' ?>">

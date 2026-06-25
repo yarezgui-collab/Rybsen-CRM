@@ -327,4 +327,121 @@ if ($action === 'user_toggle_actif') {
     respond(['ok' => true]);
 }
 
+// ──────────────────────────────────────────
+// FACTURATION
+// ──────────────────────────────────────────
+if ($action === 'doc_list') {
+    $type = $body['type'] ?? null;
+    if ($type) {
+        $stmt = $db->prepare("SELECT d.*, COUNT(p.id) as nb_paiements, COALESCE(SUM(p.montant),0) as montant_paye FROM documents d LEFT JOIN paiements_recus p ON p.document_id=d.id WHERE d.type=? GROUP BY d.id ORDER BY d.date_document DESC, d.created_at DESC");
+        $stmt->execute([$type]);
+    } else {
+        $stmt = $db->query("SELECT d.*, COUNT(p.id) as nb_paiements, COALESCE(SUM(p.montant),0) as montant_paye FROM documents d LEFT JOIN paiements_recus p ON p.document_id=d.id GROUP BY d.id ORDER BY d.date_document DESC, d.created_at DESC");
+    }
+    respond($stmt->fetchAll());
+}
+
+if ($action === 'doc_get') {
+    $stmt = $db->prepare("SELECT * FROM documents WHERE id=?");
+    $stmt->execute([$body['id']]);
+    $doc = $stmt->fetch();
+    if (!$doc) error400('Document introuvable');
+    $stmt2 = $db->prepare("SELECT * FROM document_lignes WHERE document_id=? ORDER BY position");
+    $stmt2->execute([$body['id']]);
+    $doc['lignes'] = $stmt2->fetchAll();
+    $stmt3 = $db->prepare("SELECT * FROM paiements_recus WHERE document_id=? ORDER BY date_paiement");
+    $stmt3->execute([$body['id']]);
+    $doc['paiements'] = $stmt3->fetchAll();
+    respond($doc);
+}
+
+if ($action === 'doc_next_numero') {
+    $type = $body['type'] ?? 'Facture';
+    $year = date('Y');
+    $prefixes = ['Devis'=>'DEV','Facture'=>'FAC','Pro forma'=>'PF','Bon de livraison'=>'BL'];
+    $prefix = ($prefixes[$type] ?? 'DOC') . '-' . $year . '-';
+    $stmt = $db->prepare("SELECT numero FROM documents WHERE type=? AND YEAR(created_at)=? ORDER BY id DESC LIMIT 1");
+    $stmt->execute([$type, $year]);
+    $last = $stmt->fetchColumn();
+    $next = 1;
+    if ($last) {
+        $parts = explode('-', $last);
+        $next = intval(end($parts)) + 1;
+    }
+    respond(['numero' => $prefix . str_pad($next, 3, '0', STR_PAD_LEFT)]);
+}
+
+if ($action === 'doc_save') {
+    $d = $body;
+    $lignes = $d['lignes'] ?? [];
+
+    // Recalculate totals server-side
+    $sousTotal = 0;
+    foreach ($lignes as $l) {
+        $sousTotal += floatval($l['quantite']) * floatval($l['prix_unitaire_ht']);
+    }
+    $tva = round($sousTotal * floatval($d['taux_tva'] ?? 19) / 100, 3);
+    $timbre = floatval($d['timbre'] ?? 1);
+    $ttc = round($sousTotal + $tva + $timbre, 3);
+
+    if (!empty($d['id'])) {
+        $stmt = $db->prepare("UPDATE documents SET type=?,statut=?,client_id=?,client_nom=?,client_adresse=?,client_mf=?,client_pays=?,client_email=?,date_document=?,date_echeance=?,date_validite=?,sous_total_ht=?,taux_tva=?,montant_tva=?,timbre=?,total_ttc=?,devise=?,mode_paiement=?,document_lie_id=?,notes=? WHERE id=?");
+        $stmt->execute([$d['type'],$d['statut'],$d['client_id']??null,$d['client_nom'],$d['client_adresse'],$d['client_mf'],$d['client_pays'],$d['client_email'],$d['date_document']??null,$d['date_echeance']??null,$d['date_validite']??null,$sousTotal,$d['taux_tva']??19,$tva,$timbre,$ttc,$d['devise']??'TND',$d['mode_paiement'],$d['document_lie_id']??null,$d['notes'],$d['id']]);
+        $docId = $d['id'];
+        $db->prepare("DELETE FROM document_lignes WHERE document_id=?")->execute([$docId]);
+    } else {
+        // Check numero uniqueness
+        $check = $db->prepare("SELECT id FROM documents WHERE numero=?");
+        $check->execute([$d['numero']]);
+        if ($check->fetch()) error400('Ce numéro de document existe déjà');
+        $stmt = $db->prepare("INSERT INTO documents (numero,type,statut,client_id,client_nom,client_adresse,client_mf,client_pays,client_email,date_document,date_echeance,date_validite,sous_total_ht,taux_tva,montant_tva,timbre,total_ttc,devise,mode_paiement,document_lie_id,notes,created_by) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)");
+        $stmt->execute([$d['numero'],$d['type'],$d['statut']??'Brouillon',$d['client_id']??null,$d['client_nom'],$d['client_adresse'],$d['client_mf'],$d['client_pays'],$d['client_email'],$d['date_document']??null,$d['date_echeance']??null,$d['date_validite']??null,$sousTotal,$d['taux_tva']??19,$tva,$timbre,$ttc,$d['devise']??'TND',$d['mode_paiement'],$d['document_lie_id']??null,$d['notes'],$_SESSION['user_id']]);
+        $docId = $db->lastInsertId();
+    }
+
+    // Insert lines
+    $pos = 1;
+    $stmtL = $db->prepare("INSERT INTO document_lignes (document_id,position,description,quantite,prix_unitaire_ht,total_ht) VALUES (?,?,?,?,?,?)");
+    foreach ($lignes as $l) {
+        $qte = floatval($l['quantite']);
+        $pu = floatval($l['prix_unitaire_ht']);
+        $stmtL->execute([$docId, $pos++, $l['description'], $qte, $pu, round($qte * $pu, 3)]);
+    }
+    respond(['ok' => true, 'id' => $docId]);
+}
+
+if ($action === 'doc_delete') {
+    $db->prepare("DELETE FROM documents WHERE id=?")->execute([$body['id']]);
+    respond(['ok' => true]);
+}
+
+if ($action === 'doc_set_statut') {
+    $db->prepare("UPDATE documents SET statut=? WHERE id=?")->execute([$body['statut'], $body['id']]);
+    respond(['ok' => true]);
+}
+
+if ($action === 'paiement_save') {
+    $d = $body;
+    $stmt = $db->prepare("INSERT INTO paiements_recus (document_id,date_paiement,montant,mode,reference,notes) VALUES (?,?,?,?,?,?)");
+    $stmt->execute([$d['document_id'],$d['date_paiement']??null,$d['montant']??0,$d['mode']??'Virement',$d['reference'],$d['notes']]);
+    // Update document statut if fully paid
+    $docStmt = $db->prepare("SELECT total_ttc FROM documents WHERE id=?");
+    $docStmt->execute([$d['document_id']]);
+    $ttc = floatval($docStmt->fetchColumn());
+    $paidStmt = $db->prepare("SELECT COALESCE(SUM(montant),0) FROM paiements_recus WHERE document_id=?");
+    $paidStmt->execute([$d['document_id']]);
+    $paid = floatval($paidStmt->fetchColumn());
+    if ($paid >= $ttc - 0.01) {
+        $db->prepare("UPDATE documents SET statut='Payé' WHERE id=?")->execute([$d['document_id']]);
+    } elseif ($paid > 0) {
+        $db->prepare("UPDATE documents SET statut='Partiellement payé' WHERE id=?")->execute([$d['document_id']]);
+    }
+    respond(['ok' => true]);
+}
+
+if ($action === 'paiement_delete') {
+    $db->prepare("DELETE FROM paiements_recus WHERE id=?")->execute([$body['id']]);
+    respond(['ok' => true]);
+}
+
 error400('Action inconnue: ' . $action);
