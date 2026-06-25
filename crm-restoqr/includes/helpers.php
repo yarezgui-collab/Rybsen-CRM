@@ -48,9 +48,8 @@ function generate_order_code(PDO $pdo, int $restaurantId): string {
  */
 function clean_text(?string $value, int $maxLen = 500): ?string {
     if ($value === null) return null;
-    $value = trim($value);
-    $value = substr($value, 0, $maxLen);
-    return htmlspecialchars($value, ENT_QUOTES, 'UTF-8');
+    $value = trim(strip_tags($value));
+    return substr($value, 0, $maxLen);
 }
 
 /**

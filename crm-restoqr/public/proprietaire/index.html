@@ -103,6 +103,114 @@
     .kpi-grid{ grid-template-columns:repeat(4,1fr); }
     .two-col{ display:grid; grid-template-columns:1.3fr 1fr; gap:16px; align-items:start; }
   }
+
+  /* TABS */
+  .main-tabs{display:flex;gap:4px;padding:10px 16px;overflow-x:auto;scrollbar-width:none;background:var(--char);border-bottom:1px solid rgba(255,255,255,0.07)}
+  .main-tabs::-webkit-scrollbar{display:none}
+  .mtab{flex:0 0 auto;padding:8px 14px;border-radius:100px;font-size:12.5px;font-weight:700;background:rgba(242,232,216,0.1);border:none;color:rgba(242,232,216,0.55);cursor:pointer;display:flex;align-items:center;gap:6px}
+  .mtab.active{background:var(--semolina);color:var(--char)}
+
+  /* MODAL BOTTOM SHEET */
+  .modal-overlay{position:fixed;inset:0;background:rgba(20,15,11,0.55);z-index:100;display:flex;align-items:flex-end;opacity:0;pointer-events:none;transition:opacity .3s}
+  .modal-overlay.open{opacity:1;pointer-events:auto}
+  .modal-box{background:var(--cream-card);width:100%;border-radius:22px 22px 0 0;padding:24px 22px 36px;max-height:88vh;overflow-y:auto;transform:translateY(100%);transition:transform .38s cubic-bezier(.2,.9,.2,1)}
+  .modal-overlay.open .modal-box{transform:translateY(0)}
+  .modal-title{font-family:'Fraunces',serif;font-size:20px;font-weight:600;margin-bottom:20px}
+  .form-field{margin-bottom:16px}
+  .form-field label{font-size:11.5px;font-weight:700;color:var(--clay);text-transform:uppercase;letter-spacing:.04em;display:block;margin-bottom:7px}
+  .form-field input,.form-field select,.form-field textarea{width:100%;padding:12px 13px;border-radius:11px;border:1px solid var(--line);background:#fff;font-family:'Inter',sans-serif;font-size:14px;color:var(--char)}
+  .form-field input:focus,.form-field select:focus{outline:none;border-color:var(--paprika)}
+  .btn-primary{width:100%;background:var(--char);color:var(--semolina);border:none;padding:15px;border-radius:13px;font-size:14.5px;font-weight:700;cursor:pointer;margin-top:4px}
+  .btn-primary:disabled{opacity:.45}
+  .btn-secondary{background:transparent;border:1px solid var(--line);color:var(--char);padding:9px 16px;border-radius:10px;font-size:13px;font-weight:700;cursor:pointer}
+  .btn-danger{background:rgba(179,58,46,.1);border:1px solid rgba(179,58,46,.2);color:var(--danger);padding:7px 12px;border-radius:8px;font-size:12px;font-weight:700;cursor:pointer}
+  .modal-err{color:var(--danger);font-size:12.5px;font-weight:600;margin-top:10px;text-align:center;display:none}
+
+  /* LIVE TAB (recycler style serveur) */
+  .live-tabs{display:flex;gap:8px;padding:12px 16px 8px;overflow-x:auto;scrollbar-width:none}
+  .live-tabs::-webkit-scrollbar{display:none}
+  .ltab{flex:0 0 auto;padding:8px 14px;border-radius:100px;font-size:12.5px;font-weight:700;background:var(--cream-card);border:1px solid var(--line);color:var(--char);opacity:.6;cursor:pointer;display:flex;align-items:center;gap:7px}
+  .ltab.active{opacity:1;background:var(--char);color:var(--semolina);border-color:var(--char)}
+  .ltab .n{background:rgba(0,0,0,.12);border-radius:100px;padding:1px 7px;font-size:11px}
+  .ltab.active .n{background:rgba(242,232,216,.2)}
+  .live-board{padding:4px 16px 20px;display:flex;flex-direction:column;gap:12px}
+  .order-card{background:var(--cream-card);border-radius:16px;padding:14px 16px;border:1px solid var(--line);position:relative}
+  .order-card.new{border-color:var(--paprika);box-shadow:0 0 0 1px var(--paprika),0 8px 20px rgba(193,80,46,.15);animation:pulse-border 1.8s ease-in-out infinite}
+  @keyframes pulse-border{0%,100%{box-shadow:0 0 0 1px var(--paprika),0 8px 20px rgba(193,80,46,.15)}50%{box-shadow:0 0 0 4px rgba(193,80,46,.25),0 8px 24px rgba(193,80,46,.22)}}
+  .order-top{display:flex;align-items:flex-start;justify-content:space-between;margin-bottom:10px}
+  .order-table{font-family:'Fraunces',serif;font-size:19px;font-weight:700}
+  .order-id{font-size:11px;color:var(--clay);font-weight:600;margin-top:1px}
+  .order-zone{font-size:10.5px;color:var(--clay);font-weight:600;background:rgba(140,106,82,.1);padding:2px 7px;border-radius:5px;margin-top:2px;display:inline-block}
+  .order-timer .t{font-size:13px;font-weight:800;padding:4px 9px;border-radius:8px;background:rgba(91,107,63,.14);color:var(--olive)}
+  .order-timer .t.warn{background:rgba(193,138,46,.18);color:var(--warn)}
+  .order-timer .t.danger{background:rgba(179,58,46,.16);color:var(--danger)}
+  .order-items{margin:10px 0 12px;padding-top:10px;border-top:1px dashed var(--line)}
+  .order-item{display:flex;justify-content:space-between;font-size:13.5px;padding:4px 0}
+  .order-item .q{font-weight:800;color:var(--paprika);margin-right:8px}
+  .order-note{font-size:11.5px;color:var(--clay);background:rgba(140,106,82,.1);padding:5px 9px;border-radius:8px;margin-top:6px;display:inline-block}
+  .order-foot{display:flex;align-items:center;justify-content:space-between;gap:10px}
+  .order-total{font-family:'Fraunces',serif;font-weight:700;font-size:16px}
+  .order-action{flex:1;border:none;padding:11px 14px;border-radius:11px;font-size:13px;font-weight:700;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:6px;max-width:220px}
+  .order-action.to-prep{background:var(--char);color:var(--semolina)}
+  .order-action.to-ready{background:var(--warn);color:#fff}
+  .order-action.to-served{background:var(--olive);color:#fff}
+  .order-action.done{background:transparent;color:var(--clay);opacity:.6;cursor:default}
+  .order-action:disabled{opacity:.5;cursor:wait}
+  .empty-state{text-align:center;padding:60px 24px;color:var(--clay)}
+  .empty-state .icon{font-size:30px;display:block;margin-bottom:10px}
+
+  /* MENU TAB */
+  .menu-wrap{padding:16px}
+  .cat-section{margin-bottom:24px}
+  .cat-header{display:flex;align-items:center;justify-content:space-between;margin-bottom:12px;padding:10px 14px;background:var(--char);border-radius:12px;color:var(--semolina)}
+  .cat-header h3{font-family:'Fraunces',serif;font-size:16px;font-weight:600}
+  .cat-actions{display:flex;gap:8px}
+  .article-card{background:var(--cream-card);border-radius:14px;padding:14px;border:1px solid var(--line);margin-bottom:10px;display:flex;gap:12px;align-items:center}
+  .article-photo{width:56px;height:56px;border-radius:10px;background-size:cover;background-position:center;background-color:var(--line);flex:0 0 56px}
+  .article-info{flex:1;min-width:0}
+  .article-name{font-size:14.5px;font-weight:700;margin-bottom:3px}
+  .article-price{font-family:'Fraunces',serif;font-size:14px;color:var(--paprika);font-weight:600}
+  .article-desc{font-size:12px;color:var(--clay);margin-top:2px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .article-actions{display:flex;flex-direction:column;gap:6px;align-items:flex-end}
+  .toggle-dispo{padding:5px 10px;border-radius:7px;font-size:11.5px;font-weight:700;border:1px solid;cursor:pointer}
+  .toggle-dispo.on{background:rgba(91,107,63,.1);color:var(--olive);border-color:rgba(91,107,63,.25)}
+  .toggle-dispo.off{background:rgba(179,58,46,.1);color:var(--danger);border-color:rgba(179,58,46,.2)}
+  .add-row{display:flex;justify-content:center;padding:8px 0}
+  .add-btn-row{background:transparent;border:1.5px dashed var(--line);color:var(--clay);padding:10px 20px;border-radius:11px;font-size:13px;font-weight:700;cursor:pointer;width:100%}
+  .add-btn-row:hover{border-color:var(--paprika);color:var(--paprika)}
+
+  /* TABLES TAB */
+  .tables-wrap{padding:16px}
+  .zone-group{margin-bottom:24px}
+  .zone-label{font-family:'Fraunces',serif;font-size:16px;font-weight:600;margin-bottom:12px;display:flex;align-items:center;justify-content:space-between}
+  .table-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:10px}
+  .table-card{background:var(--cream-card);border-radius:14px;padding:14px;border:1px solid var(--line);text-align:center}
+  .table-num{font-family:'Fraunces',serif;font-size:26px;font-weight:700;color:var(--char)}
+  .table-zone-label{font-size:10.5px;color:var(--clay);margin-top:2px}
+  .table-qr-link{display:block;margin-top:8px;font-size:11px;color:var(--paprika);font-weight:600;cursor:pointer;background:none;border:none;padding:0;text-decoration:underline}
+  .table-delete{display:block;width:100%;margin-top:8px}
+
+  /* EQUIPE TAB */
+  .equipe-wrap{padding:16px}
+  .user-card{background:var(--cream-card);border-radius:14px;padding:14px 16px;border:1px solid var(--line);margin-bottom:10px;display:flex;align-items:center;gap:12px}
+  .user-avatar{width:38px;height:38px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-weight:700;font-size:13px;color:#fff;flex:0 0 38px}
+  .user-avatar.prop{background:var(--paprika)}
+  .user-avatar.serv{background:var(--olive)}
+  .user-info{flex:1;min-width:0}
+  .user-name{font-size:14.5px;font-weight:700}
+  .user-meta{font-size:11.5px;color:var(--clay);margin-top:2px}
+  .user-actions{display:flex;flex-direction:column;gap:6px;align-items:flex-end}
+  .badge-actif{font-size:10.5px;font-weight:700;padding:3px 8px;border-radius:5px;background:rgba(91,107,63,.12);color:var(--olive)}
+  .badge-inactif{font-size:10.5px;font-weight:700;padding:3px 8px;border-radius:5px;background:rgba(179,58,46,.1);color:var(--danger)}
+
+  /* TOOLBAR BUTTONS */
+  .tab-add-btn{display:flex;align-items:center;gap:8px;padding:10px 16px;background:var(--char);color:var(--semolina);border:none;border-radius:11px;font-size:13px;font-weight:700;cursor:pointer;margin:0 16px 16px}
+  .toast{position:fixed;bottom:24px;left:50%;transform:translateX(-50%) translateY(20px);background:var(--danger);color:#fff;padding:10px 18px;border-radius:10px;font-size:13px;font-weight:700;opacity:0;transition:.3s;z-index:999;white-space:nowrap}
+
+  @media(min-width:760px){
+    .live-board{display:grid;grid-template-columns:repeat(3,1fr);gap:18px;padding:18px 24px}
+    .table-grid{grid-template-columns:repeat(auto-fill,minmax(130px,1fr))}
+  }
 </style>
 </head>
 <body>
@@ -117,58 +225,69 @@
     </div>
   </div>
 
-  <div class="period-tabs">
-    <button class="ptab active" data-periode="jour">Aujourd'hui</button>
-    <button class="ptab" data-periode="semaine">Cette semaine</button>
-    <button class="ptab" data-periode="mois">Ce mois</button>
-  </div>
+  <nav class="main-tabs" id="mainTabs">
+    <button class="mtab active" data-tab="stats">📊 Stats</button>
+    <button class="mtab" data-tab="live">🔴 Live</button>
+    <button class="mtab" data-tab="menu">🍽 Menu</button>
+    <button class="mtab" data-tab="tables">📍 Tables</button>
+    <button class="mtab" data-tab="equipe">👥 Équipe</button>
+  </nav>
 
-  <div class="wrap" id="wrap">
-    <div class="loading-overlay" id="loadingOverlay">
-      <div class="spinner"></div>
-      <p>Chargement des statistiques…</p>
+  <!-- TAB STATS -->
+  <div id="tab-stats">
+    <div class="period-tabs">
+      <button class="ptab active" data-periode="jour">Aujourd'hui</button>
+      <button class="ptab" data-periode="semaine">Cette semaine</button>
+      <button class="ptab" data-periode="mois">Ce mois</button>
     </div>
 
-    <div id="content" style="display:none;">
-      <div class="alerts" id="alerts"></div>
+    <div class="wrap" id="wrap">
+      <div class="loading-overlay" id="loadingOverlay">
+        <div class="spinner"></div>
+        <p>Chargement des statistiques…</p>
+      </div>
 
-      <div class="kpi-grid" id="kpiGrid"></div>
+      <div id="content" style="display:none;">
+        <div class="alerts" id="alerts"></div>
 
-      <div class="two-col">
-        <div>
-          <div class="section">
-            <div class="section-head">
-              <h2>Articles les plus vendus</h2>
-              <span class="meta" id="topArticlesMeta"></span>
+        <div class="kpi-grid" id="kpiGrid"></div>
+
+        <div class="two-col">
+          <div>
+            <div class="section">
+              <div class="section-head">
+                <h2>Articles les plus vendus</h2>
+                <span class="meta" id="topArticlesMeta"></span>
+              </div>
+              <div id="topArticles"></div>
             </div>
-            <div id="topArticles"></div>
-          </div>
 
-          <div class="section">
-            <div class="section-head">
-              <h2>Heures de pointe</h2>
-              <span class="meta">Commandes par heure</span>
+            <div class="section">
+              <div class="section-head">
+                <h2>Heures de pointe</h2>
+                <span class="meta">Commandes par heure</span>
+              </div>
+              <div class="hours-chart" id="hoursChart"></div>
             </div>
-            <div class="hours-chart" id="hoursChart"></div>
-          </div>
-        </div>
-
-        <div>
-          <div class="section">
-            <div class="section-head"><h2>Performance équipe</h2></div>
-            <div id="serverPerf"></div>
           </div>
 
-          <div class="section">
-            <div class="section-head"><h2>Prévision</h2></div>
-            <div class="forecast-box" id="forecastBox"></div>
-          </div>
+          <div>
+            <div class="section">
+              <div class="section-head"><h2>Performance équipe</h2></div>
+              <div id="serverPerf"></div>
+            </div>
 
-          <div class="section">
-            <div class="section-head"><h2>Export comptable</h2></div>
-            <div class="export-row">
-              <button class="export-btn" id="exportCsv">⬇ Export CSV</button>
-              <button class="export-btn secondary" id="exportPrint">🖨 Imprimer</button>
+            <div class="section">
+              <div class="section-head"><h2>Prévision</h2></div>
+              <div class="forecast-box" id="forecastBox"></div>
+            </div>
+
+            <div class="section">
+              <div class="section-head"><h2>Export comptable</h2></div>
+              <div class="export-row">
+                <button class="export-btn" id="exportCsv">⬇ Export CSV</button>
+                <button class="export-btn secondary" id="exportPrint">🖨 Imprimer</button>
+              </div>
             </div>
           </div>
         </div>
@@ -176,9 +295,51 @@
     </div>
   </div>
 
+  <!-- TAB LIVE -->
+  <div id="tab-live" style="display:none">
+    <div class="live-tabs" id="liveTabs">
+      <button class="ltab active" data-status="all">Toutes <span class="n" id="lAll">0</span></button>
+      <button class="ltab" data-status="nouvelle">🔴 Nouvelles <span class="n" id="lNouvelle">0</span></button>
+      <button class="ltab" data-status="en_cours">En prép. <span class="n" id="lEnCours">0</span></button>
+      <button class="ltab" data-status="prete">Prêtes <span class="n" id="lPrete">0</span></button>
+    </div>
+    <div class="live-board" id="liveBoard"><div class="empty-state"><span class="icon">⏳</span><p>Chargement…</p></div></div>
+  </div>
+
+  <!-- TAB MENU -->
+  <div id="tab-menu" style="display:none">
+    <button class="tab-add-btn" id="btnAddCat">+ Nouvelle catégorie</button>
+    <div class="menu-wrap" id="menuWrap"><div class="empty-state"><p>Chargement du menu…</p></div></div>
+  </div>
+
+  <!-- TAB TABLES -->
+  <div id="tab-tables" style="display:none">
+    <div style="display:flex;gap:8px;padding:0 16px 4px">
+      <button class="tab-add-btn" id="btnAddTable" style="margin:16px 0 8px">+ Ajouter une table</button>
+      <button class="tab-add-btn" id="btnAddZone" style="margin:16px 0 8px;background:transparent;border:1px solid var(--line);color:var(--char)">+ Nouvelle zone</button>
+    </div>
+    <div class="tables-wrap" id="tablesWrap"><div class="empty-state"><p>Chargement des tables…</p></div></div>
+  </div>
+
+  <!-- TAB EQUIPE -->
+  <div id="tab-equipe" style="display:none">
+    <button class="tab-add-btn" id="btnAddUser">+ Ajouter un membre</button>
+    <div class="equipe-wrap" id="equipeWrap"><div class="empty-state"><p>Chargement de l'équipe…</p></div></div>
+  </div>
+
+  <!-- MODAL -->
+  <div class="modal-overlay" id="modalOverlay">
+    <div class="modal-box" id="modalBox">
+      <div class="modal-title" id="modalTitle">—</div>
+      <div id="modalContent"></div>
+      <div class="modal-err" id="modalErr"></div>
+    </div>
+  </div>
+  <div class="toast" id="toast"></div>
+
 <script>
 const API_BASE = '/api';
-const REFRESH_INTERVAL_MS = 15000; // dashboard propriétaire : rafraîchissement un peu plus espacé que le serveur
+const REFRESH_INTERVAL_MS = 15000;
 
 const TOKEN = localStorage.getItem('qrmenu_token');
 const USER = JSON.parse(localStorage.getItem('qrmenu_user') || 'null');
@@ -198,6 +359,7 @@ let lastData = null;
 
 function fmtMoney(n){ return n.toFixed(3).replace('.', ',') + ' DT'; }
 
+// ========== STATS TAB ==========
 async function loadStats(){
   try{
     const res = await fetch(`${API_BASE}/stats.php?periode=${currentPeriode}`, {
@@ -296,7 +458,6 @@ function renderHoursChart(parHeure){
   }
   const maxNb = Math.max(...parHeure.map(h => h.nb_commandes));
   const peakHeure = parHeure.find(h => h.nb_commandes === maxNb)?.heure;
-  // Affiche toutes les heures 8h-23h pour une vue restaurant cohérente
   const hours = [];
   for(let h = 8; h <= 23; h++){
     const found = parHeure.find(x => x.heure === h);
@@ -341,7 +502,6 @@ function renderForecast(prev){
   `;
 }
 
-// ---------- EXPORT CSV ----------
 document.getElementById('exportCsv').addEventListener('click', () => {
   if(!lastData) return;
   let csv = 'Métrique,Valeur\n';
@@ -353,7 +513,7 @@ document.getElementById('exportCsv').addEventListener('click', () => {
   csv += '\nServeur,Commandes,CA\n';
   lastData.par_serveur.forEach(s => { csv += `${s.nom},${s.nb_commandes},${s.ca}\n`; });
 
-  const blob = new Blob(['\ufeff' + csv], { type: 'text/csv;charset=utf-8;' });
+  const blob = new Blob(['﻿' + csv], { type: 'text/csv;charset=utf-8;' });
   const url = URL.createObjectURL(blob);
   const a = document.createElement('a');
   a.href = url;
@@ -364,7 +524,6 @@ document.getElementById('exportCsv').addEventListener('click', () => {
 
 document.getElementById('exportPrint').addEventListener('click', () => window.print());
 
-// ---------- PERIOD SWITCH ----------
 document.querySelectorAll('.ptab').forEach(tab => {
   tab.addEventListener('click', () => {
     document.querySelectorAll('.ptab').forEach(t => t.classList.remove('active'));
@@ -376,7 +535,451 @@ document.querySelectorAll('.ptab').forEach(tab => {
   });
 });
 
-// ---------- INIT + AUTO-REFRESH ----------
+// ========== TAB SWITCHING ==========
+const TABS = ['stats','live','menu','tables','equipe'];
+let liveOrders = [], liveFilter = 'all', livePollingInterval = null;
+
+function switchTab(tab){
+  TABS.forEach(t => {
+    const el = document.getElementById('tab-'+t);
+    if(el) el.style.display = t===tab ? '' : 'none';
+  });
+  document.querySelectorAll('.mtab').forEach(b => b.classList.toggle('active', b.dataset.tab===tab));
+  if(tab !== 'live' && livePollingInterval){ clearInterval(livePollingInterval); livePollingInterval=null; }
+  if(tab === 'live') startLivePolling();
+  if(tab === 'menu') loadMenuTab();
+  if(tab === 'tables') loadTablesTab();
+  if(tab === 'equipe') loadEquipeTab();
+}
+document.querySelectorAll('.mtab').forEach(b => b.addEventListener('click', () => switchTab(b.dataset.tab)));
+
+// ========== TOAST ==========
+function showToast(msg, color='var(--danger)'){
+  const t=document.getElementById('toast');
+  t.textContent=msg; t.style.background=color;
+  t.style.opacity='1'; t.style.transform='translateX(-50%) translateY(0)';
+  setTimeout(()=>{t.style.opacity='0';t.style.transform='translateX(-50%) translateY(20px)'},3000);
+}
+
+// ========== MODAL HELPERS ==========
+function openModal(title, html, onConfirm){
+  document.getElementById('modalTitle').textContent=title;
+  document.getElementById('modalContent').innerHTML=html;
+  document.getElementById('modalErr').style.display='none';
+  document.getElementById('modalOverlay').classList.add('open');
+  if(onConfirm) document.getElementById('modalConfirmBtn')?.addEventListener('click', onConfirm);
+}
+function closeModal(){
+  document.getElementById('modalOverlay').classList.remove('open');
+}
+document.getElementById('modalOverlay').addEventListener('click', e => { if(e.target===e.currentTarget) closeModal(); });
+
+// ========== ESC + HELPERS ==========
+function esc(s){const d=document.createElement('div');d.textContent=String(s??'');return d.innerHTML;}
+function fmt(n){return Number(n).toFixed(3).replace('.',',')+' DT';}
+function timeAgo(iso){const mins=Math.floor((Date.now()-new Date(iso).getTime())/60000);return mins<=0?"à l'instant":mins+' min';}
+function timerClass(iso,statut){if(statut==='servie')return '';const mins=(Date.now()-new Date(iso).getTime())/60000;return mins>=15?'danger':mins>=8?'warn':'';}
+
+// ========== LIVE TAB ==========
+const LIVE_STATUS_FLOW={nouvelle:{next:'en_cours',label:'Prendre en charge',cls:'to-prep'},en_cours:{next:'prete',label:'Marquer prête',cls:'to-ready'},prete:{next:'servie',label:'Marquer servie',cls:'to-served'},servie:{next:null,label:'Servie ✓',cls:'done'}};
+
+function startLivePolling(){
+  fetchLiveOrders();
+  livePollingInterval = setInterval(fetchLiveOrders, 4000);
+}
+
+async function fetchLiveOrders(){
+  try{
+    const res = await fetch(`${API_BASE}/commandes_list.php`,{headers:{'Authorization':'Bearer '+TOKEN}});
+    if(res.status===401){localStorage.clear();window.location.href='../login.html';return;}
+    const data = await res.json();
+    if(!data.success) return;
+    liveOrders = data.commandes;
+    renderLive();
+  }catch(e){}
+}
+
+function liveOrderCardHTML(o){
+  const flow=LIVE_STATUS_FLOW[o.statut];
+  const tCls=timerClass(o.created_at,o.statut);
+  return `<div class="order-card ${o.statut==='nouvelle'?'new':''}" data-id="${o.id}">
+    <div class="order-top">
+      <div>
+        <div class="order-table">Table ${esc(o.table)}</div>
+        <div class="order-id">#${esc(o.code)}</div>
+        ${o.zone?`<div class="order-zone">${esc(o.zone)}</div>`:''}
+      </div>
+      <div class="order-timer"><div class="t ${tCls}">${timeAgo(o.created_at)}</div></div>
+    </div>
+    <div class="order-items">
+      ${o.items.map(it=>`<div class="order-item"><span><span class="q">${esc(it.quantite)}×</span>${esc(it.nom)}</span></div>${it.note?`<div class="order-note">📝 ${esc(it.note)}</div>`:''}`).join('')}
+      ${o.note?`<div class="order-note">🗒️ ${esc(o.note)}</div>`:''}
+    </div>
+    <div class="order-foot">
+      <div class="order-total">${fmt(o.total)}</div>
+      ${flow.next?`<button class="order-action ${flow.cls}" data-next="${flow.next}" data-id="${o.id}">${flow.label}</button>`:`<button class="order-action done" disabled>${flow.label}</button>`}
+    </div>
+  </div>`;
+}
+
+function renderLive(){
+  const board=document.getElementById('liveBoard');
+  const counts={all:liveOrders.length,nouvelle:0,en_cours:0,prete:0,servie:0};
+  liveOrders.forEach(o=>counts[o.statut]=(counts[o.statut]||0)+1);
+  ['all','nouvelle','en_cours','prete'].forEach(s=>{
+    const el=document.getElementById('l'+{all:'All',nouvelle:'Nouvelle',en_cours:'EnCours',prete:'Prete'}[s]);
+    if(el) el.textContent=counts[s]||0;
+  });
+  let list=liveFilter==='all'?liveOrders.filter(o=>o.statut!=='servie'):liveOrders.filter(o=>o.statut===liveFilter);
+  board.innerHTML=list.length?list.map(liveOrderCardHTML).join(''):`<div class="empty-state"><span class="icon">✅</span><p>Aucune commande active.</p></div>`;
+  board.querySelectorAll('[data-next]').forEach(btn=>{
+    btn.addEventListener('click',()=>advanceLiveOrder(Number(btn.dataset.id),btn));
+  });
+}
+
+document.getElementById('liveTabs')?.addEventListener('click',e=>{
+  const tab=e.target.closest('.ltab');
+  if(!tab) return;
+  document.querySelectorAll('.ltab').forEach(t=>t.classList.remove('active'));
+  tab.classList.add('active');
+  liveFilter=tab.dataset.status;
+  renderLive();
+});
+
+async function advanceLiveOrder(id,btnEl){
+  const order=liveOrders.find(o=>o.id===id);
+  if(!order) return;
+  const flow=LIVE_STATUS_FLOW[order.statut];
+  if(!flow.next) return;
+  btnEl.disabled=true; btnEl.textContent='...';
+  try{
+    const res=await fetch(`${API_BASE}/commande_update_statut.php`,{method:'POST',headers:{'Authorization':'Bearer '+TOKEN,'Content-Type':'application/json'},body:JSON.stringify({commande_id:id,statut:flow.next})});
+    const data=await res.json();
+    if(!data.success){showToast(data.error||'Erreur');btnEl.disabled=false;btnEl.textContent=flow.label;return;}
+    order.statut=flow.next;
+    renderLive();
+  }catch(e){showToast('Connexion impossible.');btnEl.disabled=false;btnEl.textContent=flow.label;}
+}
+
+// ========== MENU TAB ==========
+let menuData = [];
+
+async function loadMenuTab(){
+  const wrap=document.getElementById('menuWrap');
+  wrap.innerHTML='<div class="empty-state"><p>Chargement…</p></div>';
+  try{
+    const res=await fetch(`${API_BASE}/menu_manage.php`,{headers:{'Authorization':'Bearer '+TOKEN}});
+    const data=await res.json();
+    if(!data.success) throw new Error(data.error);
+    menuData=data.categories;
+    renderMenuTab();
+  }catch(e){wrap.innerHTML=`<div class="empty-state"><p>Erreur chargement menu.</p></div>`;}
+}
+
+function renderMenuTab(){
+  const wrap=document.getElementById('menuWrap');
+  if(!menuData.length){wrap.innerHTML='<div class="empty-state"><p>Aucune catégorie. Commencez par en créer une.</p></div>';return;}
+  wrap.innerHTML=menuData.map(cat=>`
+    <div class="cat-section">
+      <div class="cat-header">
+        <h3>${esc(cat.nom)} <small style="opacity:.6;font-size:12px;font-family:'Inter'">${cat.articles.length} articles</small></h3>
+        <div class="cat-actions">
+          <button class="btn-secondary" style="font-size:11px;padding:6px 10px;color:var(--semolina);border-color:rgba(242,232,216,.2)" onclick="openAddArticleModal(${cat.id},'${esc(cat.nom)}')">+ Article</button>
+          <button class="btn-danger" style="font-size:11px;padding:6px 10px" onclick="deleteCat(${cat.id})">×</button>
+        </div>
+      </div>
+      ${cat.articles.map(a=>`
+        <div class="article-card">
+          <div class="article-photo" style="background-image:url('${a.photo_url||''}')"></div>
+          <div class="article-info">
+            <div class="article-name">${esc(a.nom)}</div>
+            <div class="article-price">${fmt(a.prix)}</div>
+            ${a.description?`<div class="article-desc">${esc(a.description)}</div>`:''}
+          </div>
+          <div class="article-actions">
+            <button class="toggle-dispo ${a.disponible?'on':'off'}" onclick="toggleArticle(${a.id})">${a.disponible?'Dispo':'Indispo'}</button>
+            <button class="btn-secondary" style="font-size:11px;padding:5px 9px" onclick="openEditArticleModal(${JSON.stringify(a).replace(/"/g,'&quot;')})">Éditer</button>
+            <button class="btn-danger" style="font-size:11px;padding:5px 9px" onclick="deleteArticle(${a.id})">Suppr.</button>
+          </div>
+        </div>
+      `).join('')}
+    </div>
+  `).join('');
+}
+
+function openAddArticleModal(catId, catNom){
+  openModal(`Nouvel article — ${catNom}`,`
+    <div class="form-field"><label>Nom</label><input id="mNom" placeholder="Ex: Couscous royal"></div>
+    <div class="form-field"><label>Prix (DT)</label><input id="mPrix" type="number" step="0.001" min="0" placeholder="0.000"></div>
+    <div class="form-field"><label>Description (optionnel)</label><input id="mDesc" placeholder="Courte description"></div>
+    <div class="form-field"><label>URL photo (optionnel)</label><input id="mPhoto" placeholder="https://..."></div>
+    <button class="btn-primary" id="modalConfirmBtn">Ajouter l'article</button>
+  `);
+  document.getElementById('modalConfirmBtn').onclick=async()=>{
+    const nom=document.getElementById('mNom').value.trim();
+    const prix=parseFloat(document.getElementById('mPrix').value);
+    if(!nom||!prix){showModalErr('Nom et prix requis.');return;}
+    await menuAction({action:'add_article',categorie_id:catId,nom,prix,description:document.getElementById('mDesc').value||undefined,photo_url:document.getElementById('mPhoto').value||undefined});
+  };
+}
+
+function openEditArticleModal(a){
+  openModal(`Éditer — ${a.nom}`,`
+    <div class="form-field"><label>Nom</label><input id="mNom" value="${esc(a.nom)}"></div>
+    <div class="form-field"><label>Prix (DT)</label><input id="mPrix" type="number" step="0.001" value="${a.prix}"></div>
+    <div class="form-field"><label>Description</label><input id="mDesc" value="${esc(a.description||'')}"></div>
+    <div class="form-field"><label>URL photo</label><input id="mPhoto" value="${esc(a.photo_url||'')}"></div>
+    <button class="btn-primary" id="modalConfirmBtn">Enregistrer</button>
+  `);
+  document.getElementById('modalConfirmBtn').onclick=async()=>{
+    const nom=document.getElementById('mNom').value.trim();
+    const prix=parseFloat(document.getElementById('mPrix').value);
+    if(!nom||!prix){showModalErr('Nom et prix requis.');return;}
+    await menuAction({action:'update_article',article_id:a.id,nom,prix,description:document.getElementById('mDesc').value||undefined,photo_url:document.getElementById('mPhoto').value||undefined});
+  };
+}
+
+async function toggleArticle(id){
+  await menuAction({action:'toggle_article',article_id:id});
+}
+async function deleteArticle(id){
+  if(!confirm('Supprimer cet article ?')) return;
+  await menuAction({action:'delete_article',article_id:id});
+}
+async function deleteCat(id){
+  if(!confirm('Supprimer cette catégorie ? (Elle doit être vide)')) return;
+  await menuAction({action:'delete_category',categorie_id:id});
+}
+
+async function menuAction(body){
+  try{
+    const res=await fetch(`${API_BASE}/menu_manage.php`,{method:'POST',headers:{'Authorization':'Bearer '+TOKEN,'Content-Type':'application/json'},body:JSON.stringify(body)});
+    const data=await res.json();
+    if(!data.success){showToast(data.error||'Erreur');return;}
+    closeModal();
+    showToast('Enregistré','var(--olive)');
+    loadMenuTab();
+  }catch(e){showToast('Connexion impossible.');}
+}
+
+function showModalErr(msg){
+  const el=document.getElementById('modalErr');
+  el.textContent=msg; el.style.display='block';
+}
+
+document.getElementById('btnAddCat')?.addEventListener('click',()=>{
+  openModal('Nouvelle catégorie',`
+    <div class="form-field"><label>Nom de la catégorie</label><input id="mCatNom" placeholder="Ex: Boissons, Desserts…"></div>
+    <button class="btn-primary" id="modalConfirmBtn">Créer la catégorie</button>
+  `);
+  document.getElementById('modalConfirmBtn').onclick=async()=>{
+    const nom=document.getElementById('mCatNom').value.trim();
+    if(!nom){showModalErr('Nom requis.');return;}
+    await menuAction({action:'add_category',nom});
+  };
+});
+
+// ========== TABLES TAB ==========
+async function loadTablesTab(){
+  const wrap=document.getElementById('tablesWrap');
+  wrap.innerHTML='<div class="empty-state"><p>Chargement…</p></div>';
+  try{
+    const res=await fetch(`${API_BASE}/tables_manage.php`,{headers:{'Authorization':'Bearer '+TOKEN}});
+    const data=await res.json();
+    if(!data.success) throw new Error();
+    renderTablesTab(data.tables, data.zones);
+  }catch(e){wrap.innerHTML='<div class="empty-state"><p>Erreur chargement tables.</p></div>';}
+}
+
+function renderTablesTab(tables, zones){
+  const wrap=document.getElementById('tablesWrap');
+  const byZone={};
+  tables.forEach(t=>{
+    const k=t.zone_nom||'Sans zone';
+    if(!byZone[k]) byZone[k]=[];
+    byZone[k].push(t);
+  });
+  wrap.innerHTML=Object.entries(byZone).map(([zone,tbls])=>`
+    <div class="zone-group">
+      <div class="zone-label">${esc(zone)} <span style="font-size:12px;color:var(--clay);font-family:'Inter'">${tbls.length} tables</span></div>
+      <div class="table-grid">
+        ${tbls.map(t=>`
+          <div class="table-card">
+            <div class="table-num">${esc(t.numero)}</div>
+            <div class="table-zone-label">${esc(t.zone_nom||'—')}</div>
+            <button class="table-qr-link" onclick="copyQrUrl('${esc(t.qr_token)}',this)">📋 Copier URL QR</button>
+            <button class="btn-danger table-delete" onclick="deleteTable(${t.id})">Supprimer</button>
+          </div>
+        `).join('')}
+      </div>
+    </div>
+  `).join('');
+
+  window._zones = zones;
+}
+
+function copyQrUrl(token, btn){
+  const url=`${window.location.origin}/public/client/index.html?t=${token}`;
+  navigator.clipboard.writeText(url).then(()=>{
+    const orig=btn.textContent; btn.textContent='✅ Copié !';
+    setTimeout(()=>btn.textContent=orig, 2000);
+  }).catch(()=>showToast('Copier manuellement : '+url));
+}
+
+async function deleteTable(id){
+  if(!confirm('Supprimer cette table ?')) return;
+  try{
+    const res=await fetch(`${API_BASE}/tables_manage.php`,{method:'POST',headers:{'Authorization':'Bearer '+TOKEN,'Content-Type':'application/json'},body:JSON.stringify({action:'delete_table',table_id:id})});
+    const data=await res.json();
+    if(!data.success){showToast(data.error||'Erreur');return;}
+    showToast('Table supprimée','var(--olive)');
+    loadTablesTab();
+  }catch(e){showToast('Connexion impossible.');}
+}
+
+document.getElementById('btnAddTable')?.addEventListener('click',()=>{
+  const zoneOptions=(window._zones||[]).map(z=>`<option value="${z.id}">${esc(z.nom)}</option>`).join('');
+  openModal('Ajouter une table',`
+    <div class="form-field"><label>Numéro de table</label><input id="mTableNum" type="number" min="1" placeholder="12"></div>
+    <div class="form-field"><label>Zone</label><select id="mTableZone"><option value="">— Aucune zone —</option>${zoneOptions}</select></div>
+    <button class="btn-primary" id="modalConfirmBtn">Créer la table</button>
+  `);
+  document.getElementById('modalConfirmBtn').onclick=async()=>{
+    const numero=parseInt(document.getElementById('mTableNum').value);
+    const zone_id=document.getElementById('mTableZone').value||null;
+    if(!numero||numero<1){showModalErr('Numéro invalide.');return;}
+    try{
+      const res=await fetch(`${API_BASE}/tables_manage.php`,{method:'POST',headers:{'Authorization':'Bearer '+TOKEN,'Content-Type':'application/json'},body:JSON.stringify({action:'add_table',numero,zone_id})});
+      const data=await res.json();
+      if(!data.success){showModalErr(data.error||'Erreur');return;}
+      closeModal();
+      showToast('Table créée. URL QR disponible dans la liste.','var(--olive)');
+      loadTablesTab();
+    }catch(e){showModalErr('Connexion impossible.');}
+  };
+});
+
+document.getElementById('btnAddZone')?.addEventListener('click',()=>{
+  openModal('Nouvelle zone',`
+    <div class="form-field"><label>Nom de la zone</label><input id="mZoneNom" placeholder="Ex: Terrasse, Salle VIP…"></div>
+    <button class="btn-primary" id="modalConfirmBtn">Créer la zone</button>
+  `);
+  document.getElementById('modalConfirmBtn').onclick=async()=>{
+    const nom=document.getElementById('mZoneNom').value.trim();
+    if(!nom){showModalErr('Nom requis.');return;}
+    try{
+      const res=await fetch(`${API_BASE}/tables_manage.php`,{method:'POST',headers:{'Authorization':'Bearer '+TOKEN,'Content-Type':'application/json'},body:JSON.stringify({action:'add_zone',nom})});
+      const data=await res.json();
+      if(!data.success){showModalErr(data.error||'Erreur');return;}
+      closeModal();
+      showToast('Zone créée','var(--olive)');
+      loadTablesTab();
+    }catch(e){showModalErr('Connexion impossible.');}
+  };
+});
+
+// ========== EQUIPE TAB ==========
+async function loadEquipeTab(){
+  const wrap=document.getElementById('equipeWrap');
+  wrap.innerHTML='<div class="empty-state"><p>Chargement…</p></div>';
+  try{
+    const res=await fetch(`${API_BASE}/users_manage.php`,{headers:{'Authorization':'Bearer '+TOKEN}});
+    const data=await res.json();
+    if(!data.success) throw new Error();
+    renderEquipeTab(data.users, data.zones);
+  }catch(e){wrap.innerHTML='<div class="empty-state"><p>Erreur chargement équipe.</p></div>';}
+}
+
+function renderEquipeTab(users, zones){
+  const wrap=document.getElementById('equipeWrap');
+  window._zones=zones;
+  wrap.innerHTML=users.map(u=>`
+    <div class="user-card">
+      <div class="user-avatar ${u.role==='proprietaire'?'prop':'serv'}">${esc(u.nom.split(' ').map(w=>w[0]).slice(0,2).join('').toUpperCase())}</div>
+      <div class="user-info">
+        <div class="user-name">${esc(u.nom)}</div>
+        <div class="user-meta">${esc(u.email)} · ${u.role==='proprietaire'?'Propriétaire':'Serveur'} · ${u.zone_nom?esc(u.zone_nom):'Toutes zones'}</div>
+        ${u.derniere_connexion?`<div class="user-meta">Dernière co. : ${new Date(u.derniere_connexion).toLocaleDateString('fr-FR')}</div>`:''}
+      </div>
+      <div class="user-actions">
+        <span class="${u.actif?'badge-actif':'badge-inactif'}">${u.actif?'Actif':'Inactif'}</span>
+        <button class="btn-secondary" style="font-size:11px;padding:5px 9px" onclick="openEditUserModal(${JSON.stringify(u).replace(/"/g,'&quot;')})">Éditer</button>
+        <button class="${u.actif?'btn-danger':'btn-secondary'}" style="font-size:11px;padding:5px 9px" onclick="toggleUser(${u.id})">${u.actif?'Désactiver':'Activer'}</button>
+      </div>
+    </div>
+  `).join('');
+}
+
+async function toggleUser(id){
+  try{
+    const res=await fetch(`${API_BASE}/users_manage.php`,{method:'POST',headers:{'Authorization':'Bearer '+TOKEN,'Content-Type':'application/json'},body:JSON.stringify({action:'toggle_user',user_id:id})});
+    const data=await res.json();
+    if(!data.success){showToast(data.error||'Erreur');return;}
+    showToast('Statut mis à jour','var(--olive)');
+    loadEquipeTab();
+  }catch(e){showToast('Connexion impossible.');}
+}
+
+function openEditUserModal(u){
+  const zoneOptions=(window._zones||[]).map(z=>`<option value="${z.id}" ${u.zone_id==z.id?'selected':''}>${esc(z.nom)}</option>`).join('');
+  openModal(`Éditer — ${u.nom}`,`
+    <div class="form-field"><label>Nom</label><input id="mUNom" value="${esc(u.nom)}"></div>
+    <div class="form-field"><label>Zone</label><select id="mUZone"><option value="">— Toutes les zones —</option>${zoneOptions}</select></div>
+    <div class="form-field"><label>WhatsApp (notifications)</label><input id="mUWa" value="${esc(u.whatsapp_number||'')}" placeholder="+21620xxxxxx"></div>
+    <button class="btn-primary" id="modalConfirmBtn">Enregistrer</button>
+    <div style="margin-top:16px;padding-top:14px;border-top:1px solid var(--line)">
+      <div class="form-field"><label>Nouveau mot de passe (optionnel)</label><input id="mUPwd" type="password" placeholder="Laisser vide pour ne pas changer" autocomplete="new-password"></div>
+      <button class="btn-secondary" style="width:100%" id="resetPwdBtn">Changer le mot de passe</button>
+    </div>
+  `);
+  document.getElementById('modalConfirmBtn').onclick=async()=>{
+    const nom=document.getElementById('mUNom').value.trim();
+    if(!nom){showModalErr('Nom requis.');return;}
+    try{
+      const res=await fetch(`${API_BASE}/users_manage.php`,{method:'POST',headers:{'Authorization':'Bearer '+TOKEN,'Content-Type':'application/json'},body:JSON.stringify({action:'update_user',user_id:u.id,nom,zone_id:document.getElementById('mUZone').value||null,whatsapp_number:document.getElementById('mUWa').value||null})});
+      const data=await res.json();
+      if(!data.success){showModalErr(data.error||'Erreur');return;}
+      closeModal();showToast('Modifications enregistrées','var(--olive)');loadEquipeTab();
+    }catch(e){showModalErr('Connexion impossible.');}
+  };
+  document.getElementById('resetPwdBtn').onclick=async()=>{
+    const pwd=document.getElementById('mUPwd').value;
+    if(pwd.length<8){showModalErr('Mot de passe : 8 caractères minimum.');return;}
+    try{
+      const res=await fetch(`${API_BASE}/users_manage.php`,{method:'POST',headers:{'Authorization':'Bearer '+TOKEN,'Content-Type':'application/json'},body:JSON.stringify({action:'reset_password',user_id:u.id,password:pwd})});
+      const data=await res.json();
+      if(!data.success){showModalErr(data.error||'Erreur');return;}
+      showToast('Mot de passe changé','var(--olive)');closeModal();
+    }catch(e){showModalErr('Connexion impossible.');}
+  };
+}
+
+document.getElementById('btnAddUser')?.addEventListener('click',()=>{
+  const zoneOptions=(window._zones||[]).map(z=>`<option value="${z.id}">${esc(z.nom)}</option>`).join('');
+  openModal('Ajouter un membre',`
+    <div class="form-field"><label>Nom complet</label><input id="mANom" placeholder="Prénom Nom"></div>
+    <div class="form-field"><label>Email</label><input id="mAEmail" type="email" placeholder="email@example.com"></div>
+    <div class="form-field"><label>Mot de passe</label><input id="mAPwd" type="password" placeholder="8 caractères minimum" autocomplete="new-password"></div>
+    <div class="form-field"><label>Rôle</label><select id="mARole"><option value="serveur">Serveur</option><option value="proprietaire">Propriétaire</option></select></div>
+    <div class="form-field"><label>Zone assignée</label><select id="mAZone"><option value="">— Toutes les zones —</option>${zoneOptions}</select></div>
+    <div class="form-field"><label>WhatsApp (notifications)</label><input id="mAWa" placeholder="+21620xxxxxx"></div>
+    <button class="btn-primary" id="modalConfirmBtn">Créer le compte</button>
+  `);
+  document.getElementById('modalConfirmBtn').onclick=async()=>{
+    const nom=document.getElementById('mANom').value.trim();
+    const email=document.getElementById('mAEmail').value.trim();
+    const password=document.getElementById('mAPwd').value;
+    if(!nom||!email||password.length<8){showModalErr('Tous les champs sont requis (mdp 8 cars min).');return;}
+    try{
+      const res=await fetch(`${API_BASE}/users_manage.php`,{method:'POST',headers:{'Authorization':'Bearer '+TOKEN,'Content-Type':'application/json'},body:JSON.stringify({action:'add_user',nom,email,password,role:document.getElementById('mARole').value,zone_id:document.getElementById('mAZone').value||null,whatsapp_number:document.getElementById('mAWa').value||null})});
+      const data=await res.json();
+      if(!data.success){showModalErr(data.error||'Erreur');return;}
+      closeModal();showToast('Compte créé','var(--olive)');loadEquipeTab();
+    }catch(e){showModalErr('Connexion impossible.');}
+  };
+});
+
+// ========== INIT ==========
 loadStats();
 setInterval(loadStats, REFRESH_INTERVAL_MS);
 </script>

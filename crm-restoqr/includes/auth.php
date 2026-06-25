@@ -15,8 +15,11 @@ const SESSION_COOKIE_NAME = 'qrmenu_session';
 function login(string $email, string $password): array {
     $pdo = get_db();
     $stmt = $pdo->prepare(
-        "SELECT id, nom, email, mot_de_passe_hash, role, zone_id, restaurant_id, actif
-         FROM utilisateurs WHERE email = ? LIMIT 1"
+        "SELECT u.id, u.nom, u.email, u.mot_de_passe_hash, u.role, u.zone_id, u.restaurant_id, u.actif,
+                z.nom as zone_nom
+         FROM utilisateurs u
+         LEFT JOIN zones z ON z.id = u.zone_id
+         WHERE u.email = ? LIMIT 1"
     );
     $stmt->execute([$email]);
     $user = $stmt->fetch();
@@ -62,6 +65,7 @@ function login(string $email, string $password): array {
             'nom'  => $user['nom'],
             'role' => $user['role'],
             'zone_id' => $user['zone_id'],
+            'zone_nom' => $user['zone_nom'],
             'restaurant_id' => $user['restaurant_id'],
         ],
     ];
@@ -77,9 +81,11 @@ function current_user(): ?array {
 
     $pdo = get_db();
     $stmt = $pdo->prepare(
-        "SELECT s.id as session_id, s.expires_at, u.id, u.nom, u.email, u.role, u.zone_id, u.restaurant_id
+        "SELECT s.id as session_id, s.expires_at, u.id, u.nom, u.email, u.role, u.zone_id, u.restaurant_id,
+                z.nom as zone_nom
          FROM sessions s
          JOIN utilisateurs u ON u.id = s.utilisateur_id
+         LEFT JOIN zones z ON z.id = u.zone_id
          WHERE s.id = ? AND u.actif = 1 LIMIT 1"
     );
     $stmt->execute([$token]);

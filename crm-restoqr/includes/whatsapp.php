@@ -31,8 +31,12 @@ function send_whatsapp_message(string $toNumber, string $message): array {
     $toNumber = normalize_phone($toNumber);
     $url = 'https://api.twilio.com/2010-04-01/Accounts/' . TWILIO_ACCOUNT_SID . '/Messages.json';
 
+    $from = TWILIO_WHATSAPP_FROM;
+    if (!str_starts_with($from, 'whatsapp:')) {
+        $from = 'whatsapp:' . $from;
+    }
     $payload = [
-        'From' => TWILIO_WHATSAPP_FROM,
+        'From' => $from,
         'To'   => 'whatsapp:' . $toNumber,
         'Body' => $message,
     ];

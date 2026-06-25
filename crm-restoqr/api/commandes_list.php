@@ -38,9 +38,10 @@ if ($sinceId > 0) {
 
 $sql = "SELECT c.id, c.code, c.statut, c.total, c.note_client, c.created_at,
                c.prise_en_charge_at, c.prete_at, c.servie_at,
-               t.numero as table_numero
+               t.numero as table_numero, z.nom as zone_nom
         FROM commandes c
         JOIN tables_restaurant t ON t.id = c.table_id
+        LEFT JOIN zones z ON z.id = t.zone_id
         WHERE " . implode(' AND ', $where) . "
         ORDER BY
           CASE c.statut WHEN 'nouvelle' THEN 0 WHEN 'en_cours' THEN 1 WHEN 'prete' THEN 2 ELSE 3 END ASC,
@@ -80,6 +81,7 @@ $result = array_map(function ($c) use ($itemsByCommande) {
         'total'      => (float)$c['total'],
         'note'       => $c['note_client'],
         'table'      => (int)$c['table_numero'],
+        'zone'       => $c['zone_nom'],
         'created_at' => $c['created_at'],
         'items'      => $itemsByCommande[$c['id']] ?? [],
     ];

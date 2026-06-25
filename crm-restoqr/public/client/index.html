@@ -181,7 +181,7 @@
         <span class="label">Total</span>
         <span class="amount" id="drawerTotal">0,000 DT</span>
       </div>
-      <button class="submit-btn" id="submitBtn">Envoyer la commande en cuisine →</button>
+      <button class="submit-btn" id="submitBtn">Envoyer ma commande →</button>
       <div class="form-error" id="formError" style="display:none;"></div>
     </div>
   </div>
@@ -203,6 +203,7 @@
 <script>
 // ---------- CONFIG ----------
 const API_BASE = '/api'; // adapter si l'app est servie depuis un sous-dossier
+function esc(s){const d=document.createElement('div');d.textContent=String(s??'');return d.innerHTML;}
 
 // Récupère le qr_token depuis l'URL : ?t=xxxx
 const params = new URLSearchParams(window.location.search);
@@ -282,8 +283,8 @@ function dishHTML(item){
     <div class="dish" data-id="${item.id}">
       <div class="dish-photo ${!item.disponible ? 'unavailable' : ''}" style="background-image:url('${item.photo || ''}')"></div>
       <div class="dish-info">
-        <div class="dish-name">${item.nom}</div>
-        <div class="dish-desc">${item.description || ''}</div>
+        <div class="dish-name">${esc(item.nom)}</div>
+        <div class="dish-desc">${esc(item.description || '')}</div>
         <div class="dish-foot">
           <div class="dish-price">${fmt(item.prix)}</div>
           ${item.disponible ? `<div class="qty-zone" id="qty-zone-${item.id}"></div>` : `<span class="badge-out">Indisponible</span>`}
@@ -347,9 +348,9 @@ function renderDrawer(){
           <button class="qty-btn" data-action="plus" data-id="${c.item.id}">+</button>
         </div>
         <div style="flex:1;">
-          <div class="cart-item-name">${c.item.nom}</div>
+          <div class="cart-item-name">${esc(c.item.nom)}</div>
           <div class="cart-item-note">
-            <input type="text" placeholder="Note (ex : sans oignon)" value="${c.note}" data-note="${c.item.id}">
+            <input type="text" placeholder="Note (ex : sans oignon)" value="${esc(c.note)}" data-note="${c.item.id}">
           </div>
         </div>
         <div class="cart-item-price">${fmt(c.qty * c.item.prix)}</div>
@@ -410,7 +411,7 @@ document.getElementById('submitBtn').addEventListener('click', async () => {
       errEl.textContent = data.error || "Impossible d'envoyer la commande.";
       errEl.style.display = 'block';
       btn.disabled = false;
-      btn.innerHTML = 'Envoyer la commande en cuisine →';
+      btn.innerHTML = 'Envoyer ma commande →';
       return;
     }
 
@@ -433,7 +434,7 @@ document.getElementById('confirmClose').addEventListener('click', () => {
   document.getElementById('confirmScreen').classList.remove('show');
   Object.keys(cart).forEach(k => delete cart[k]);
   document.getElementById('globalNote').value = '';
-  document.getElementById('submitBtn').innerHTML = 'Envoyer la commande en cuisine →';
+  document.getElementById('submitBtn').innerHTML = 'Envoyer ma commande →';
   document.getElementById('submitBtn').disabled = true;
   renderMenu();
   renderCartBar();

@@ -130,10 +130,17 @@
     <div class="bnav-item"><span class="ic">🍽️</span>Mes tables</div>
     <div class="bnav-item"><span class="ic">🔔</span>Notifs</div>
   </div>
+  <div id="toast" style="position:fixed;bottom:90px;left:50%;transform:translateX(-50%) translateY(20px);background:var(--danger);color:#fff;padding:10px 18px;border-radius:10px;font-size:13px;font-weight:700;opacity:0;transition:.3s;z-index:999;white-space:nowrap;"></div>
 
 <script>
 const API_BASE = '/api';
 const POLL_INTERVAL_MS = 4000;
+function esc(s){const d=document.createElement('div');d.textContent=String(s??'');return d.innerHTML;}
+function showToast(msg, duration=3000){
+  const t=document.getElementById('toast');
+  t.textContent=msg; t.style.opacity='1'; t.style.transform='translateX(-50%) translateY(0)';
+  setTimeout(()=>{ t.style.opacity='0'; t.style.transform='translateX(-50%) translateY(20px)'; }, duration);
+}
 
 // ---------- AUTH GUARD ----------
 const TOKEN = localStorage.getItem('qrmenu_token');
@@ -143,7 +150,7 @@ if(!TOKEN || !USER || USER.role !== 'serveur'){
 }
 
 document.getElementById('userName').textContent = USER.nom;
-document.getElementById('userZone').textContent = 'Zone assignée';
+document.getElementById('userZone').textContent = USER.zone_nom || 'Toutes les zones';
 document.getElementById('avatarInit').textContent = USER.nom.split(' ').map(w => w[0]).slice(0,2).join('').toUpperCase();
 
 document.getElementById('logoutBtn').addEventListener('click', async () => {
@@ -287,7 +294,7 @@ async function advanceOrder(id, btnEl){
     });
     const data = await res.json();
     if(!data.success){
-      alert(data.error || 'Action impossible.');
+      showToast(data.error || 'Action impossible.');
       btnEl.disabled = false;
       btnEl.textContent = flow.label;
       return;
@@ -296,7 +303,7 @@ async function advanceOrder(id, btnEl){
     order.statut = flow.next;
     render();
   }catch(e){
-    alert('Connexion impossible. Réessayez.');
+    showToast('Connexion impossible. Réessayez.');
     btnEl.disabled = false;
     btnEl.textContent = flow.label;
   }
@@ -310,14 +317,15 @@ function orderCardHTML(o){
     <div class="order-card ${o.statut === 'nouvelle' ? 'new' : ''}" data-id="${o.id}">
       <div class="order-top">
         <div>
-          <div class="order-table">Table ${o.table}</div>
-          <div class="order-id">#${o.code}</div>
+          <div class="order-table">Table ${esc(o.table)}</div>
+          <div class="order-id">#${esc(o.code)}</div>
+          ${o.zone ? `<div class="order-id">${esc(o.zone)}</div>` : ''}
         </div>
         <div class="order-timer"><div class="t ${tCls}">${timeAgo(o.created_at)}</div></div>
       </div>
       <div class="order-items">
-        ${o.items.map(it => `<div class="order-item"><span><span class="q">${it.quantite}×</span>${it.nom}</span></div>${it.note ? `<div class="order-note">📝 ${it.note}</div>` : ''}`).join('')}
-        ${o.note ? `<div class="order-note">🗒️ ${o.note}</div>` : ''}
+        ${o.items.map(it => `<div class="order-item"><span><span class="q">${esc(it.quantite)}×</span>${esc(it.nom)}</span></div>${it.note ? `<div class="order-note">📝 ${esc(it.note)}</div>` : ''}`).join('')}
+        ${o.note ? `<div class="order-note">🗒️ ${esc(o.note)}</div>` : ''}
       </div>
       <div class="order-foot">
         <div class="order-total">${fmt(o.total)}</div>
