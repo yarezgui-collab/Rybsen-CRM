@@ -23,9 +23,11 @@ jobs:
         env:
           SFTP_PASS: ${{ secrets.CRM_SFTP_PASSWORD }}
         run: |
+          # Percent-encode the password so special characters ($, !, @, etc.) are safe
+          ENCODED_PASS=$(python3 -c "import urllib.parse, os; print(urllib.parse.quote(os.environ['SFTP_PASS'], safe=''))")
           lftp -c "
           set sftp:connect-program 'ssh -a -x -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -p 65002';
-          open -u 'u293743867.crm.rybsen.com','$SFTP_PASS' sftp://194.36.184.184;
+          open sftp://u293743867.crm.rybsen.com:${ENCODED_PASS}@194.36.184.184;
           mirror -R --verbose --no-perms --parallel=4 \
             --exclude-glob config.php \
             --exclude-glob '*.sql' \
