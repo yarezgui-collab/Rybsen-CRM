@@ -9,10 +9,11 @@ Tu travailles sur le projet CRM déployé sur crm.rybsen.com (Hostinger).
 
 ## Déploiement SFTP automatique
 - Le déploiement se fait via GitHub Actions au merge sur main
-- Chemin serveur : domains/rybsen.com/public_html/crm/
-- URL prod : crm.rybsen.com ou rybsen.com/crm/
-- Les secrets SFTP (SFTP_HOST, SFTP_PORT, SFTP_USER, SFTP_PASSWORD) sont déjà configurés
-  dans le repo GitHub yarezgui-collab/Rybsen-CRM
+- Hôte : 194.36.184.184 · Port : 65002
+- Utilisateur SFTP : u293743867.crm.rybsen.com
+- Home SFTP = /home/u293743867/domains/crm.rybsen.com/public_html (destination lftp : ".")
+- URL prod : https://crm.rybsen.com
+- Secrets GitHub requis : CRM_SFTP_PASSWORD (dans yarezgui-collab/Rybsen-CRM → Settings → Secrets)
 
 ## Workflow GitHub Actions
 - Fichier : .github/workflows/deploy-crm-rybsen.yml
