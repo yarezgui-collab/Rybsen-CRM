@@ -10,6 +10,7 @@ on:
 
 jobs:
   deploy:
+    name: SFTP → crm.rybsen.com
     runs-on: ubuntu-latest
     steps:
       - name: Checkout repository
@@ -20,20 +21,17 @@ jobs:
 
       - name: Deploy via SFTP
         env:
-          SFTP_HOST: ${{ secrets.SFTP_HOST }}
-          SFTP_PORT: ${{ secrets.SFTP_PORT }}
-          SFTP_USER: ${{ secrets.SFTP_USER }}
-          SFTP_PASS: ${{ secrets.SFTP_PASSWORD }}
+          SFTP_PASS: ${{ secrets.CRM_SFTP_PASSWORD }}
         run: |
           lftp -c "
-          set sftp:connect-program 'ssh -a -x -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -p $SFTP_PORT';
-          open -u '$SFTP_USER','$SFTP_PASS' sftp://$SFTP_HOST;
+          set sftp:connect-program 'ssh -a -x -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -p 65002';
+          open -u 'u293743867.crm.rybsen.com','$SFTP_PASS' sftp://194.36.184.184;
           mirror -R --verbose --no-perms --parallel=4 \
             --exclude-glob config.php \
             --exclude-glob '*.sql' \
             --exclude-glob '.git*' \
             --exclude-glob '.gitignore' \
             --exclude-glob 'config.example.php' \
-            ./crm-rybsen/ domains/rybsen.com/public_html/crm/;
+            ./crm-rybsen/ .;
           bye
           "
