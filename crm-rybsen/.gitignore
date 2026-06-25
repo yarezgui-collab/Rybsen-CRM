@@ -1,0 +1,15 @@
+# Credentials — ne jamais committer
+config.php
+
+# macOS
+.DS_Store
+__MACOSX/
+._*
+
+# Éditeurs
+.vscode/
+*.swp
+*.swo
+
+# Logs
+*.log

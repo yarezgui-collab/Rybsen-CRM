@@ -1,0 +1,136 @@
+-- ============================================================
+-- Remplacement des produits et clients de démonstration
+-- par les vrais produits (avec catégories) et clients de la pâtisserie
+-- ============================================================
+
+SET NAMES utf8mb4;
+
+-- S'assure que la colonne categorie existe (no-op si déjà présente)
+ALTER TABLE produits ADD COLUMN IF NOT EXISTS categorie VARCHAR(40) NOT NULL DEFAULT 'Autres';
+
+-- Supprime les anciens produits et clients de démonstration
+DELETE FROM retours;
+DELETE FROM livraisons;
+DELETE FROM encaissements;
+DELETE FROM clients;
+DELETE FROM produits;
+
+-- Produits réels (80 articles), classés par catégorie
+INSERT INTO produits (id, nom, prix, categorie) VALUES
+  ('p001', 'Croissant nature Margarine', 1.000, 'Viennoiserie'),
+  ('p002', 'Croissant nature 60/40', 1.400, 'Viennoiserie'),
+  ('p003', 'Croissant nature Pur beurre', 1.700, 'Viennoiserie'),
+  ('p004', 'Pain au chocolat Margarine', 1.100, 'Viennoiserie'),
+  ('p005', 'Pain au chocolat 60/40', 1.500, 'Viennoiserie'),
+  ('p006', 'Pain au chocolat Pur beurre', 1.800, 'Viennoiserie'),
+  ('p007', 'Croissant aux amandes Margarine', 1.100, 'Viennoiserie'),
+  ('p008', 'Croissant aux amandes 60/40', 1.500, 'Viennoiserie'),
+  ('p009', 'Croissant aux amandes Pur beurre', 1.800, 'Viennoiserie'),
+  ('p010', 'Shneck raisin Margarine', 1.100, 'Viennoiserie'),
+  ('p011', 'Shneck raisin 60/40', 1.500, 'Viennoiserie'),
+  ('p012', 'Shneck raisin Pur beurre', 1.800, 'Viennoiserie'),
+  ('p013', 'Shneck au lait Margarine', 1.100, 'Viennoiserie'),
+  ('p014', 'Shneck au lait 60/40', 1.500, 'Viennoiserie'),
+  ('p015', 'Shneck au lait Pur beurre', 1.800, 'Viennoiserie'),
+  ('p016', 'Choco amande Margarine', 1.300, 'Viennoiserie'),
+  ('p017', 'Choco amande 60/40', 1.700, 'Viennoiserie'),
+  ('p018', 'Choco amande Pur beurre', 1.900, 'Viennoiserie'),
+  ('p019', 'Spot Margarine', 1.300, 'Viennoiserie'),
+  ('p020', 'Spot 60/40', 1.800, 'Viennoiserie'),
+  ('p021', 'Spot Pur beurre', 2.000, 'Viennoiserie'),
+  ('p022', 'Mini croissant Margarine', 0.500, 'Viennoiserie'),
+  ('p023', 'Mini croissant 60/40', 0.700, 'Viennoiserie'),
+  ('p024', 'Mini croissant Pur beurre', 1.000, 'Viennoiserie'),
+  ('p025', 'Mini pain chocolat Margarine', 0.550, 'Viennoiserie'),
+  ('p026', 'Mini pain chocolat 60/40', 0.750, 'Viennoiserie'),
+  ('p027', 'Mini pain chocolat Pur beurre', 1.100, 'Viennoiserie'),
+  ('p028', 'Mille feuille', 1.700, 'Cake & Biscuit'),
+  ('p029', 'Amandine', 3.400, 'Cake & Biscuit'),
+  ('p030', 'Croquant', 1.100, 'Cake & Biscuit'),
+  ('p031', 'Cookies', 1.600, 'Cake & Biscuit'),
+  ('p032', 'Sable chocolat', 1.600, 'Cake & Biscuit'),
+  ('p033', 'Sable', 1.500, 'Cake & Biscuit'),
+  ('p034', 'Galette', 1.400, 'Cake & Biscuit'),
+  ('p035', 'Cake rond Nature', 1.300, 'Cake & Biscuit'),
+  ('p036', 'Cake rond Chocolat', 1.500, 'Cake & Biscuit'),
+  ('p037', 'Cake Nature (12p)', 11.000, 'Cake & Biscuit'),
+  ('p038', 'Cake Chocolat (12p)', 13.000, 'Cake & Biscuit'),
+  ('p039', 'Fondant chocolat', 4.500, 'Cake & Biscuit'),
+  ('p040', 'Biscuit soleil (100g)', 3.200, 'Cake & Biscuit'),
+  ('p041', 'Barquette mini biscuit chocolat (150g)', 3.200, 'Cake & Biscuit'),
+  ('p042', 'Barquette cookies (130g)', 3.200, 'Cake & Biscuit'),
+  ('p043', 'Barquette Sable (200g)', 3.000, 'Cake & Biscuit'),
+  ('p044', 'Barquette yoyo (225g)', 3.000, 'Cake & Biscuit'),
+  ('p045', 'Barquette makrouth (230g)', 3.000, 'Cake & Biscuit'),
+  ('p046', 'Barquette ghraiba Homs ou Droo (210g)', 4.500, 'Cake & Biscuit'),
+  ('p047', 'Barquette biscuit sesame (225g)', 3.200, 'Cake & Biscuit'),
+  ('p048', 'Barquette biscuit sesame (450g)', 6.000, 'Cake & Biscuit'),
+  ('p049', 'Pate au thon', 1.700, 'Salée'),
+  ('p050', 'Pate au fromage', 1.500, 'Salée'),
+  ('p051', 'Mini pate Fromage', 0.800, 'Salée'),
+  ('p052', 'Mini pate thon', 0.850, 'Salée'),
+  ('p053', 'Pain Sandwich', 0.600, 'Salée'),
+  ('p054', 'Pizza plateau Thon', 33.000, 'Salée'),
+  ('p055', 'Pizza Plateau poulet', 33.000, 'Salée'),
+  ('p056', 'Pizza rond', 3.200, 'Salée'),
+  ('p057', 'Soufflet jambon', 3.500, 'Salée'),
+  ('p058', 'Soufflet thon', 3.800, 'Salée'),
+  ('p059', 'Baguette farcie escalope', 4.000, 'Salée'),
+  ('p060', 'Quiche epinard', 3.000, 'Salée'),
+  ('p061', 'Quiche au poulet', 3.200, 'Salée'),
+  ('p062', 'Sandwich Jambon', 3.500, 'Salée'),
+  ('p063', 'Sandwich thon', 3.900, 'Salée'),
+  ('p064', 'Sandwich poulet', 3.900, 'Salée'),
+  ('p065', 'Salade tunisienne', 3.500, 'Salée'),
+  ('p066', 'Salade de riz', 3.500, 'Salée'),
+  ('p067', 'Salade russe', 3.500, 'Salée'),
+  ('p068', 'Salade Cesar', 6.500, 'Salée'),
+  ('p069', 'Plat escalope (grille ou panee)', 10.000, 'Salée'),
+  ('p070', 'Roti de poulet', 10.000, 'Salée'),
+  ('p071', 'Pates au poulet', 10.000, 'Salée'),
+  ('p072', 'Coucous au poulet', 10.000, 'Salée'),
+  ('p073', 'Tarte au fruits', 3.500, 'Gâteau français'),
+  ('p074', 'Foret noire', 4.800, 'Gâteau français'),
+  ('p075', 'Opera', 4.900, 'Gâteau français'),
+  ('p076', 'Mousse pistache', 4.900, 'Gâteau français'),
+  ('p077', 'Mousse chocolat noisette', 4.900, 'Gâteau français'),
+  ('p078', 'Tiramisu', 4.900, 'Gâteau français'),
+  ('p079', 'Russe Pistache', 7.000, 'Gâteau français'),
+  ('p080', 'Mini gateaux', 1.600, 'Gâteau français')
+ON DUPLICATE KEY UPDATE nom = VALUES(nom), prix = VALUES(prix), categorie = VALUES(categorie);
+
+-- Clients réels (32 clients, répartis Haithem/Rami)
+INSERT INTO clients (id, nom, chauffeur_id) VALUES
+  ('c001', 'Luxor', 'chauffeur1'),
+  ('c002', 'Khouloud', 'chauffeur2'),
+  ('c003', 'Aziz', 'chauffeur1'),
+  ('c004', 'Bk', 'chauffeur2'),
+  ('c005', 'Cafe creme', 'chauffeur1'),
+  ('c006', 'Moresca', 'chauffeur2'),
+  ('c007', 'Gaith', 'chauffeur1'),
+  ('c008', 'La cafette', 'chauffeur2'),
+  ('c009', 'Cafe des arts', 'chauffeur1'),
+  ('c010', 'Cafe jad', 'chauffeur2'),
+  ('c011', 'Cafe fakher', 'chauffeur1'),
+  ('c012', 'Comme chez toi', 'chauffeur2'),
+  ('c013', 'Figaro', 'chauffeur1'),
+  ('c014', 'Talel', 'chauffeur2'),
+  ('c015', 'Catalina', 'chauffeur1'),
+  ('c016', 'La place', 'chauffeur2'),
+  ('c017', 'MZ', 'chauffeur1'),
+  ('c018', 'Molhak', 'chauffeur2'),
+  ('c019', 'Marwen', 'chauffeur1'),
+  ('c020', '911', 'chauffeur2'),
+  ('c021', 'Ichbilia', 'chauffeur1'),
+  ('c022', 'Minato', 'chauffeur2'),
+  ('c023', 'Jasmins 1', 'chauffeur1'),
+  ('c024', 'Jasmins 2', 'chauffeur2'),
+  ('c025', 'Fuego', 'chauffeur1'),
+  ('c026', 'Mokh', 'chauffeur2'),
+  ('c027', 'Dauphins', 'chauffeur1'),
+  ('c028', 'Shell', 'chauffeur2'),
+  ('c029', 'Dar el medina', 'chauffeur1'),
+  ('c030', 'Pret a m kh', 'chauffeur2'),
+  ('c031', 'M5', 'chauffeur1'),
+  ('c032', 'P ben yedder Belvedere', 'chauffeur2')
+ON DUPLICATE KEY UPDATE nom = VALUES(nom), chauffeur_id = VALUES(chauffeur_id);
