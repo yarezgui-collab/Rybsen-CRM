@@ -1,18 +1,19 @@
-name: 🚀 Deploy RYBSEN CRM to Hostinger
+name: Deploy crm-rybsen to Hostinger
 
 on:
   push:
-    branches: [main]
-    paths: ['crm-rybsen/**']
+    branches:
+      - main
+    paths:
+      - 'crm-rybsen/**'
   workflow_dispatch:
 
 jobs:
   deploy:
     name: SFTP → crm.rybsen.com
     runs-on: ubuntu-latest
-
     steps:
-      - name: Checkout
+      - name: Checkout repository
         uses: actions/checkout@v4
 
       - name: Install lftp
@@ -20,7 +21,7 @@ jobs:
 
       - name: Deploy via SFTP
         env:
-          SFTP_PASS: ${{ secrets.SFTP_PASSWORD_CRM }}
+          SFTP_PASS: ${{ secrets.CRM_SFTP_PASSWORD }}
         run: |
           lftp -c "
           set sftp:connect-program 'ssh -a -x -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -p 65002';
@@ -31,9 +32,6 @@ jobs:
             --exclude-glob '.git*' \
             --exclude-glob '.gitignore' \
             --exclude-glob 'config.example.php' \
-            ./crm-rybsen/ /home/u293743867/domains/crm.rybsen.com/public_html/;
+            ./crm-rybsen/ .;
           bye
           "
-
-      - name: Summary
-        run: echo "✅ Déployé sur https://crm.rybsen.com"
