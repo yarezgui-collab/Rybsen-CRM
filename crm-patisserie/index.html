@@ -452,17 +452,27 @@ function groupProductsByBase(products) {
   return order.map(b => groups[b]).sort((a,b)=>a.base.localeCompare(b.base,"fr"));
 }
 
-// Trie des lignes de livraison pour regrouper les variantes d'un même produit (60/40, Pur beurre, Margarine)
+// Trie par type de variante (Pur beurre → 60/40 → Margarine → sans variante)
+// puis alphabétiquement par nom de base à l'intérieur de chaque groupe.
 function sortByBase(items) {
+  const SUFFIX_ORDER = {"Pur beurre":0,"60/40":1,"Margarine":2};
+  function getSuffix(n) {
+    n = n||"";
+    for (const suf of VARIANT_SUFFIXES) { if (n.endsWith(" "+suf)) return suf; }
+    return null;
+  }
   function baseName(n) {
-    n = n || "";
+    n = n||"";
     for (const suf of VARIANT_SUFFIXES) { if (n.endsWith(" "+suf)) return n.slice(0,-(suf.length+1)); }
     return n;
   }
   return [...items].sort((a,b) => {
     const na = a.productName||a.name||"", nb = b.productName||b.name||"";
-    const ba = baseName(na), bb = baseName(nb);
-    return ba!==bb ? ba.localeCompare(bb,"fr") : na.localeCompare(nb,"fr");
+    const sa = getSuffix(na), sb = getSuffix(nb);
+    const oa = sa!==null ? (SUFFIX_ORDER[sa]??3) : 3;
+    const ob = sb!==null ? (SUFFIX_ORDER[sb]??3) : 3;
+    if (oa!==ob) return oa-ob;
+    return baseName(na).localeCompare(baseName(nb),"fr");
   });
 }
 
