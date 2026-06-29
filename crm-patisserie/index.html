@@ -958,8 +958,8 @@ function Labo({ products, clients, drivers, deliveries, returns, currency, setti
       d.setDate(d.getDate() - n);
       return d.toISOString().slice(0, 10);
     };
-    const t7  = offsetDate(7);
-    const t14 = offsetDate(14);
+    const t7  = offsetDate(6);
+    const t14 = offsetDate(13);
     const m = {};
     [t7, t14].forEach(target => {
       deliveries.filter(d => d.date === target).forEach(d => {
@@ -1218,15 +1218,15 @@ function Labo({ products, clients, drivers, deliveries, returns, currency, setti
         </p>
         {!clients.some(c => refOrderByClient[c.id]) ? (
           <div style={{textAlign:"center",padding:"20px 12px",background:"var(--chalk)",borderRadius:10,color:"var(--muted)",fontSize:13}}>
-            Aucune commande trouvée le {(()=>{const d=new Date(date+"T00:00:00");d.setDate(d.getDate()-7);return dateFR(d.toISOString().slice(0,10));})()}
-            {" "}ni le {(()=>{const d=new Date(date+"T00:00:00");d.setDate(d.getDate()-14);return dateFR(d.toISOString().slice(0,10));})()}.
-            <br/>Cette section se remplira automatiquement une fois que vous aurez 7 jours d'historique.
+            Aucune commande trouvée le {(()=>{const d=new Date(date+"T00:00:00");d.setDate(d.getDate()-6);return dateFR(d.toISOString().slice(0,10));})()}
+            {" "}ni le {(()=>{const d=new Date(date+"T00:00:00");d.setDate(d.getDate()-13);return dateFR(d.toISOString().slice(0,10));})()}.
+            <br/>Cette section se remplira automatiquement une fois que vous aurez 6 jours d'historique.
           </div>
         ) : clients.filter(c => refOrderByClient[c.id]).map(c => {
           const last  = refOrderByClient[c.id];
           const open  = !!reorderQtys[c.id];
           const drName = driverLabel(c.driver, drivers);
-          const t14 = (()=>{const d=new Date(date+"T00:00:00");d.setDate(d.getDate()-14);return d.toISOString().slice(0,10);})();
+          const t13 = (()=>{const d=new Date(date+"T00:00:00");d.setDate(d.getDate()-13);return d.toISOString().slice(0,10);})();
           // Dédupliquer les lignes par produit (somme des quantités)
           const dedupLines = Object.values(
             last.lines.reduce((acc, l) => {
@@ -1240,7 +1240,7 @@ function Labo({ products, clients, drivers, deliveries, returns, currency, setti
               <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",padding:"10px 12px",background:"var(--chalk)"}}>
                 <div>
                   <div style={{fontWeight:700,color:"var(--ink)"}}>{c.name}</div>
-                  <div style={{fontSize:12,color:"var(--muted)"}}>{drName} · réf. {dateFR(last.date)}{last.date === t14 ? " (J-14)" : " (J-7)"}</div>
+                  <div style={{fontSize:12,color:"var(--muted)"}}>{drName} · réf. {dateFR(last.date)}{last.date === t13 ? " (J-13)" : " (J-6)"}</div>
                 </div>
                 <button style={{...btn,padding:"7px 12px",fontSize:12,background:open?C.muted:C.wheat}}
                   onClick={() => open ? setReorderQtys(p=>{const n={...p};delete n[c.id];return n;}) : openReorder(c.id)}>
