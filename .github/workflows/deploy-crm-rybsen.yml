@@ -12,12 +12,29 @@ jobs:
   deploy:
     name: SFTP → crm.rybsen.com
     runs-on: ubuntu-latest
+    timeout-minutes: 10
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      - name: Install lftp
-        run: sudo apt-get install -y lftp
+      - name: Install sshpass
+        run: sudo apt-get install -y sshpass
+
+      - name: Build SFTP batch file
+        run: |
+          printf -- '-mkdir api\n-mkdir assets\n-mkdir includes\n-mkdir modules\n' > /tmp/sftp_batch.txt
+          find crm-rybsen -type f \
+            ! -name 'config.php' \
+            ! -name '*.sql' \
+            ! -name 'config.example.php' \
+            ! -path '*/.git/*' \
+            ! -name '.gitignore' \
+            | sort | while read f; do
+              remote="${f#crm-rybsen/}"
+              printf 'put %s %s\n' "$f" "$remote"
+            done >> /tmp/sftp_batch.txt
+          printf 'bye\n' >> /tmp/sftp_batch.txt
+          echo "=== Batch file ===" && cat /tmp/sftp_batch.txt
 
       - name: Deploy via SFTP
         env:
@@ -26,17 +43,11 @@ jobs:
           SFTP_USER: ${{ secrets.CRM_SFTP_USER }}
           SFTP_PASS: ${{ secrets.CRM_SFTP_PASSWORD }}
         run: |
-          ENCODED_PASS=$(python3 -c "import urllib.parse, os; print(urllib.parse.quote(os.environ['SFTP_PASS'], safe=''))")
-          ENCODED_USER=$(python3 -c "import urllib.parse, os; print(urllib.parse.quote(os.environ['SFTP_USER'], safe=''))")
-          lftp -c "
-          set sftp:connect-program 'ssh -a -x -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -p ${SFTP_PORT}';
-          open sftp://${ENCODED_USER}:${ENCODED_PASS}@${SFTP_HOST};
-          mirror -R --verbose --no-perms --parallel=4 \
-            --exclude-glob config.php \
-            --exclude-glob '*.sql' \
-            --exclude-glob '.git*' \
-            --exclude-glob '.gitignore' \
-            --exclude-glob 'config.example.php' \
-            ./crm-rybsen/ .;
-          bye
-          "
+          sshpass -p "$SFTP_PASS" sftp \
+            -oBatchMode=no \
+            -oStrictHostKeyChecking=no \
+            -oPasswordAuthentication=yes \
+            -oConnectTimeout=30 \
+            -P "$SFTP_PORT" \
+            -b /tmp/sftp_batch.txt \
+            "$SFTP_USER@$SFTP_HOST"
