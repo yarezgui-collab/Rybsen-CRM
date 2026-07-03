@@ -70,6 +70,12 @@ if ($action === 'cli_delete') {
     $db->prepare("DELETE FROM clients_prospects WHERE id=?")->execute([$body['id']]);
     respond(['ok' => true]);
 }
+if ($action === 'cli_search') {
+    $q = '%' . trim($body['q'] ?? '') . '%';
+    $stmt = $db->prepare("SELECT id, nom_entreprise, contact_email, pays, ville FROM clients_prospects WHERE nom_entreprise LIKE ? ORDER BY nom_entreprise LIMIT 10");
+    $stmt->execute([$q]);
+    respond(['results' => $stmt->fetchAll()]);
+}
 
 // ──────────────────────────────────────────
 // CANDIDATURES
@@ -374,6 +380,40 @@ if ($action === 'doc_next_numero') {
 if ($action === 'doc_save') {
     $d = $body;
     $lignes = $d['lignes'] ?? [];
+
+    // Auto-create or link client in clients_prospects
+    $clientId = isset($d['client_id']) && $d['client_id'] ? intval($d['client_id']) : null;
+    if (!$clientId && !empty($d['client_nom'])) {
+        $cstmt = $db->prepare("SELECT id FROM clients_prospects WHERE nom_entreprise = ? LIMIT 1");
+        $cstmt->execute([trim($d['client_nom'])]);
+        $existingId = $cstmt->fetchColumn();
+        if ($existingId) {
+            $clientId = intval($existingId);
+        } else {
+            $ins = $db->prepare("INSERT INTO clients_prospects (nom_entreprise, pays, ville, secteur, source, contact_nom, contact_email, contact_tel, stade, probabilite_closing, version_aquaclean, machine_attribuee, prix_ht, devise, roi_estime_mois, notes, created_by) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)");
+            $ins->execute([
+                trim($d['client_nom']),
+                $d['client_pays'] ?? '',
+                $d['client_adresse'] ?? '',
+                '',
+                'Facturation',
+                '',
+                $d['client_email'] ?? '',
+                '',
+                'Client',
+                0,
+                'V1',
+                null,
+                0,
+                $d['devise'] ?? 'TND',
+                0,
+                $d['client_mf'] ? 'MF: ' . $d['client_mf'] : '',
+                $_SESSION['user_id']
+            ]);
+            $clientId = intval($db->lastInsertId());
+        }
+    }
+    $d['client_id'] = $clientId;
 
     // Recalculate totals server-side
     $sousTotal = 0;
