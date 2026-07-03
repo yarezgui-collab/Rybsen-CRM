@@ -31,6 +31,12 @@ require_once '../includes/header.php';
 .paiement-row { display:flex; align-items:center; gap:8px; padding:6px 0; border-bottom:1px solid #f0f0f0; font-size:13px; }
 .paiement-row:last-child { border:none; }
 .badge-paid { background:#dcfce7; color:#166534; padding:2px 8px; border-radius:10px; font-size:11px; font-weight:700; }
+.client-dropdown { display:none; position:absolute; top:100%; left:0; right:0; background:#fff; border:1px solid #e0e0e0; border-radius:6px; box-shadow:0 4px 12px rgba(0,0,0,.12); z-index:999; max-height:200px; overflow-y:auto; }
+.client-option { padding:8px 12px; cursor:pointer; font-size:13px; border-bottom:1px solid #f5f5f5; }
+.client-option:last-child { border-bottom:none; }
+.client-option:hover { background:#f0fbff; }
+.client-option strong { color:var(--navy); }
+.client-option small { color:#888; }
 </style>
 
 <div class="doc-tabs" id="doc-tabs">
@@ -120,10 +126,13 @@ require_once '../includes/header.php';
 
       <hr style="margin:16px 0;border:none;border-top:1px solid #eee">
       <div style="font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:.5px;color:#888;margin-bottom:12px">Informations client</div>
+      <input type="hidden" id="doc-client-id">
       <div class="form-grid">
-        <div class="form-group">
+        <div class="form-group" style="position:relative">
           <label>Nom client *</label>
-          <input type="text" id="doc-cnom" placeholder="BMT, Imprimerie X...">
+          <input type="text" id="doc-cnom" placeholder="BMT, Imprimerie X..." autocomplete="off"
+                 oninput="searchClient(this.value)" onblur="hideClientDropdown()">
+          <div class="client-dropdown" id="client-dropdown"></div>
         </div>
         <div class="form-group">
           <label>Matricule fiscale</label>
@@ -357,6 +366,7 @@ function openAdd() {
   document.getElementById('doc-date').value = new Date().toISOString().split('T')[0];
   document.getElementById('doc-echeance').value = '';
   document.getElementById('doc-validite').value = '';
+  document.getElementById('doc-client-id').value = '';
   document.getElementById('doc-cnom').value = '';
   document.getElementById('doc-cmf').value = '';
   document.getElementById('doc-cadresse').value = '';
@@ -384,6 +394,7 @@ async function openEdit(id) {
   document.getElementById('doc-date').value = doc.date_document || '';
   document.getElementById('doc-echeance').value = doc.date_echeance || '';
   document.getElementById('doc-validite').value = doc.date_validite || '';
+  document.getElementById('doc-client-id').value = doc.client_id || '';
   document.getElementById('doc-cnom').value = doc.client_nom || '';
   document.getElementById('doc-cmf').value = doc.client_mf || '';
   document.getElementById('doc-cadresse').value = doc.client_adresse || '';
@@ -428,6 +439,7 @@ async function saveDoc() {
     date_document: document.getElementById('doc-date').value || null,
     date_echeance: document.getElementById('doc-echeance').value || null,
     date_validite: document.getElementById('doc-validite').value || null,
+    client_id: document.getElementById('doc-client-id').value || null,
     client_nom: nom,
     client_mf: document.getElementById('doc-cmf').value,
     client_adresse: document.getElementById('doc-cadresse').value,
@@ -565,6 +577,49 @@ async function delDoc(id) {
   if (!RYBSEN.confirmDelete()) return;
   const r = await RYBSEN.api('doc_delete', { id });
   if (r.ok) { RYBSEN.toast('Supprimé'); loadDocs(); }
+}
+
+// CLIENT AUTOCOMPLETE
+let _clientResults = [];
+let _clientTimer = null;
+
+async function searchClient(q) {
+  document.getElementById('doc-client-id').value = '';
+  clearTimeout(_clientTimer);
+  if (q.length < 2) { hideClientDropdown(); return; }
+  _clientTimer = setTimeout(async () => {
+    const r = await RYBSEN.api('cli_search', { q });
+    const results = r.results || [];
+    if (!results.length) { hideClientDropdown(); return; }
+    _clientResults = results;
+    const dd = document.getElementById('client-dropdown');
+    dd.innerHTML = results.map((c, i) =>
+      `<div class="client-option" onmousedown="selectClient(${i})">
+        <strong>${RYBSEN.escape(c.nom_entreprise)}</strong>
+        ${c.pays ? `<small> · ${RYBSEN.escape(c.pays)}</small>` : ''}
+        ${c.contact_email ? `<small style="display:block;color:#aaa;font-size:11px">${RYBSEN.escape(c.contact_email)}</small>` : ''}
+      </div>`
+    ).join('');
+    dd.style.display = 'block';
+  }, 250);
+}
+
+function selectClient(idx) {
+  const c = _clientResults[idx];
+  if (!c) return;
+  document.getElementById('doc-client-id').value = c.id;
+  document.getElementById('doc-cnom').value = c.nom_entreprise;
+  document.getElementById('doc-cemail').value = c.contact_email || '';
+  document.getElementById('doc-cpays').value = c.pays || '';
+  document.getElementById('doc-cadresse').value = c.ville || '';
+  hideClientDropdown();
+}
+
+function hideClientDropdown() {
+  setTimeout(() => {
+    const dd = document.getElementById('client-dropdown');
+    if (dd) dd.style.display = 'none';
+  }, 150);
 }
 
 loadDocs();

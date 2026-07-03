@@ -508,19 +508,6 @@ body {
         <div class="pv"><?= date('d/m/Y', strtotime($doc['date_validite'])) ?></div>
       </div>
       <?php endif; ?>
-      <div class="pill">
-        <div class="pl">Statut</div>
-        <div class="pv">
-          <?php
-          $bClass = [
-            'Payé' => 'badge-paid', 'Partiellement payé' => 'badge-partial',
-            'Brouillon' => 'badge-draft', 'Envoyé' => 'badge-sent',
-            'Accepté' => 'badge-accepted', 'Annulé' => 'badge-cancelled'
-          ][$doc['statut']] ?? 'badge-draft';
-          ?>
-          <span class="status-badge <?= $bClass ?>"><?= htmlspecialchars($doc['statut']) ?></span>
-        </div>
-      </div>
     </div>
 
     <!-- TABLEAU DES LIGNES -->
@@ -620,7 +607,8 @@ body {
     </div>
     <?php endif; ?>
 
-    <!-- ZONE SIGNATURE -->
+    <!-- ZONE SIGNATURE (Bon de livraison uniquement) -->
+    <?php if ($doc['type'] === 'Bon de livraison'): ?>
     <div class="signature-zone">
       <div class="sig-block">
         <div class="sig-title">Signature &amp; Cachet — Émetteur</div>
@@ -635,6 +623,7 @@ body {
         <div class="sig-field">Date : ___________________</div>
       </div>
     </div>
+    <?php endif; ?>
 
   </div><!-- /page-body -->
 
@@ -653,7 +642,6 @@ body {
         <div class="fc-line"><strong>Rezgui Yassine</strong></div>
         <div class="fc-line">+216 95 823 432</div>
         <div class="fc-line">yrezgui@rybsen.fr</div>
-        <div class="fc-line">crm.rybsen.com</div>
       </div>
       <div class="footer-col">
         <div class="fc-title">Coordonnées bancaires</div>
