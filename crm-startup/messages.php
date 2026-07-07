@@ -8,6 +8,7 @@ $uid = (int)$_SESSION['fm_user_id'];
 
 // ── ENVOYER UN MESSAGE ────────────────────────────
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['send_msg'])) {
+    verifyCsrf();
     $to   = (int)($_POST['receiver_id'] ?? 0);
     $body = trim($_POST['body'] ?? '');
     if ($to && $to !== $uid && $body) {

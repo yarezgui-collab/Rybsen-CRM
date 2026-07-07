@@ -10,6 +10,7 @@ $msg = $_GET['msg'] ?? '';
 
 // ── ACTIONS POST ──────────────────────────────────────────
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+    verifyCsrf();
     $action = $_POST['action'] ?? '';
 
     // Valider / rejeter soumission
@@ -35,6 +36,22 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             }
         }
         auditLog('review_submission', 'submission', $sid, $status);
+
+        // Notify the startup by email (fetch submission if not already loaded)
+        if (!isset($s) || !$s) {
+            $sub2 = $db->prepare('SELECT * FROM fm_submissions WHERE id=? LIMIT 1');
+            $sub2->execute([$sid]);
+            $s = $sub2->fetch();
+        }
+        if ($s) {
+            $owner = $db->prepare('SELECT email, startup_name FROM fm_users WHERE id=? LIMIT 1');
+            $owner->execute([$s['user_id']]);
+            $owner = $owner->fetch();
+            if ($owner) {
+                sendSubmissionResultEmail($owner['email'], $owner['startup_name'], $s['name'], $status === 'approved');
+            }
+        }
+
         header('Location: admin.php?tab=submissions&msg=' . ($status === 'approved' ? 'approved' : 'rejected'));
         exit;
     }
@@ -283,6 +300,7 @@ $total_users    = $db->query("SELECT COUNT(*) FROM fm_users WHERE role='startup'
 
 include 'header.php';
 ?>
+<script>window._csrf = '<?= htmlspecialchars(csrfToken(), ENT_QUOTES, 'UTF-8') ?>';</script>
 
 <div style="margin-bottom:20px;display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:12px">
   <div>
@@ -918,5 +936,18 @@ document.getElementById('modal-program').addEventListener('click', function(e){ 
     </table>
   </div>
 <?php endif; ?>
+
+<script>
+// Auto-inject CSRF token into every POST form that doesn't already have it
+document.addEventListener('DOMContentLoaded', function() {
+  document.querySelectorAll('form[method="POST"],form[method="post"]').forEach(function(form) {
+    if (!form.querySelector('input[name="csrf_token"]')) {
+      var f = document.createElement('input');
+      f.type = 'hidden'; f.name = 'csrf_token'; f.value = window._csrf;
+      form.appendChild(f);
+    }
+  });
+});
+</script>
 
 <?php include 'footer.php'; ?>

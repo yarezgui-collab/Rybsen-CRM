@@ -27,7 +27,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $stmt->execute([$email]);
             $user = $stmt->fetch();
 
-            if ($user && ($password === 'Admin@2025' || password_verify($password, $user['password']))) {
+            if ($user && password_verify($password, $user['password'])) {
                 resetLoginAttempts($email);
                 $_SESSION['fm_user_id'] = $user['id'];
                 $_SESSION['fm_role']    = $user['role'];
@@ -57,7 +57,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 <style>
 :root {
   --bg:#0d1117; --surface:#161b27; --card:#1c2333; --border:#2a3349;
-  --accent:#38bdf8; --text:#f0f4f8; --muted:#8b98b0; --label:#c8d3e0;
+  --accent:#38bdf8; --text:#f0f4f8; --muted:#A8B8CC; --label:#D2DFED;
   --error:#f87171; --success:#34d399;
   --font:'Inter',-apple-system,'Segoe UI',sans-serif; --mono:'DM Mono','Courier New',monospace;
 }
@@ -113,7 +113,11 @@ body{font-family:var(--font);background:var(--bg);color:var(--text);min-height:1
     <?php if ($msg === 'session_expired'): ?>
       <div class="info-msg">Votre session a expiré. Veuillez vous reconnecter.</div>
     <?php elseif ($msg === 'registered'): ?>
-      <div class="info-msg" style="background:rgba(16,185,129,.1);border-color:rgba(16,185,129,.25);color:#34d399">Compte créé ! En attente de validation par l'administrateur.</div>
+      <div class="info-msg" style="background:rgba(16,185,129,.1);border-color:rgba(16,185,129,.25);color:#34d399">Compte créé ! Vérifiez votre email puis attendez l'activation par l'administrateur.</div>
+    <?php elseif ($msg === 'verified'): ?>
+      <div class="info-msg" style="background:rgba(16,185,129,.1);border-color:rgba(16,185,129,.25);color:#34d399">&#10003; Email vérifié ! Votre compte sera activé par l'administrateur sous peu.</div>
+    <?php elseif ($msg === 'reset_done'): ?>
+      <div class="info-msg" style="background:rgba(16,185,129,.1);border-color:rgba(16,185,129,.25);color:#34d399">&#10003; Mot de passe modifié avec succès. Connectez-vous ci-dessous.</div>
     <?php endif; ?>
     <form method="POST" action="index.php">
       <div class="field">
@@ -127,6 +131,9 @@ body{font-family:var(--font);background:var(--bg);color:var(--text);min-height:1
       <?php echo csrfField(); ?>
       <button type="submit" class="btn-login">Se connecter &rarr;</button>
     </form>
+    <div style="text-align:right;margin-top:8px">
+      <a href="forgot.php" style="font-size:13px;color:var(--muted);text-decoration:none">Mot de passe oublié ?</a>
+    </div>
     <div class="divider">ou</div>
     <div class="register-link">
       Pas encore de compte ? <a href="register.php">Créer un compte startup</a>

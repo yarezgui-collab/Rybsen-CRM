@@ -50,9 +50,9 @@ if (isLoggedIn()) {
   --accent5-dim:rgba(248,113,113,0.1);
 
   --text:      #f0f4f8;
-  --text-sec:  #c8d3e0;
-  --muted:     #8b98b0;
-  --subtle:    #4a5568;
+  --text-sec:  #D2DFED;
+  --muted:     #A8B8CC;
+  --subtle:    #6A7F9A;
 
   /* Typo */
   --font:      'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
@@ -76,7 +76,7 @@ html { scroll-behavior: smooth; -webkit-text-size-adjust: 100%; }
 body {
   font-family: var(--font);
   font-size: 15px;
-  line-height: 1.6;
+  line-height: 1.68;
   background: var(--bg);
   color: var(--text);
   min-height: 100vh;

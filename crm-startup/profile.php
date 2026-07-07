@@ -21,6 +21,7 @@ $success = false;
 
 // ── ACTIONS POST ──────────────────────────────────────────────
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+    verifyCsrf();
     $action = $_POST['action'] ?? '';
 
     // Modifier les infos du profil
@@ -239,6 +240,7 @@ include 'header.php';
 <div id="tab-info-content" class="tab-content active">
 <form method="POST">
   <input type="hidden" name="action" value="update_profile">
+  <?= csrfField() ?>
 
   <!-- Section 1: Identité -->
   <div class="card" style="margin-bottom:16px">
@@ -395,6 +397,7 @@ include 'header.php';
     </details>
     <form method="POST">
       <input type="hidden" name="action" value="import_profile_json">
+      <?= csrfField() ?>
       <div class="field">
         <textarea name="profile_json" rows="10" placeholder='{ "startup_name": "...", "sector": "...", ... }'
           style="width:100%;font-family:var(--mono);font-size:12.5px;background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:12px;color:var(--text-sec);resize:vertical"></textarea>
@@ -413,6 +416,7 @@ include 'header.php';
     <div style="font-size:11px;color:var(--accent);font-family:var(--mono);text-transform:uppercase;letter-spacing:2px;margin-bottom:20px;padding-bottom:8px;border-bottom:1px solid var(--border)">Changer le mot de passe</div>
     <form method="POST">
       <input type="hidden" name="action" value="change_password">
+      <?= csrfField() ?>
       <div class="field">
         <label>Mot de passe actuel</label>
         <input type="password" name="current_password" placeholder="••••••••" required>

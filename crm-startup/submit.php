@@ -7,6 +7,7 @@ $error = '';
 $success = false;
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+    verifyCsrf();
     $url  = trim($_POST['url'] ?? '');
     $name = trim($_POST['name'] ?? '');
     $org  = trim($_POST['organisation'] ?? '');
@@ -70,6 +71,7 @@ include 'header.php';
 
   <div class="card">
     <form method="POST" action="submit.php">
+      <?= csrfField() ?>
 
       <!-- URL -->
       <div class="field">
