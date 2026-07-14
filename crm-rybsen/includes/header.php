@@ -1,4 +1,10 @@
-<?php requireLogin(); $user = currentUser(); ?>
+<?php
+require_once __DIR__ . '/security.php';
+sendSecurityHeaders();
+secureSessionStart();
+requireLogin();
+$user = currentUser();
+?>
 <!DOCTYPE html>
 <html lang="fr">
 <head>
@@ -25,6 +31,11 @@
   <a href="/modules/candidatures.php" class="nav-item <?= ($activePage??'')==='candidatures' ? 'active':'' ?>">
     <span class="nav-icon">📋</span><span class="nav-text">Candidatures</span>
   </a>
+  <?php if (($user['role'] ?? '') === 'admin'): ?>
+  <a href="/modules/dataroom.php" class="nav-item <?= ($activePage??'')==='dataroom' ? 'active':'' ?>">
+    <span class="nav-icon">🔐</span><span class="nav-text">Data Room</span>
+  </a>
+  <?php endif; ?>
   <div class="nav-section-label">COMMERCIAL</div>
   <a href="/modules/clients.php" class="nav-item <?= ($activePage??'')==='clients' ? 'active':'' ?>">
     <span class="nav-icon">🏭</span><span class="nav-text">Clients & Prospects</span>

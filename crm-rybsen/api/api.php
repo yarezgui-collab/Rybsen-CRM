@@ -1,11 +1,31 @@
 <?php
 require_once '../config.php';
+require_once '../includes/security.php';
+sendSecurityHeaders(true);
+secureSessionStart();
+
+// Anti-CSRF : le header custom X-Requested-With force un preflight CORS,
+// impossible à envoyer depuis un site tiers sans autorisation explicite.
+if (($_SERVER['HTTP_X_REQUESTED_WITH'] ?? '') !== 'XMLHttpRequest') {
+    http_response_code(403);
+    header('Content-Type: application/json; charset=utf-8');
+    die(json_encode(['error' => 'Requête non autorisée']));
+}
+
 requireLogin();
 header('Content-Type: application/json; charset=utf-8');
 
 $body = json_decode(file_get_contents('php://input'), true) ?? [];
 $action = $body['action'] ?? ($_GET['action'] ?? '');
 $db = getDB();
+
+// Rôle "viewer" = lecture seule sur toute l'API
+$__u = currentUser();
+if (($__u['role'] ?? '') === 'viewer' &&
+    preg_match('/_(save|delete|create|update|toggle|set_statut|done|reply|upload)/', $action)) {
+    http_response_code(403);
+    die(json_encode(['error' => 'Compte en lecture seule']));
+}
 
 function respond($data) { echo json_encode($data, JSON_UNESCAPED_UNICODE); exit; }
 function error400($msg) { http_response_code(400); respond(['error' => $msg]); }
@@ -407,7 +427,7 @@ if ($action === 'doc_save') {
                 0,
                 $d['devise'] ?? 'TND',
                 0,
-                $d['client_mf'] ? 'MF: ' . $d['client_mf'] : '',
+                !empty($d['client_mf']) ? 'MF: ' . $d['client_mf'] : '',
                 $_SESSION['user_id']
             ]);
             $clientId = intval($db->lastInsertId());
@@ -482,6 +502,179 @@ if ($action === 'paiement_save') {
 if ($action === 'paiement_delete') {
     $db->prepare("DELETE FROM paiements_recus WHERE id=?")->execute([$body['id']]);
     respond(['ok' => true]);
+}
+
+// ──────────────────────────────────────────
+// DATA ROOM (admin uniquement)
+// ──────────────────────────────────────────
+if (str_starts_with($action, 'dr_')) {
+    requireAdmin();
+}
+
+if ($action === 'dr_acces_list') {
+    $rows = $db->query("
+        SELECT a.*,
+          (SELECT COUNT(*) FROM dataroom_logs l WHERE l.acces_id=a.id AND l.action='login') AS nb_connexions,
+          (SELECT COUNT(*) FROM dataroom_logs l WHERE l.acces_id=a.id AND l.action='vue_document') AS nb_vues,
+          (SELECT COUNT(*) FROM dataroom_suggestions s WHERE s.acces_id=a.id) AS nb_suggestions,
+          (SELECT l.pays_ip FROM dataroom_logs l WHERE l.acces_id=a.id AND l.action='login' AND l.pays_ip<>'' ORDER BY l.id DESC LIMIT 1) AS dernier_pays,
+          (SELECT l.ip FROM dataroom_logs l WHERE l.acces_id=a.id AND l.action='login' ORDER BY l.id DESC LIMIT 1) AS derniere_ip
+        FROM dataroom_acces a ORDER BY a.created_at DESC")->fetchAll();
+    foreach ($rows as &$r) unset($r['password_hash']);
+    respond($rows);
+}
+if ($action === 'dr_acces_save') {
+    $d = $body;
+    if (empty($d['nom']) || empty($d['email'])) error400('Nom et email requis');
+    if (!empty($d['id'])) {
+        $sql = "UPDATE dataroom_acces SET nom=?,prenom=?,email=?,societe=?,pays=?,telephone=?,langue=?,investisseur_id=?,date_expiration=?,actif=?,notes=?";
+        $params = [$d['nom'],$d['prenom']??'',$d['email'],$d['societe']??'',$d['pays']??'',$d['telephone']??'',
+                   in_array($d['langue']??'fr',['fr','en'])?$d['langue']:'fr',
+                   !empty($d['investisseur_id'])?intval($d['investisseur_id']):null,
+                   $d['date_expiration']??null, intval($d['actif']??1), $d['notes']??''];
+        if (!empty($d['password'])) {
+            if (strlen($d['password']) < 8) error400('Mot de passe : 8 caractères minimum');
+            $sql .= ",password_hash=?";
+            $params[] = password_hash($d['password'], PASSWORD_BCRYPT, ['cost' => 12]);
+        }
+        $sql .= " WHERE id=?"; $params[] = $d['id'];
+        $db->prepare($sql)->execute($params);
+        respond(['ok' => true]);
+    } else {
+        if (empty($d['password']) || strlen($d['password']) < 8) error400('Mot de passe : 8 caractères minimum');
+        $exists = $db->prepare("SELECT id FROM dataroom_acces WHERE email=?");
+        $exists->execute([$d['email']]);
+        if ($exists->fetch()) error400('Cet email a déjà un accès Data Room');
+        $db->prepare("INSERT INTO dataroom_acces (nom,prenom,email,password_hash,societe,pays,telephone,langue,investisseur_id,date_expiration,actif,notes,created_by)
+                      VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)")
+           ->execute([$d['nom'],$d['prenom']??'',$d['email'],
+                      password_hash($d['password'], PASSWORD_BCRYPT, ['cost' => 12]),
+                      $d['societe']??'',$d['pays']??'',$d['telephone']??'',
+                      in_array($d['langue']??'fr',['fr','en'])?$d['langue']:'fr',
+                      !empty($d['investisseur_id'])?intval($d['investisseur_id']):null,
+                      $d['date_expiration']??null, intval($d['actif']??1), $d['notes']??'', $_SESSION['user_id']]);
+        respond(['ok' => true, 'id' => $db->lastInsertId()]);
+    }
+}
+if ($action === 'dr_acces_delete') {
+    $db->prepare("DELETE FROM dataroom_acces WHERE id=?")->execute([$body['id']]);
+    respond(['ok' => true]);
+}
+if ($action === 'dr_acces_toggle') {
+    $db->prepare("UPDATE dataroom_acces SET actif = NOT actif WHERE id=?")->execute([$body['id']]);
+    respond(['ok' => true]);
+}
+if ($action === 'dr_acces_reset_nda') {
+    $db->prepare("UPDATE dataroom_acces SET nda_signe=0, nda_date=NULL, nda_ip=NULL, nda_nom_signe=NULL, nda_organisation=NULL WHERE id=?")
+       ->execute([$body['id']]);
+    respond(['ok' => true]);
+}
+
+if ($action === 'dr_doc_list') {
+    $rows = $db->query("
+        SELECT d.*,
+          (SELECT COUNT(*) FROM dataroom_logs l WHERE l.document_id=d.id AND l.action='vue_document') AS nb_vues,
+          (SELECT COUNT(DISTINCT l.acces_id) FROM dataroom_logs l WHERE l.document_id=d.id AND l.action='vue_document') AS nb_lecteurs
+        FROM dataroom_documents d ORDER BY d.ordre, d.id")->fetchAll();
+    respond($rows);
+}
+if ($action === 'dr_doc_save') {
+    $d = $body;
+    if (empty($d['id'])) error400('ID requis (upload via le formulaire dédié)');
+    $db->prepare("UPDATE dataroom_documents SET categorie=?,titre=?,titre_en=?,description=?,version=?,ordre=?,actif=? WHERE id=?")
+       ->execute([$d['categorie']??'Autre',$d['titre'],$d['titre_en']??'',$d['description']??'',
+                  $d['version']??'v1', intval($d['ordre']??0), intval($d['actif']??1), $d['id']]);
+    respond(['ok' => true]);
+}
+if ($action === 'dr_doc_delete') {
+    $stmt = $db->prepare("SELECT nom_fichier FROM dataroom_documents WHERE id=?");
+    $stmt->execute([$body['id']]);
+    $f = $stmt->fetchColumn();
+    $db->prepare("DELETE FROM dataroom_documents WHERE id=?")->execute([$body['id']]);
+    if ($f) @unlink(drFilesDir() . '/' . basename($f));
+    respond(['ok' => true]);
+}
+
+if ($action === 'dr_sugg_list') {
+    $rows = $db->query("
+        SELECT s.*, a.nom AS acces_nom, a.prenom AS acces_prenom, a.societe, a.email,
+               d.titre AS doc_titre
+        FROM dataroom_suggestions s
+        JOIN dataroom_acces a ON s.acces_id=a.id
+        LEFT JOIN dataroom_documents d ON s.document_id=d.id
+        ORDER BY FIELD(s.statut,'nouveau','lu','répondu'), s.created_at DESC")->fetchAll();
+    respond($rows);
+}
+if ($action === 'dr_sugg_reply') {
+    $db->prepare("UPDATE dataroom_suggestions SET statut=?, reponse=?, reponse_date=IF(?<>'' , CURRENT_TIMESTAMP, reponse_date) WHERE id=?")
+       ->execute([$body['statut']??'lu', $body['reponse']??'', $body['reponse']??'', $body['id']]);
+    respond(['ok' => true]);
+}
+if ($action === 'dr_sugg_delete') {
+    $db->prepare("DELETE FROM dataroom_suggestions WHERE id=?")->execute([$body['id']]);
+    respond(['ok' => true]);
+}
+
+if ($action === 'dr_logs_list') {
+    $accesId = intval($body['acces_id'] ?? 0);
+    if ($accesId) {
+        $stmt = $db->prepare("
+            SELECT l.*, a.nom AS acces_nom, a.prenom AS acces_prenom, a.societe, d.titre AS doc_titre
+            FROM dataroom_logs l
+            LEFT JOIN dataroom_acces a ON l.acces_id=a.id
+            LEFT JOIN dataroom_documents d ON l.document_id=d.id
+            WHERE l.acces_id=? ORDER BY l.id DESC LIMIT 300");
+        $stmt->execute([$accesId]);
+    } else {
+        $stmt = $db->query("
+            SELECT l.*, a.nom AS acces_nom, a.prenom AS acces_prenom, a.societe, d.titre AS doc_titre
+            FROM dataroom_logs l
+            LEFT JOIN dataroom_acces a ON l.acces_id=a.id
+            LEFT JOIN dataroom_documents d ON l.document_id=d.id
+            ORDER BY l.id DESC LIMIT 300");
+    }
+    respond($stmt->fetchAll());
+}
+
+if ($action === 'dr_stats') {
+    $s = [];
+    $s['acces_total']   = $db->query("SELECT COUNT(*) FROM dataroom_acces")->fetchColumn();
+    $s['acces_actifs']  = $db->query("SELECT COUNT(*) FROM dataroom_acces WHERE actif=1")->fetchColumn();
+    $s['nda_signes']    = $db->query("SELECT COUNT(*) FROM dataroom_acces WHERE nda_signe=1")->fetchColumn();
+    $s['docs_actifs']   = $db->query("SELECT COUNT(*) FROM dataroom_documents WHERE actif=1")->fetchColumn();
+    $s['connexions_7j'] = $db->query("SELECT COUNT(*) FROM dataroom_logs WHERE action='login' AND created_at >= DATE_SUB(NOW(), INTERVAL 7 DAY)")->fetchColumn();
+    $s['vues_7j']       = $db->query("SELECT COUNT(*) FROM dataroom_logs WHERE action='vue_document' AND created_at >= DATE_SUB(NOW(), INTERVAL 7 DAY)")->fetchColumn();
+    $s['sugg_nouvelles']= $db->query("SELECT COUNT(*) FROM dataroom_suggestions WHERE statut='nouveau'")->fetchColumn();
+    $s['echecs_login_7j'] = $db->query("SELECT COUNT(*) FROM dataroom_logs WHERE action='login_echec' AND created_at >= DATE_SUB(NOW(), INTERVAL 7 DAY)")->fetchColumn();
+    // Top documents consultés
+    $s['top_docs'] = $db->query("
+        SELECT d.titre, COUNT(*) AS vues, COUNT(DISTINCT l.acces_id) AS lecteurs
+        FROM dataroom_logs l JOIN dataroom_documents d ON l.document_id=d.id
+        WHERE l.action='vue_document'
+        GROUP BY d.id ORDER BY vues DESC LIMIT 8")->fetchAll();
+    // Répartition par pays de connexion
+    $s['pays'] = $db->query("
+        SELECT pays_ip AS pays, COUNT(*) AS n
+        FROM dataroom_logs WHERE action='login' AND pays_ip<>''
+        GROUP BY pays_ip ORDER BY n DESC LIMIT 10")->fetchAll();
+    // Activité 14 derniers jours (logins + vues)
+    $s['timeline'] = $db->query("
+        SELECT DATE(created_at) AS jour,
+               SUM(action='login') AS logins,
+               SUM(action='vue_document') AS vues
+        FROM dataroom_logs
+        WHERE created_at >= DATE_SUB(CURDATE(), INTERVAL 13 DAY)
+        GROUP BY DATE(created_at) ORDER BY jour")->fetchAll();
+    // Dernière activité par investisseur
+    $s['par_investisseur'] = $db->query("
+        SELECT a.id, a.nom, a.prenom, a.societe, a.pays, a.nda_signe, a.derniere_connexion,
+          (SELECT COUNT(*) FROM dataroom_logs l WHERE l.acces_id=a.id AND l.action='vue_document') AS vues,
+          (SELECT COUNT(*) FROM dataroom_logs l WHERE l.acces_id=a.id AND l.action='login') AS logins,
+          (SELECT l.pays_ip FROM dataroom_logs l WHERE l.acces_id=a.id AND l.pays_ip<>'' ORDER BY l.id DESC LIMIT 1) AS dernier_pays,
+          (SELECT l.ip FROM dataroom_logs l WHERE l.acces_id=a.id AND l.action='login' ORDER BY l.id DESC LIMIT 1) AS derniere_ip
+        FROM dataroom_acces a WHERE a.actif=1
+        ORDER BY a.derniere_connexion DESC")->fetchAll();
+    respond($s);
 }
 
 error400('Action inconnue: ' . $action);

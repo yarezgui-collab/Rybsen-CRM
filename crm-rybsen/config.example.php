@@ -17,8 +17,10 @@ function getDB() {
                 PDO::ATTR_EMULATE_PREPARES => false,
             ]);
         } catch (PDOException $e) {
+            // Ne jamais exposer le détail (hôte, user, mot de passe) au navigateur
+            error_log('DB connection failed: ' . $e->getMessage());
             http_response_code(500);
-            die(json_encode(['error' => 'Connexion échouée: ' . $e->getMessage()]));
+            die(json_encode(['error' => 'Erreur interne — réessayez plus tard']));
         }
     }
     return $pdo;

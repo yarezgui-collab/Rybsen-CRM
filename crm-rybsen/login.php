@@ -1,30 +1,43 @@
 <?php
 require_once 'config.php';
-if (session_status() === PHP_SESSION_NONE) session_start();
+require_once 'includes/security.php';
+sendSecurityHeaders(true);
+secureSessionStart();
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $email = trim($_POST['email'] ?? '');
     $password = $_POST['password'] ?? '';
-    
+
     if ($email && $password) {
         $db = getDB();
-        $stmt = $db->prepare("SELECT * FROM users WHERE email = ? AND actif = 1");
-        $stmt->execute([$email]);
-        $user = $stmt->fetch();
-        
-        if ($user && password_verify($password, $user['password_hash'])) {
-            $_SESSION['user_id'] = $user['id'];
-            $_SESSION['user'] = [
-                'id' => $user['id'],
-                'nom' => $user['nom'],
-                'email' => $user['email'],
-                'role' => $user['role'],
-                'avatar' => $user['avatar']
-            ];
-            header('Location: index.php');
-            exit;
+        $ip = clientIp();
+        $wait = max(throttleCheck($db, 'crm', $email), throttleCheck($db, 'crm', 'ip:' . $ip));
+        if ($wait > 0) {
+            $error = 'Trop de tentatives. Réessayez dans ' . ceil($wait / 60) . ' min.';
+        } else {
+            $stmt = $db->prepare("SELECT * FROM users WHERE email = ? AND actif = 1");
+            $stmt->execute([$email]);
+            $user = $stmt->fetch();
+
+            if ($user && password_verify($password, $user['password_hash'])) {
+                session_regenerate_id(true);
+                throttleReset($db, 'crm', $email);
+                throttleReset($db, 'crm', 'ip:' . $ip);
+                $_SESSION['user_id'] = $user['id'];
+                $_SESSION['user'] = [
+                    'id' => $user['id'],
+                    'nom' => $user['nom'],
+                    'email' => $user['email'],
+                    'role' => $user['role'],
+                    'avatar' => $user['avatar']
+                ];
+                header('Location: index.php');
+                exit;
+            }
+            throttleFail($db, 'crm', $email);
+            throttleFail($db, 'crm', 'ip:' . $ip);
+            $error = 'Email ou mot de passe incorrect.';
         }
-        $error = 'Email ou mot de passe incorrect.';
     }
 }
 

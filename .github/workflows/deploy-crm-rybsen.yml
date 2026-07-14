@@ -22,7 +22,10 @@ jobs:
 
       - name: Build SFTP batch file
         run: |
-          printf -- '-mkdir api\n-mkdir assets\n-mkdir includes\n-mkdir modules\n' > /tmp/sftp_batch.txt
+          # Créer dynamiquement tous les répertoires nécessaires
+          find crm-rybsen -mindepth 1 -type d ! -path '*/.git*' | sort | while read d; do
+            printf -- '-mkdir %s\n' "${d#crm-rybsen/}"
+          done > /tmp/sftp_batch.txt
           find crm-rybsen -type f \
             ! -name 'config.php' \
             ! -name '*.sql' \

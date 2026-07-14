@@ -1,5 +1,8 @@
 <?php
 require_once '../config.php';
+require_once '../includes/security.php';
+sendSecurityHeaders();
+secureSessionStart();
 requireLogin();
 
 $id = intval($_GET['id'] ?? 0);

@@ -70,11 +70,15 @@ const RYBSEN = {
   },
 
   // HTML escape — à utiliser dans tous les template literals
+  // Échappe aussi les guillemets (sûr en contexte attribut HTML)
   escape(str) {
     if (str === null || str === undefined) return '';
-    const d = document.createElement('div');
-    d.textContent = String(str);
-    return d.innerHTML;
+    return String(str)
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;')
+      .replace(/'/g, '&#39;');
   },
 
   // Confirm delete
