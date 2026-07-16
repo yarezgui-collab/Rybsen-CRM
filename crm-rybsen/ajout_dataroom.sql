@@ -84,6 +84,18 @@ CREATE TABLE IF NOT EXISTS dataroom_suggestions (
   FOREIGN KEY (acces_id) REFERENCES dataroom_acces(id) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
+-- Restrictions par investisseur : présence d'une ligne = document MASQUÉ
+-- pour cet investisseur (par défaut, tout document actif est visible par tous).
+CREATE TABLE IF NOT EXISTS dataroom_doc_restrictions (
+  id INT AUTO_INCREMENT PRIMARY KEY,
+  acces_id INT NOT NULL,
+  document_id INT NOT NULL,
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  UNIQUE KEY uq_restriction (acces_id, document_id),
+  FOREIGN KEY (acces_id) REFERENCES dataroom_acces(id) ON DELETE CASCADE,
+  FOREIGN KEY (document_id) REFERENCES dataroom_documents(id) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
 -- Anti-bruteforce (CRM + Data Room)
 CREATE TABLE IF NOT EXISTS auth_throttle (
   id INT AUTO_INCREMENT PRIMARY KEY,

@@ -517,6 +517,7 @@ if ($action === 'dr_acces_list') {
           (SELECT COUNT(*) FROM dataroom_logs l WHERE l.acces_id=a.id AND l.action='login') AS nb_connexions,
           (SELECT COUNT(*) FROM dataroom_logs l WHERE l.acces_id=a.id AND l.action='vue_document') AS nb_vues,
           (SELECT COUNT(*) FROM dataroom_suggestions s WHERE s.acces_id=a.id) AS nb_suggestions,
+          (SELECT COUNT(*) FROM dataroom_doc_restrictions r WHERE r.acces_id=a.id) AS nb_masques,
           (SELECT l.pays_ip FROM dataroom_logs l WHERE l.acces_id=a.id AND l.action='login' AND l.pays_ip<>'' ORDER BY l.id DESC LIMIT 1) AS dernier_pays,
           (SELECT l.ip FROM dataroom_logs l WHERE l.acces_id=a.id AND l.action='login' ORDER BY l.id DESC LIMIT 1) AS derniere_ip
         FROM dataroom_acces a ORDER BY a.created_at DESC")->fetchAll();
@@ -568,6 +569,32 @@ if ($action === 'dr_acces_reset_nda') {
     $db->prepare("UPDATE dataroom_acces SET nda_signe=0, nda_date=NULL, nda_ip=NULL, nda_nom_signe=NULL, nda_organisation=NULL WHERE id=?")
        ->execute([$body['id']]);
     respond(['ok' => true]);
+}
+
+// Documents visibles / masqués pour un investisseur donné
+if ($action === 'dr_acces_docs') {
+    $accesId = intval($body['acces_id'] ?? 0);
+    if (!$accesId) error400('acces_id requis');
+    $docs = $db->query("SELECT id, categorie, titre, version, actif FROM dataroom_documents ORDER BY ordre, id")->fetchAll();
+    $stmt = $db->prepare("SELECT document_id FROM dataroom_doc_restrictions WHERE acces_id=?");
+    $stmt->execute([$accesId]);
+    $restricted = array_map('intval', $stmt->fetchAll(PDO::FETCH_COLUMN));
+    foreach ($docs as &$d) $d['masque'] = in_array(intval($d['id']), $restricted, true) ? 1 : 0;
+    respond(['documents' => $docs]);
+}
+// Enregistre la liste des documents MASQUÉS pour un investisseur
+if ($action === 'dr_acces_docs_save') {
+    $accesId = intval($body['acces_id'] ?? 0);
+    if (!$accesId) error400('acces_id requis');
+    $masques = array_map('intval', $body['masques'] ?? []);
+    $db->beginTransaction();
+    $db->prepare("DELETE FROM dataroom_doc_restrictions WHERE acces_id=?")->execute([$accesId]);
+    if ($masques) {
+        $ins = $db->prepare("INSERT IGNORE INTO dataroom_doc_restrictions (acces_id, document_id) VALUES (?,?)");
+        foreach ($masques as $docId) if ($docId > 0) $ins->execute([$accesId, $docId]);
+    }
+    $db->commit();
+    respond(['ok' => true, 'masques' => count($masques)]);
 }
 
 if ($action === 'dr_doc_list') {

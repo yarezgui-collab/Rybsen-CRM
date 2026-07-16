@@ -28,8 +28,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['suggestion'])) {
     }
 }
 
-// ── Documents actifs groupés par catégorie ──
-$docs = $db->query("SELECT * FROM dataroom_documents WHERE actif=1 ORDER BY ordre, id")->fetchAll();
+// ── Documents actifs visibles par CET investisseur (hors restrictions) ──
+$docs = drVisibleDocs($db, intval($acc['id']));
 
 $catMeta = [
   'Pitch & Vision'        => ['🎯', 'Pitch & Vision'],

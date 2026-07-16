@@ -14,6 +14,13 @@ $stmt->execute([$id]);
 $doc = $stmt->fetch();
 if (!$doc) { http_response_code(404); die('Not found'); }
 
+// Document masqué pour cet investisseur → accès refusé + journalisé
+if (drDocRestricted($db, intval($acc['id']), $id)) {
+    drLog($db, intval($acc['id']), 'acces_refuse', $id, 'Document restreint');
+    http_response_code(403);
+    die('Forbidden');
+}
+
 // basename() → aucune traversée de répertoire possible
 $path = drFilesDir() . '/' . basename($doc['nom_fichier']);
 if (!is_file($path)) {

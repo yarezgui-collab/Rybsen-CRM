@@ -224,6 +224,31 @@ if (($user['role'] ?? '') !== 'admin'): ?>
   </div>
 </div>
 
+<!-- MODAL DOCUMENTS PAR INVESTISSEUR -->
+<div class="modal-overlay" id="modal-acces-docs">
+  <div class="modal" style="max-width:640px">
+    <div class="modal-header">
+      <div class="modal-title" id="acdocs-title">Documents visibles</div>
+      <button class="modal-close" onclick="RYBSEN.closeModal('modal-acces-docs')">✕</button>
+    </div>
+    <div class="modal-body">
+      <input type="hidden" id="acdocs-acces-id">
+      <div class="alert-box info" style="margin-bottom:14px">
+        ☑️ Coché = <strong>visible</strong> par cet investisseur · décoché = <strong>masqué</strong>. Par défaut tout est visible.
+      </div>
+      <div style="display:flex;gap:8px;margin-bottom:12px">
+        <button type="button" class="btn btn-outline btn-sm" onclick="acdocsAll(true)">Tout cocher</button>
+        <button type="button" class="btn btn-outline btn-sm" onclick="acdocsAll(false)">Tout décocher</button>
+      </div>
+      <div id="acdocs-list" style="max-height:52vh;overflow-y:auto"></div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-outline" onclick="RYBSEN.closeModal('modal-acces-docs')">Annuler</button>
+      <button class="btn btn-primary" onclick="saveAccesDocs()">Enregistrer</button>
+    </div>
+  </div>
+</div>
+
 <script>
 const e = RYBSEN.escape.bind(RYBSEN);
 let allAcces = [], allDrDocs = [];
@@ -319,6 +344,7 @@ async function loadAcces() {
     <td>${a.date_expiration ? new Date(a.date_expiration).toLocaleDateString('fr-FR') : '∞'}</td>
     <td>${+a.actif ? '<span class="badge badge-teal">Actif</span>' : '<span class="badge badge-red">Révoqué</span>'}</td>
     <td style="white-space:nowrap">
+      <button class="btn btn-outline btn-sm" onclick="openAccesDocs(${a.id})" title="Documents visibles">🗂${+a.nb_masques ? ` <span style="color:var(--gold)">${a.nb_masques}🚫</span>` : ''}</button>
       <button class="btn btn-outline btn-sm" onclick="openAccesEdit(${a.id})" title="Modifier">✏️</button>
       <button class="btn btn-outline btn-sm" onclick="toggleAcces(${a.id})" title="${+a.actif ? 'Révoquer' : 'Réactiver'}">${+a.actif ? '🚫' : '✅'}</button>
       <button class="btn btn-danger btn-sm" onclick="delAcces(${a.id})" title="Supprimer">🗑</button>
@@ -389,6 +415,43 @@ async function saveAcces() {
 async function toggleAcces(id) {
   const r = await RYBSEN.api('dr_acces_toggle', { id });
   if (r.ok) { RYBSEN.toast('Statut modifié'); loadAcces(); }
+}
+
+// ── Documents visibles par investisseur ──
+async function openAccesDocs(id) {
+  const a = allAcces.find(x => x.id == id);
+  document.getElementById('acdocs-acces-id').value = id;
+  document.getElementById('acdocs-title').textContent = 'Documents visibles — ' + (a ? ((a.prenom||'') + ' ' + a.nom).trim() : '');
+  const box = document.getElementById('acdocs-list');
+  box.innerHTML = '<div style="padding:20px;text-align:center;color:#999">Chargement…</div>';
+  RYBSEN.openModal('modal-acces-docs');
+  const r = await RYBSEN.api('dr_acces_docs', { acces_id: id });
+  if (r.error) { box.innerHTML = `<div style="padding:20px;color:var(--red)">${e(r.error)}</div>`; return; }
+  const docs = r.documents || [];
+  if (!docs.length) { box.innerHTML = '<div style="padding:20px;text-align:center;color:#999">Aucun document en ligne. Ajoutez-en dans l\'onglet Documents.</div>'; return; }
+  // Groupé par catégorie
+  const cats = {};
+  docs.forEach(d => { (cats[d.categorie] = cats[d.categorie] || []).push(d); });
+  box.innerHTML = Object.entries(cats).map(([cat, items]) => `
+    <div style="margin-bottom:14px">
+      <div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:1px;color:var(--teal);margin-bottom:6px">${e(cat)}</div>
+      ${items.map(d => `
+        <label style="display:flex;align-items:center;gap:10px;padding:8px 10px;border:1px solid var(--border);border-radius:8px;margin-bottom:5px;cursor:pointer;${+d.actif ? '' : 'opacity:.5'}">
+          <input type="checkbox" class="acdoc-cb" data-id="${d.id}" ${d.masque ? '' : 'checked'} style="width:16px;height:16px;accent-color:var(--teal)">
+          <span style="flex:1"><strong>${e(d.titre)}</strong> <span style="color:#999;font-size:12px">${e(d.version)}</span>${+d.actif ? '' : ' <span class="badge badge-grey">masqué globalement</span>'}</span>
+        </label>`).join('')}
+    </div>`).join('');
+}
+function acdocsAll(check) {
+  document.querySelectorAll('.acdoc-cb').forEach(cb => cb.checked = check);
+}
+async function saveAccesDocs() {
+  const id = document.getElementById('acdocs-acces-id').value;
+  const masques = [];
+  document.querySelectorAll('.acdoc-cb').forEach(cb => { if (!cb.checked) masques.push(+cb.dataset.id); });
+  const r = await RYBSEN.api('dr_acces_docs_save', { acces_id: id, masques });
+  if (r.ok) { RYBSEN.closeModal('modal-acces-docs'); RYBSEN.toast('Accès aux documents mis à jour ✓'); loadAcces(); }
+  else RYBSEN.toast(r.error || 'Erreur', 'error');
 }
 async function delAcces(id) {
   if (!RYBSEN.confirmDelete('Supprimer cet accès et tout son historique ?')) return;

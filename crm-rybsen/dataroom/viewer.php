@@ -16,6 +16,12 @@ $stmt->execute([$id]);
 $doc = $stmt->fetch();
 if (!$doc) { header('Location: /dataroom/room.php'); exit; }
 
+// Document masqué pour cet investisseur → retour à la salle
+if (drDocRestricted($db, intval($acc['id']), $id)) {
+    header('Location: /dataroom/room.php');
+    exit;
+}
+
 $titre = ($DR_LANG === 'en' && $doc['titre_en']) ? $doc['titre_en'] : $doc['titre'];
 $isImage = str_starts_with($doc['mime'], 'image/');
 $wmText = trim(($acc['prenom'] ?? '') . ' ' . $acc['nom']) . ' · ' . $acc['email'] . ' · ' . date('d/m/Y');

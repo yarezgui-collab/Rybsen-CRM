@@ -145,4 +145,29 @@ function drRequireNda(PDO $db): array {
     return $a;
 }
 
+/** Vrai si ce document est masqué pour cet investisseur. */
+function drDocRestricted(PDO $db, int $accesId, int $docId): bool {
+    try {
+        $stmt = $db->prepare("SELECT 1 FROM dataroom_doc_restrictions WHERE acces_id=? AND document_id=?");
+        $stmt->execute([$accesId, $docId]);
+        return (bool) $stmt->fetchColumn();
+    } catch (Exception $e) { return false; } // table absente → ne rien masquer
+}
+
+/** Documents actifs visibles par cet investisseur (hors restrictions). */
+function drVisibleDocs(PDO $db, int $accesId): array {
+    try {
+        $stmt = $db->prepare("
+            SELECT * FROM dataroom_documents
+            WHERE actif=1
+              AND id NOT IN (SELECT document_id FROM dataroom_doc_restrictions WHERE acces_id=?)
+            ORDER BY ordre, id");
+        $stmt->execute([$accesId]);
+        return $stmt->fetchAll();
+    } catch (Exception $e) {
+        // Fallback si la table de restrictions n'existe pas encore
+        return $db->query("SELECT * FROM dataroom_documents WHERE actif=1 ORDER BY ordre, id")->fetchAll();
+    }
+}
+
 function e(?string $s): string { return htmlspecialchars($s ?? '', ENT_QUOTES, 'UTF-8'); }
