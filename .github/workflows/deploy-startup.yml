@@ -80,7 +80,7 @@ jobs:
           # Déclencher la migration (le script se supprime lui-même après)
           echo "=== Résultat de la migration ==="
           HTTP_CODE=$(curl -o /tmp/migration_result.json -w "%{http_code}" \
-            "https://startup.rybsen.fr/startup/run_migration.php?token=$TOKEN")
+            "https://startup.rybsen.fr/run_migration.php?token=$TOKEN")
           echo "HTTP $HTTP_CODE"
           echo "--- Body ---"
           cat /tmp/migration_result.json
