@@ -45,6 +45,14 @@ $type_labels = [
     'incubator'   => 'Incubateur',
 ];
 
+// Notifications : soumissions de l'utilisateur traitées ces 7 derniers jours
+$recent = $db->prepare("SELECT name, status FROM fm_submissions
+    WHERE user_id = ? AND status != 'pending'
+    AND reviewed_at IS NOT NULL AND reviewed_at >= DATE_SUB(NOW(), INTERVAL 7 DAY)
+    ORDER BY reviewed_at DESC LIMIT 3");
+$recent->execute([(int)$_SESSION['fm_user_id']]);
+$recent_reviews = $recent->fetchAll();
+
 include 'header.php';
 ?>
 
@@ -59,6 +67,15 @@ include 'header.php';
 <?php if ($msg === 'access_denied'): ?>
   <div class="alert alert-warn">&#9888; Accès réservé aux administrateurs.</div>
 <?php endif; ?>
+
+<?php foreach ($recent_reviews as $rr): ?>
+  <div class="alert <?= $rr['status'] === 'approved' ? 'alert-success' : 'alert-info' ?>" style="display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap">
+    <span>
+      <?= $rr['status'] === 'approved' ? '&#127881; Votre soumission <strong>' . h($rr['name']) . '</strong> a été approuvée et publiée !' : 'Votre soumission <strong>' . h($rr['name']) . '</strong> a été examinée.' ?>
+    </span>
+    <a href="my_submissions.php" style="color:inherit;font-size:13px;white-space:nowrap">Voir mes soumissions &rarr;</a>
+  </div>
+<?php endforeach; ?>
 
 <!-- KPIs -->
 <div class="kpi-row">
@@ -153,7 +170,7 @@ include 'header.php';
     <div style="display:flex;align-items:flex-start;gap:12px">
       <div style="font-size:28px;flex-shrink:0;line-height:1.2"><?= $p['emoji'] ? h($p['emoji']) : '&#128176;' ?></div>
       <div style="flex:1;min-width:0">
-        <div style="font-size:15.5px;font-weight:700;color:#fff;line-height:1.35"><?= h($p['name']) ?></div>
+        <a href="program.php?id=<?= (int)$p['id'] ?>" style="font-size:15.5px;font-weight:700;color:#fff;line-height:1.35;text-decoration:none"><?= h($p['name']) ?></a>
         <div style="font-size:12.5px;color:var(--muted);margin-top:2px"><?= h($p['organisation']) ?></div>
       </div>
     </div>
@@ -190,9 +207,12 @@ include 'header.php';
           <?= h($p['deadline'] ?: 'Rolling') ?>
         <?php endif; ?>
       </span>
-      <?php if ($p['link']): ?>
-      <a href="<?= h($p['link']) ?>" target="_blank" rel="noopener noreferrer" class="btn btn-secondary btn-sm">Candidater &rarr;</a>
-      <?php endif; ?>
+      <div style="display:flex;gap:6px">
+        <a href="program.php?id=<?= (int)$p['id'] ?>" class="btn btn-secondary btn-sm">Détails</a>
+        <?php if ($p['link']): ?>
+        <a href="<?= h($p['link']) ?>" target="_blank" rel="noopener noreferrer" class="btn btn-primary btn-sm">Candidater &rarr;</a>
+        <?php endif; ?>
+      </div>
     </div>
   </div>
   <?php endforeach; ?>

@@ -83,27 +83,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['verify'])) {
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Vérifier votre email &mdash; Startup.TN</title>
-<link rel="preconnect" href="https://fonts.googleapis.com">
-<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=DM+Mono:wght@400;500&display=swap" rel="stylesheet">
+<?php include 'auth_style.php'; ?>
 <style>
-:root{
-  --bg:#0d1117;--surface:#161b27;--card:#1c2333;--border:#2a3349;
-  --accent:#38bdf8;--text:#f0f4f8;--muted:#A8B8CC;--label:#D2DFED;
-  --error:#f87171;--success:#34d399;
-  --font:'Inter',-apple-system,'Segoe UI',sans-serif;--mono:'DM Mono','Courier New',monospace;
-}
-*{margin:0;padding:0;box-sizing:border-box}
-body{font-family:var(--font);background:var(--bg);color:var(--text);min-height:100vh;display:flex;align-items:center;justify-content:center;padding:20px}
-.wrap{width:100%;max-width:420px}
-.logo-block{text-align:center;margin-bottom:28px}
-.logo-icon{font-size:36px;margin-bottom:10px}
-.logo-title{font-family:var(--mono);font-size:22px;font-weight:700;color:var(--accent);letter-spacing:-1px}
-.logo-title span{color:var(--text)}
-.card{background:var(--card);border:1px solid var(--border);border-radius:16px;padding:32px}
-.card h2{font-size:18px;font-weight:600;margin-bottom:8px;color:#fff}
-.card p{font-size:13px;color:var(--muted);line-height:1.6;margin-bottom:24px}
-.field{margin-bottom:18px}
-.field label{display:block;font-size:12px;color:var(--label);text-transform:uppercase;letter-spacing:1px;margin-bottom:6px;font-family:var(--mono)}
+/* Spécifique verify : champ code 6 chiffres + badge email */
 .code-input{
   width:100%;padding:14px;
   background:var(--surface);border:1px solid var(--border);border-radius:8px;
@@ -111,30 +93,11 @@ body{font-family:var(--font);background:var(--bg);color:var(--text);min-height:1
   text-align:center;letter-spacing:10px;outline:none;transition:border-color .2s;
 }
 .code-input:focus{border-color:var(--accent)}
-.btn{
-  width:100%;padding:13px;
-  background:var(--accent);color:#000;
-  border:none;border-radius:8px;
-  font-family:var(--font);font-size:15px;font-weight:700;
-  cursor:pointer;transition:opacity .15s;margin-bottom:10px
-}
-.btn:hover{opacity:.85}
-.btn-ghost{
-  width:100%;padding:10px;
-  background:none;color:var(--muted);
-  border:1px solid var(--border);border-radius:8px;
-  font-family:var(--font);font-size:13px;font-weight:500;
-  cursor:pointer;transition:all .15s
-}
-.btn-ghost:hover{border-color:var(--accent);color:var(--accent)}
-.error-msg{background:rgba(239,68,68,.1);border:1px solid rgba(239,68,68,.25);color:#f87171;padding:10px 14px;border-radius:8px;font-size:13px;margin-bottom:16px}
-.info-msg{background:rgba(56,189,248,.08);border:1px solid rgba(56,189,248,.2);color:var(--accent);padding:10px 14px;border-radius:8px;font-size:13px;margin-bottom:16px}
 .email-badge{display:inline-flex;align-items:center;gap:6px;padding:4px 10px;background:rgba(56,189,248,.08);border:1px solid rgba(56,189,248,.2);border-radius:20px;font-size:12px;color:var(--accent);font-family:var(--mono);margin-bottom:16px}
-.back-link{text-align:center;margin-top:16px;font-size:13px;color:var(--muted)}
-.back-link a{color:var(--accent);text-decoration:none}
 </style>
 </head>
 <body>
+<div class="auth-center">
 <div class="wrap">
   <div class="logo-block">
     <div class="logo-icon">&#127481;&#127475;</div>
@@ -157,7 +120,7 @@ body{font-family:var(--font);background:var(--bg);color:var(--text);min-height:1
           placeholder="000000" maxlength="6" pattern="\d{6}" inputmode="numeric"
           autocomplete="one-time-code" autofocus required>
       </div>
-      <button type="submit" name="verify" class="btn">Vérifier &rarr;</button>
+      <button type="submit" name="verify" class="btn-auth" style="margin-bottom:10px">Vérifier &rarr;</button>
     </form>
 
     <form method="POST">
@@ -169,6 +132,7 @@ body{font-family:var(--font);background:var(--bg);color:var(--text);min-height:1
   </div>
 
   <div class="back-link"><a href="index.php">&larr; Retour &agrave; la connexion</a></div>
+</div>
 </div>
 </body>
 </html>

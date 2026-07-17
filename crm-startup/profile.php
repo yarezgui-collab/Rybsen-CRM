@@ -203,7 +203,7 @@ include 'header.php';
     </div>
   </div>
   <!-- Stats rapides -->
-  <div style="display:flex;gap:12px">
+  <div style="display:flex;gap:12px;flex-wrap:wrap">
     <div style="text-align:center;background:rgba(0,0,0,.3);border:1px solid var(--border);border-radius:8px;padding:10px 16px">
       <div style="font-family:var(--mono);font-size:22px;font-weight:700;color:var(--accent)"><?= $stats['total_sub'] ?></div>
       <div style="font-size:10px;color:var(--muted);text-transform:uppercase;letter-spacing:1px">Soumissions</div>

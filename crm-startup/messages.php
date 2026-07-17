@@ -33,20 +33,26 @@ if ($to_id) {
 }
 
 // ── LISTE DES CONVERSATIONS ───────────────────────
+// Le dernier message de chaque conversation est garanti par la jointure
+// sur MAX(id) (GROUP BY seul laisserait MySQL choisir une ligne arbitraire)
 $convs = $db->prepare("
-    SELECT 
+    SELECT
         u.id, u.startup_name, u.sector, u.city,
         m.body as last_msg, m.created_at as last_time,
         m.sender_id as last_sender,
         (SELECT COUNT(*) FROM fm_messages WHERE sender_id=u.id AND receiver_id=? AND is_read=0) as unread
-    FROM fm_users u
-    JOIN fm_messages m ON (
-        (m.sender_id=u.id AND m.receiver_id=?) OR
-        (m.sender_id=? AND m.receiver_id=u.id)
-    )
-    WHERE u.id != ? AND u.is_active=1
-    GROUP BY u.id
-    ORDER BY last_time DESC
+    FROM (
+        SELECT
+            CASE WHEN sender_id=? THEN receiver_id ELSE sender_id END AS partner_id,
+            MAX(id) AS last_msg_id
+        FROM fm_messages
+        WHERE sender_id=? OR receiver_id=?
+        GROUP BY partner_id
+    ) lastm
+    JOIN fm_messages m ON m.id = lastm.last_msg_id
+    JOIN fm_users u ON u.id = lastm.partner_id
+    WHERE u.is_active=1
+    ORDER BY m.created_at DESC
 ");
 $convs->execute([$uid, $uid, $uid, $uid]);
 $conversations = $convs->fetchAll();
