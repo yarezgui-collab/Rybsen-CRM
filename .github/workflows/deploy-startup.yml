@@ -1,0 +1,52 @@
+name: Deploy startup to Hostinger
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - 'crm-startup/**'
+  workflow_dispatch:
+
+jobs:
+  deploy:
+    name: SFTP → startup.rybsen.fr
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Install sshpass
+        run: sudo apt-get install -y sshpass
+
+      - name: Deploy via SFTP
+        env:
+          SFTP_HOST: ${{ secrets.STARTUP_SFTP_HOST }}
+          SFTP_PORT: ${{ secrets.STARTUP_SFTP_PORT }}
+          SFTP_USER: ${{ secrets.STARTUP_SFTP_USER }}
+          SFTP_PASS: ${{ secrets.STARTUP_SFTP_PASSWORD }}
+        run: |
+          # Build SFTP batch — deploy all PHP/SQL/.htaccess except config.php
+          echo "cd domains/rybsen.fr/public_html/startup" > /tmp/sftp_batch.txt
+
+          find crm-startup -maxdepth 1 -type f \
+            \( -name "*.php" -o -name "*.sql" -o -name ".htaccess" \) \
+            ! -name "config.php" \
+            | sort \
+            | while read f; do
+                fname=$(basename "$f")
+                echo "put $f $fname"
+              done >> /tmp/sftp_batch.txt
+
+          echo "bye" >> /tmp/sftp_batch.txt
+
+          echo "=== Fichiers à déployer ==="
+          cat /tmp/sftp_batch.txt
+
+          sshpass -p "$SFTP_PASS" sftp \
+            -oBatchMode=no \
+            -oStrictHostKeyChecking=no \
+            -oPasswordAuthentication=yes \
+            -P "$SFTP_PORT" \
+            -b /tmp/sftp_batch.txt \
+            "$SFTP_USER@$SFTP_HOST"

@@ -46,3 +46,31 @@ Tu travailles sur le projet CRM déployé sur crm.rybsen.com (Hostinger).
 4. Ne jamais recalculer ou écraser des valeurs monétaires existantes en base
 5. Utiliser RYBSEN.escape() pour tout affichage de données utilisateur (anti-XSS)
 6. Pattern JS : loadX() → applyFiltersX() → renderX(data)
+
+---
+
+# Startup.TN CRM — Instructions Claude Code
+
+## Dépôt GitHub
+- Repo : yarezgui-collab/Rybsen-CRM
+- Dossier source : crm-startup/
+- Ne jamais pousser directement sur `main` sans PR
+
+## Déploiement SFTP automatique
+- Hôte : 194.36.184.184 · Port : 65002
+- Utilisateur : u293743867.startup.rybsen.fr
+- Chemin distant : domains/rybsen.fr/public_html/startup
+- URL prod : https://startup.rybsen.fr/startup
+- Secrets GitHub requis : STARTUP_SFTP_HOST / STARTUP_SFTP_PORT / STARTUP_SFTP_USER / STARTUP_SFTP_PASSWORD
+
+## Workflow GitHub Actions
+- Fichier : .github/workflows/deploy-startup.yml
+- Déclenché sur push `main` (paths: `crm-startup/**`)
+- Déploie tous les fichiers PHP, SQL et .htaccess sauf `config.php`
+- `config.php` est géré manuellement sur le serveur (contient credentials DB)
+
+## Contraintes critiques startup
+1. `crm-startup/config.php` ne doit JAMAIS être commité dans git
+2. Credentials SFTP uniquement en secrets GitHub Actions (préfixe STARTUP_)
+3. Toujours créer une branche feature, merger via PR → main
+4. Appliquer migration_v3.sql manuellement via phpMyAdmin au premier déploiement
