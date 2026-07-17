@@ -33,20 +33,26 @@ if ($to_id) {
 }
 
 // ── LISTE DES CONVERSATIONS ───────────────────────
+// Le dernier message de chaque conversation est garanti par la jointure
+// sur MAX(id) (GROUP BY seul laisserait MySQL choisir une ligne arbitraire)
 $convs = $db->prepare("
-    SELECT 
+    SELECT
         u.id, u.startup_name, u.sector, u.city,
         m.body as last_msg, m.created_at as last_time,
         m.sender_id as last_sender,
         (SELECT COUNT(*) FROM fm_messages WHERE sender_id=u.id AND receiver_id=? AND is_read=0) as unread
-    FROM fm_users u
-    JOIN fm_messages m ON (
-        (m.sender_id=u.id AND m.receiver_id=?) OR
-        (m.sender_id=? AND m.receiver_id=u.id)
-    )
-    WHERE u.id != ? AND u.is_active=1
-    GROUP BY u.id
-    ORDER BY last_time DESC
+    FROM (
+        SELECT
+            CASE WHEN sender_id=? THEN receiver_id ELSE sender_id END AS partner_id,
+            MAX(id) AS last_msg_id
+        FROM fm_messages
+        WHERE sender_id=? OR receiver_id=?
+        GROUP BY partner_id
+    ) lastm
+    JOIN fm_messages m ON m.id = lastm.last_msg_id
+    JOIN fm_users u ON u.id = lastm.partner_id
+    WHERE u.is_active=1
+    ORDER BY m.created_at DESC
 ");
 $convs->execute([$uid, $uid, $uid, $uid]);
 $conversations = $convs->fetchAll();
@@ -101,10 +107,10 @@ include 'header.php';
   <p style="color:var(--muted);font-size:14px;margin-top:4px">Communiquez directement avec les autres startups.</p>
 </div>
 
-<div style="display:grid;grid-template-columns:300px 1fr;gap:16px;height:calc(100vh - 200px);min-height:500px">
+<div class="msg-layout <?= $partner ? 'has-conv' : '' ?>" style="display:grid;grid-template-columns:300px 1fr;gap:16px;height:calc(100vh - 200px);min-height:500px">
 
   <!-- ── SIDEBAR CONVERSATIONS ── -->
-  <div style="background:var(--card);border:1px solid var(--border);border-radius:var(--radius-lg);display:flex;flex-direction:column;overflow:hidden">
+  <div class="msg-sidebar" style="background:var(--card);border:1px solid var(--border);border-radius:var(--radius-lg);display:flex;flex-direction:column;overflow:hidden">
     
     <!-- Nouveau message -->
     <div style="padding:14px;border-bottom:1px solid var(--border)">
@@ -169,11 +175,12 @@ include 'header.php';
   </div>
 
   <!-- ── ZONE MESSAGE ── -->
-  <div style="background:var(--card);border:1px solid var(--border);border-radius:var(--radius-lg);display:flex;flex-direction:column;overflow:hidden">
-    
+  <div class="msg-zone" style="background:var(--card);border:1px solid var(--border);border-radius:var(--radius-lg);display:flex;flex-direction:column;overflow:hidden">
+
     <?php if ($partner): ?>
     <!-- Header conversation -->
     <div style="padding:16px 20px;border-bottom:1px solid var(--border);display:flex;align-items:center;gap:14px">
+      <a href="messages.php" class="msg-back" style="display:none;color:var(--muted);font-size:20px;text-decoration:none;flex-shrink:0;padding:4px" title="Retour aux conversations">&larr;</a>
       <div style="width:40px;height:40px;background:var(--surface);border:1px solid var(--border);border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:18px;font-weight:700;color:var(--accent);flex-shrink:0">
         <?= mb_strtoupper(mb_substr($partner['startup_name'],0,1)) ?>
       </div>
@@ -310,9 +317,15 @@ document.getElementById('modal-new').addEventListener('click', function(e){ if(e
 </script>
 
 <style>
-/* Layout messages responsive */
+/* Layout messages responsive : sur mobile, une seule colonne à la fois */
 @media (max-width: 768px) {
-  .msg-layout { grid-template-columns: 1fr !important; }
+  .msg-layout { grid-template-columns: 1fr !important; height: calc(100vh - 160px) !important; }
+  /* Conversation ouverte → plein écran, sidebar masquée */
+  .msg-layout.has-conv .msg-sidebar { display: none !important; }
+  /* Aucune conversation → liste seule, zone masquée */
+  .msg-layout:not(.has-conv) .msg-zone { display: none !important; }
+  .msg-back { display: inline-block !important; }
+  .msg-bubble { max-width: 85%; }
 }
 </style>
 

@@ -19,6 +19,10 @@ if (!$user) {
 $error   = '';
 $success = false;
 
+// Onglet actif conservé après soumission de formulaire
+$active_tab = $_POST['return_tab'] ?? $_GET['tab'] ?? 'info';
+if (!in_array($active_tab, ['info', 'importjson', 'security'], true)) $active_tab = 'info';
+
 // ── ACTIONS POST ──────────────────────────────────────────────
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     verifyCsrf();
@@ -199,7 +203,7 @@ include 'header.php';
     </div>
   </div>
   <!-- Stats rapides -->
-  <div style="display:flex;gap:12px">
+  <div style="display:flex;gap:12px;flex-wrap:wrap">
     <div style="text-align:center;background:rgba(0,0,0,.3);border:1px solid var(--border);border-radius:8px;padding:10px 16px">
       <div style="font-family:var(--mono);font-size:22px;font-weight:700;color:var(--accent)"><?= $stats['total_sub'] ?></div>
       <div style="font-size:10px;color:var(--muted);text-transform:uppercase;letter-spacing:1px">Soumissions</div>
@@ -224,9 +228,9 @@ include 'header.php';
 
 <!-- TABS -->
 <div style="display:flex;gap:4px;margin-bottom:20px;border-bottom:1px solid var(--border)">
-  <button onclick="showTab('info')" id="tab-info" class="tab-btn active">&#128101; Informations</button>
-  <button onclick="showTab('importjson')" id="tab-importjson" class="tab-btn">&#9889; Import rapide</button>
-  <button onclick="showTab('security')" id="tab-security" class="tab-btn">&#128274; Sécurité</button>
+  <button onclick="showTab('info')" id="tab-info" class="tab-btn <?= $active_tab === 'info' ? 'active' : '' ?>">&#128101; Informations</button>
+  <button onclick="showTab('importjson')" id="tab-importjson" class="tab-btn <?= $active_tab === 'importjson' ? 'active' : '' ?>">&#9889; Import rapide</button>
+  <button onclick="showTab('security')" id="tab-security" class="tab-btn <?= $active_tab === 'security' ? 'active' : '' ?>">&#128274; Sécurité</button>
 </div>
 
 <style>
@@ -237,9 +241,10 @@ include 'header.php';
 </style>
 
 <!-- TAB INFORMATIONS -->
-<div id="tab-info-content" class="tab-content active">
+<div id="tab-info-content" class="tab-content <?= $active_tab === 'info' ? 'active' : '' ?>">
 <form method="POST">
   <input type="hidden" name="action" value="update_profile">
+  <input type="hidden" name="return_tab" value="info">
   <?= csrfField() ?>
 
   <!-- Section 1: Identité -->
@@ -252,7 +257,7 @@ include 'header.php';
       </div>
       <div class="field">
         <label>Année de création</label>
-        <input type="number" name="founded_year" min="1990" max="2026" value="<?= h($user['founded_year'] ?? '') ?>">
+        <input type="number" name="founded_year" min="1990" max="<?= date('Y') ?>" value="<?= h($user['founded_year'] ?? '') ?>">
       </div>
       <div class="field">
         <label>Site web</label>
@@ -371,7 +376,7 @@ include 'header.php';
 </div>
 
 <!-- TAB IMPORT RAPIDE -->
-<div id="tab-importjson-content" class="tab-content">
+<div id="tab-importjson-content" class="tab-content <?= $active_tab === 'importjson' ? 'active' : '' ?>">
   <div class="card" style="max-width:680px;margin-bottom:16px">
     <div style="font-size:11px;color:var(--accent);font-family:var(--mono);text-transform:uppercase;letter-spacing:2px;margin-bottom:16px;padding-bottom:8px;border-bottom:1px solid var(--border)">Import rapide de votre profil</div>
     <p style="font-size:13.5px;color:var(--text-sec);line-height:1.7;margin-bottom:14px">
@@ -397,6 +402,7 @@ include 'header.php';
     </details>
     <form method="POST">
       <input type="hidden" name="action" value="import_profile_json">
+      <input type="hidden" name="return_tab" value="importjson">
       <?= csrfField() ?>
       <div class="field">
         <textarea name="profile_json" rows="10" placeholder='{ "startup_name": "...", "sector": "...", ... }'
@@ -411,11 +417,12 @@ include 'header.php';
 </div>
 
 <!-- TAB SÉCURITÉ -->
-<div id="tab-security-content" class="tab-content">
+<div id="tab-security-content" class="tab-content <?= $active_tab === 'security' ? 'active' : '' ?>">
   <div class="card" style="max-width:480px">
     <div style="font-size:11px;color:var(--accent);font-family:var(--mono);text-transform:uppercase;letter-spacing:2px;margin-bottom:20px;padding-bottom:8px;border-bottom:1px solid var(--border)">Changer le mot de passe</div>
     <form method="POST">
       <input type="hidden" name="action" value="change_password">
+      <input type="hidden" name="return_tab" value="security">
       <?= csrfField() ?>
       <div class="field">
         <label>Mot de passe actuel</label>
