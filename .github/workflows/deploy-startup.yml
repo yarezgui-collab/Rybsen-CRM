@@ -26,12 +26,13 @@ jobs:
           SFTP_USER: ${{ secrets.STARTUP_SFTP_USER }}
           SFTP_PASS: ${{ secrets.STARTUP_SFTP_PASSWORD }}
         run: |
-          # Build SFTP batch — deploy all PHP/SQL/.htaccess except config.php
+          # Build SFTP batch — deploy all PHP/SQL/.htaccess except config.php and run_migration.php
           echo "cd domains/rybsen.fr/public_html/startup" > /tmp/sftp_batch.txt
 
           find crm-startup -maxdepth 1 -type f \
             \( -name "*.php" -o -name "*.sql" -o -name ".htaccess" \) \
             ! -name "config.php" \
+            ! -name "run_migration.php" \
             | sort \
             | while read f; do
                 fname=$(basename "$f")
@@ -50,3 +51,44 @@ jobs:
             -P "$SFTP_PORT" \
             -b /tmp/sftp_batch.txt \
             "$SFTP_USER@$SFTP_HOST"
+
+      - name: Run database migration
+        env:
+          SFTP_HOST: ${{ secrets.STARTUP_SFTP_HOST }}
+          SFTP_PORT: ${{ secrets.STARTUP_SFTP_PORT }}
+          SFTP_USER: ${{ secrets.STARTUP_SFTP_USER }}
+          SFTP_PASS: ${{ secrets.STARTUP_SFTP_PASSWORD }}
+        run: |
+          TOKEN=$(openssl rand -hex 24)
+
+          # Injecter le token dans le script de migration
+          sed "s/MIGRATION_TOKEN_PLACEHOLDER/$TOKEN/" crm-startup/run_migration.php > /tmp/run_migration.php
+
+          # Déployer le script temporaire
+          echo "cd domains/rybsen.fr/public_html/startup" > /tmp/sftp_migrate.txt
+          echo "put /tmp/run_migration.php run_migration.php" >> /tmp/sftp_migrate.txt
+          echo "bye" >> /tmp/sftp_migrate.txt
+
+          sshpass -p "$SFTP_PASS" sftp \
+            -oBatchMode=no \
+            -oStrictHostKeyChecking=no \
+            -oPasswordAuthentication=yes \
+            -P "$SFTP_PORT" \
+            -b /tmp/sftp_migrate.txt \
+            "$SFTP_USER@$SFTP_HOST"
+
+          # Déclencher la migration (le script se supprime lui-même après)
+          echo "=== Résultat de la migration ==="
+          curl -f -s "https://startup.rybsen.fr/startup/run_migration.php?token=$TOKEN" | tee /tmp/migration_result.json
+          echo ""
+
+          # Vérifier le succès
+          python3 -c "
+          import json, sys
+          data = json.load(open('/tmp/migration_result.json'))
+          if not data.get('success'):
+              print('Migration failed:', data)
+              sys.exit(1)
+          for r in data.get('results', []):
+              print(r)
+          "
