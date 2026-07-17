@@ -81,7 +81,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['submit_final'])) {
             $code    = str_pad((string)random_int(0, 999999), 6, '0', STR_PAD_LEFT);
             $expires = date('Y-m-d H:i:s', time() + 1800);
             $db->prepare('UPDATE fm_users SET email_verif_code=?, email_verif_expires=? WHERE id=?')
-               ->execute([$code, $expires, $new_uid]);
+               ->execute([hash('sha256', $code), $expires, $new_uid]);
 
             sendVerificationEmail($email, $code);
             auditLog('register', 'user', $new_uid, $email);
@@ -197,7 +197,7 @@ body{font-family:var(--font);background:var(--bg);color:var(--text);min-height:1
         </div>
         <div class="field">
           <label>Ann&eacute;e de cr&eacute;ation</label>
-          <input type="number" name="founded_year" placeholder="2023" min="2000" max="2026" value="<?= h($v['founded_year']??'') ?>">
+          <input type="number" name="founded_year" placeholder="2023" min="2000" max="<?= date('Y') ?>" value="<?= h($v['founded_year']??'') ?>">
         </div>
         <div class="field">
           <label>Site web</label>

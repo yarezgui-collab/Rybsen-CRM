@@ -30,9 +30,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['resend'])) {
         $code    = str_pad((string)random_int(0, 999999), 6, '0', STR_PAD_LEFT);
         $expires = date('Y-m-d H:i:s', time() + 1800);
         $db->prepare('UPDATE fm_users SET email_verif_code=?, email_verif_expires=? WHERE id=?')
-           ->execute([$code, $expires, $uid]);
+           ->execute([hash('sha256', $code), $expires, $uid]);
         sendVerificationEmail($email, $code);
-        $msg = 'Un nouveau code a été envoyé à ' . h($email) . '.';
+        $_SESSION['verify_attempts'] = 0;
+        $msg = 'Un nouveau code a été envoyé à ' . $email . '.';
     }
 }
 
@@ -44,12 +45,18 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['verify'])) {
     $row->execute([$uid]);
     $row = $row->fetch();
 
-    if (!$row || !$row['email_verif_code']) {
+    // Anti brute-force : max 5 tentatives, puis le code est invalidé
+    $_SESSION['verify_attempts'] = ($_SESSION['verify_attempts'] ?? 0) + 1;
+    if ($_SESSION['verify_attempts'] > 5) {
+        $db->prepare('UPDATE fm_users SET email_verif_code=NULL, email_verif_expires=NULL WHERE id=?')
+           ->execute([$uid]);
+        $error = 'Trop de tentatives. Ce code est invalidé — cliquez sur "Renvoyer le code".';
+    } elseif (!$row || !$row['email_verif_code']) {
         $error = 'Code invalide. Demandez un nouveau code.';
     } elseif (strtotime($row['email_verif_expires']) < time()) {
         $error = 'Ce code a expiré. Cliquez sur "Renvoyer le code".';
-    } elseif ($code_input !== $row['email_verif_code']) {
-        $error = 'Code incorrect. Vérifiez l\'email envoyé à ' . h($email) . '.';
+    } elseif (!hash_equals($row['email_verif_code'], hash('sha256', $code_input))) {
+        $error = 'Code incorrect. Vérifiez l\'email envoyé à ' . $email . '.';
     } else {
         // Mark email as verified, clear code
         $db->prepare('UPDATE fm_users SET email_verified=1, email_verif_code=NULL, email_verif_expires=NULL WHERE id=?')
@@ -64,7 +71,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['verify'])) {
         auditLog('email_verified', 'user', $uid, $email);
 
         // Clear session keys, redirect to login with success message
-        unset($_SESSION['pending_verify_uid'], $_SESSION['pending_verify_email']);
+        unset($_SESSION['pending_verify_uid'], $_SESSION['pending_verify_email'], $_SESSION['verify_attempts']);
         header('Location: index.php?msg=verified');
         exit;
     }
@@ -140,7 +147,7 @@ body{font-family:var(--font);background:var(--bg);color:var(--text);min-height:1
     <div class="email-badge">&#128231; <?= h($email) ?></div>
 
     <?php if ($error): ?><div class="error-msg"><?= h($error) ?></div><?php endif; ?>
-    <?php if ($msg): ?><div class="info-msg"><?= $msg ?></div><?php endif; ?>
+    <?php if ($msg): ?><div class="info-msg"><?= h($msg) ?></div><?php endif; ?>
 
     <form method="POST">
       <?= csrfField() ?>

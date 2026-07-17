@@ -23,7 +23,7 @@ if ($reset_mode && $_SERVER['REQUEST_METHOD'] === 'POST') {
         $error = 'Les mots de passe ne correspondent pas.';
     } else {
         $row = $db->prepare('SELECT id FROM fm_users WHERE reset_token=? AND reset_token_expires > NOW() LIMIT 1');
-        $row->execute([$token]);
+        $row->execute([hash('sha256', $token)]);
         $row = $row->fetch();
         if (!$row) {
             $error = 'Ce lien est invalide ou expiré. Demandez un nouveau lien.';
@@ -45,19 +45,33 @@ if (!$reset_mode && $_SERVER['REQUEST_METHOD'] === 'POST') {
     if (!$email || !filter_var($email, FILTER_VALIDATE_EMAIL)) {
         $error = 'Adresse email invalide.';
     } else {
-        $row = $db->prepare('SELECT id, is_active FROM fm_users WHERE email=? LIMIT 1');
-        $row->execute([$email]);
-        $row = $row->fetch();
-        if ($row) {
-            $tok     = bin2hex(random_bytes(32));
-            $expires = date('Y-m-d H:i:s', time() + 3600);
-            $db->prepare('UPDATE fm_users SET reset_token=?, reset_token_expires=? WHERE id=?')
-               ->execute([$tok, $expires, $row['id']]);
-            sendResetEmail($email, $tok);
-            auditLog('password_reset_request', 'user', $row['id'], $email);
+        // Rate limit par session : max 3 demandes / 15 min (anti flood email)
+        $now = time();
+        $_SESSION['reset_requests'] = array_filter($_SESSION['reset_requests'] ?? [], function ($t) use ($now) {
+            return $now - $t < 900;
+        });
+        if (count($_SESSION['reset_requests']) >= 3) {
+            $msg = 'Si cet email existe, un lien de réinitialisation a été envoyé. Vérifiez vos spams.';
+        } else {
+            $_SESSION['reset_requests'][] = $now;
+            $row = $db->prepare('SELECT id, is_active, reset_token_expires FROM fm_users WHERE email=? LIMIT 1');
+            $row->execute([$email]);
+            $row = $row->fetch();
+            // Rate limit par compte : pas de renvoi si un lien a été émis il y a moins de 5 min
+            $recently_sent = $row && $row['reset_token_expires']
+                && strtotime($row['reset_token_expires']) - $now > 3300;
+            if ($row && !$recently_sent) {
+                $tok     = bin2hex(random_bytes(32));
+                $expires = date('Y-m-d H:i:s', $now + 3600);
+                // Stocker uniquement le hash : une fuite de BDD n'expose pas le lien
+                $db->prepare('UPDATE fm_users SET reset_token=?, reset_token_expires=? WHERE id=?')
+                   ->execute([hash('sha256', $tok), $expires, $row['id']]);
+                sendResetEmail($email, $tok);
+                auditLog('password_reset_request', 'user', $row['id'], $email);
+            }
+            // Always show same message to prevent user enumeration
+            $msg = 'Si cet email existe, un lien de réinitialisation a été envoyé. Vérifiez vos spams.';
         }
-        // Always show same message to prevent user enumeration
-        $msg = 'Si cet email existe, un lien de réinitialisation a été envoyé. Vérifiez vos spams.';
     }
 }
 ?>

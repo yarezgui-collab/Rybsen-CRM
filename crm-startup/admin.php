@@ -5,6 +5,17 @@ requireAdmin();
 $page_title = 'Administration';
 
 $db = getDB();
+
+// Re-vérifier le rôle en BDD (la session peut être obsolète si l'admin a été rétrogradé)
+$role_chk = $db->prepare('SELECT role, is_active FROM fm_users WHERE id=? LIMIT 1');
+$role_chk->execute([(int)$_SESSION['fm_user_id']]);
+$role_row = $role_chk->fetch();
+if (!$role_row || $role_row['role'] !== 'admin' || !(int)$role_row['is_active']) {
+    session_unset();
+    session_destroy();
+    header('Location: index.php?msg=session_expired');
+    exit;
+}
 $tab = $_GET['tab'] ?? 'submissions';
 $msg = $_GET['msg'] ?? '';
 
@@ -26,11 +37,21 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $sub->execute([$sid]);
             $s = $sub->fetch();
             if ($s) {
-                $db->prepare('INSERT INTO fm_programs (name,organisation,type,badge,amount,geo,deadline,sectors,description,link,status,submitted_by,validated_by) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)')
+                // Si la deadline soumise est une date ISO (YYYY-MM-DD), en profiter
+                // pour alimenter deadline_date + deadline_type (calcul auto urgence)
+                $dl_date = null;
+                $dl_text = $s['deadline'] ?: 'Rolling';
+                if ($s['deadline'] && preg_match('/^\d{4}-\d{2}-\d{2}$/', trim($s['deadline']))) {
+                    $dl_date = trim($s['deadline']);
+                    $dl_text = date('d/m/Y', strtotime($dl_date));
+                }
+                $db->prepare('INSERT INTO fm_programs (name,organisation,type,badge,amount,geo,deadline,deadline_date,deadline_type,sectors,description,link,status,submitted_by,validated_by) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)')
                    ->execute([
                        $s['name'], $s['organisation'], $s['type'],
                        ucfirst($s['type']), $s['amount'], $s['geo'],
-                       $s['deadline'], $s['sectors'], $s['description'],
+                       $dl_text, $dl_date,
+                       $dl_date ? calcDeadlineType($dl_date) : 'open',
+                       $s['sectors'], $s['description'],
                        $s['url'], 'active', $s['user_id'], $_SESSION['fm_user_id']
                    ]);
             }
@@ -74,7 +95,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $role   = $_POST['new_role'] === 'admin' ? 'admin' : 'startup';
         $sector = trim($_POST['new_sector'] ?? '');
         $stage  = trim($_POST['new_stage'] ?? 'seed');
-        if ($email && $name && strlen($pass) >= 6) {
+        if ($email && $name && strlen($pass) >= 8) {
             $chk = $db->prepare('SELECT id FROM fm_users WHERE email=? LIMIT 1');
             $chk->execute([$email]);
             if (!$chk->fetch()) {
@@ -96,7 +117,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     if ($action === 'change_password') {
         $uid  = (int)($_POST['user_id'] ?? 0);
         $pass = $_POST['new_pass'] ?? '';
-        if ($uid && strlen($pass) >= 6) {
+        if ($uid && strlen($pass) >= 8) {
             $hash = password_hash($pass, PASSWORD_DEFAULT);
             $db->prepare('UPDATE fm_users SET password=? WHERE id=?')->execute([$hash, $uid]);
             auditLog('change_password', 'user', $uid);
@@ -431,7 +452,13 @@ include 'header.php';
 
 <!-- ── TAB: UTILISATEURS ── -->
 <?php elseif ($tab === 'users'):
-  $users = $db->query("SELECT * FROM fm_users ORDER BY role DESC, is_active DESC, created_at DESC")->fetchAll();
+  $per_page   = 25;
+  $page_u     = max(1, (int)($_GET['p'] ?? 1));
+  $users_total = (int)$db->query("SELECT COUNT(*) FROM fm_users")->fetchColumn();
+  $pages_u    = max(1, (int)ceil($users_total / $per_page));
+  $page_u     = min($page_u, $pages_u);
+  $offset_u   = ($page_u - 1) * $per_page;
+  $users = $db->query("SELECT * FROM fm_users ORDER BY role DESC, is_active DESC, created_at DESC LIMIT $per_page OFFSET $offset_u")->fetchAll();
   $msg_users = $_GET['msg'] ?? '';
   $stades_admin = ['idee'=>'Idée / Pré-création','bootstrapping'=>'Bootstrapping','pre-seed'=>'Pre-Seed','seed'=>'Seed','series-a'=>'Série A','series-b'=>'Série B','series-c'=>'Série C','growth'=>'Growth / Late Stage','pre-ipo'=>'Pré-IPO'];
 ?>
@@ -450,8 +477,8 @@ include 'header.php';
       <input type="email" name="new_email" placeholder="contact@startup.tn" required>
     </div>
     <div class="field" style="margin:0">
-      <label>Mot de passe * (min 6 car.)</label>
-      <input type="password" name="new_password" placeholder="••••••••" required>
+      <label>Mot de passe * (min 8 car.)</label>
+      <input type="password" name="new_password" placeholder="••••••••" required minlength="8">
     </div>
     <div class="field" style="margin:0">
       <label>Secteur</label>
@@ -521,15 +548,22 @@ if (isset($msg_map[$msg_users])): ?>
               </button>
             </form>
             <!-- Modifier -->
-            <button class="btn btn-sm btn-secondary" onclick="openEdit(<?= $u['id'] ?>,'<?= addslashes($u['startup_name']) ?>','<?= addslashes($u['email']) ?>','<?= addslashes($u['sector']??'') ?>','<?= addslashes($u['stage']??'seed') ?>')">Modifier</button>
+            <button class="btn btn-sm btn-secondary btn-edit-user"
+              data-id="<?= (int)$u['id'] ?>"
+              data-name="<?= h($u['startup_name']) ?>"
+              data-email="<?= h($u['email']) ?>"
+              data-sector="<?= h($u['sector'] ?? '') ?>"
+              data-stage="<?= h($u['stage'] ?? 'seed') ?>">Modifier</button>
             <!-- Changer MDP -->
-            <button class="btn btn-sm btn-secondary" onclick="openPass(<?= $u['id'] ?>,'<?= addslashes($u['startup_name']) ?>')">MDP</button>
+            <button class="btn btn-sm btn-secondary btn-pass-user"
+              data-id="<?= (int)$u['id'] ?>"
+              data-name="<?= h($u['startup_name']) ?>">MDP</button>
             <!-- Supprimer -->
             <form method="POST" style="display:inline">
               <input type="hidden" name="action" value="delete_user">
               <input type="hidden" name="user_id" value="<?= $u['id'] ?>">
-              <button type="submit" class="btn btn-sm btn-danger"
-                onclick="return confirm('⚠️ Supprimer définitivement le compte de <?= addslashes($u['startup_name']) ?> ? Cette action est irréversible.')">
+              <button type="submit" class="btn btn-sm btn-danger btn-del-user"
+                data-name="<?= h($u['startup_name']) ?>">
                 Supprimer
               </button>
             </form>
@@ -543,6 +577,14 @@ if (isset($msg_map[$msg_users])): ?>
     </tbody>
   </table>
 </div>
+
+<?php if ($pages_u > 1): ?>
+<div style="display:flex;gap:6px;justify-content:center;margin-top:16px;flex-wrap:wrap">
+  <?php for ($i = 1; $i <= $pages_u; $i++): ?>
+    <a href="admin.php?tab=users&p=<?= $i ?>" class="btn btn-sm <?= $i === $page_u ? 'btn-primary' : 'btn-secondary' ?>"><?= $i ?></a>
+  <?php endfor; ?>
+</div>
+<?php endif; ?>
 
 <!-- MODAL MODIFIER UTILISATEUR -->
 <div class="modal-overlay" id="modal-edit">
@@ -597,8 +639,8 @@ if (isset($msg_map[$msg_users])): ?>
         <input type="hidden" name="user_id" id="pass-uid">
         <p style="font-size:13px;color:var(--muted);margin-bottom:16px">Compte : <strong id="pass-name" style="color:var(--text)"></strong></p>
         <div class="field">
-          <label>Nouveau mot de passe (min 6 caractères)</label>
-          <input type="password" name="new_pass" placeholder="••••••••" required minlength="6">
+          <label>Nouveau mot de passe (min 8 caractères)</label>
+          <input type="password" name="new_pass" placeholder="••••••••" required minlength="8">
         </div>
       </div>
       <div class="modal-footer">
@@ -610,19 +652,30 @@ if (isset($msg_map[$msg_users])): ?>
 </div>
 
 <script>
-function openEdit(id, name, email, sector, stage) {
-  document.getElementById('edit-uid').value = id;
-  document.getElementById('edit-name').value = name;
-  document.getElementById('edit-email').value = email;
-  document.getElementById('edit-sector').value = sector;
-  document.getElementById('edit-stage').value = stage;
-  document.getElementById('modal-edit').classList.add('open');
-}
-function openPass(id, name) {
-  document.getElementById('pass-uid').value = id;
-  document.getElementById('pass-name').textContent = name;
-  document.getElementById('modal-pass').classList.add('open');
-}
+document.querySelectorAll('.btn-edit-user').forEach(function(b) {
+  b.addEventListener('click', function() {
+    document.getElementById('edit-uid').value    = b.dataset.id;
+    document.getElementById('edit-name').value   = b.dataset.name;
+    document.getElementById('edit-email').value  = b.dataset.email;
+    document.getElementById('edit-sector').value = b.dataset.sector;
+    document.getElementById('edit-stage').value  = b.dataset.stage;
+    document.getElementById('modal-edit').classList.add('open');
+  });
+});
+document.querySelectorAll('.btn-pass-user').forEach(function(b) {
+  b.addEventListener('click', function() {
+    document.getElementById('pass-uid').value = b.dataset.id;
+    document.getElementById('pass-name').textContent = b.dataset.name;
+    document.getElementById('modal-pass').classList.add('open');
+  });
+});
+document.querySelectorAll('.btn-del-user').forEach(function(b) {
+  b.addEventListener('click', function(e) {
+    if (!confirm('⚠️ Supprimer définitivement le compte de « ' + b.dataset.name + ' » ? Cette action est irréversible.')) {
+      e.preventDefault();
+    }
+  });
+});
 document.getElementById('modal-edit').addEventListener('click', function(e){if(e.target===this)this.classList.remove('open');});
 document.getElementById('modal-pass').addEventListener('click', function(e){if(e.target===this)this.classList.remove('open');});
 </script>
@@ -691,8 +744,8 @@ document.getElementById('modal-pass').addEventListener('click', function(e){if(e
             <form method="POST" style="display:inline">
               <input type="hidden" name="action" value="delete_program">
               <input type="hidden" name="prog_id" value="<?= $p['id'] ?>">
-              <button type="submit" class="btn btn-sm btn-danger"
-                onclick="return confirm('⚠️ Supprimer définitivement \'<?= addslashes(h($p['name'])) ?>\' ? Action irréversible.')">
+              <button type="submit" class="btn btn-sm btn-danger btn-del-prog"
+                data-name="<?= h($p['name']) ?>">
                 Supprimer
               </button>
             </form>
@@ -823,6 +876,13 @@ function openEditProgram(p) {
   document.getElementById('modal-program').classList.add('open');
 }
 document.getElementById('modal-program').addEventListener('click', function(e){ if(e.target===this) this.classList.remove('open'); });
+document.querySelectorAll('.btn-del-prog').forEach(function(b) {
+  b.addEventListener('click', function(e) {
+    if (!confirm('⚠️ Supprimer définitivement « ' + b.dataset.name + ' » ? Action irréversible.')) {
+      e.preventDefault();
+    }
+  });
+});
 </script>
 
 <!-- ── TAB: IMPORT JSON ── -->
@@ -910,11 +970,17 @@ document.getElementById('modal-program').addEventListener('click', function(e){ 
 
 <!-- ── TAB: AUDIT ── -->
 <?php elseif ($tab === 'audit'):
+  $per_page_a = 50;
+  $page_a     = max(1, (int)($_GET['p'] ?? 1));
+  $logs_total = (int)$db->query("SELECT COUNT(*) FROM fm_audit")->fetchColumn();
+  $pages_a    = max(1, (int)ceil($logs_total / $per_page_a));
+  $page_a     = min($page_a, $pages_a);
+  $offset_a   = ($page_a - 1) * $per_page_a;
   $logs = $db->query("SELECT l.*, u.startup_name, u.email
     FROM fm_audit l
     LEFT JOIN fm_users u ON l.user_id = u.id
     ORDER BY l.created_at DESC
-    LIMIT 200")->fetchAll();
+    LIMIT $per_page_a OFFSET $offset_a")->fetchAll();
 ?>
   <div style="background:var(--card);border:1px solid var(--border);border-radius:12px;overflow:hidden;overflow-x:auto">
     <table style="min-width:700px">
@@ -935,6 +1001,14 @@ document.getElementById('modal-program').addEventListener('click', function(e){ 
       </tbody>
     </table>
   </div>
+
+  <?php if ($pages_a > 1): ?>
+  <div style="display:flex;gap:6px;justify-content:center;margin-top:16px;flex-wrap:wrap;align-items:center">
+    <?php if ($page_a > 1): ?><a href="admin.php?tab=audit&p=<?= $page_a - 1 ?>" class="btn btn-sm btn-secondary">&larr; Précédent</a><?php endif; ?>
+    <span class="count-pill">Page <?= $page_a ?> / <?= $pages_a ?> (<?= $logs_total ?> entrées)</span>
+    <?php if ($page_a < $pages_a): ?><a href="admin.php?tab=audit&p=<?= $page_a + 1 ?>" class="btn btn-sm btn-secondary">Suivant &rarr;</a><?php endif; ?>
+  </div>
+  <?php endif; ?>
 <?php endif; ?>
 
 <script>

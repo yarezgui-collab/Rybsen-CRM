@@ -13,7 +13,16 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $org  = trim($_POST['organisation'] ?? '');
     $type = $_POST['type'] ?? 'grant';
     $amt  = trim($_POST['amount'] ?? '');
-    $dl   = trim($_POST['deadline'] ?? '');
+    // Deadline structurée : date ISO ou "Rolling" si programme ouvert en continu
+    $is_rolling = isset($_POST['deadline_rolling']);
+    $dl_raw     = trim($_POST['deadline'] ?? '');
+    if ($is_rolling) {
+        $dl = 'Rolling';
+    } elseif ($dl_raw && preg_match('/^\d{4}-\d{2}-\d{2}$/', $dl_raw)) {
+        $dl = $dl_raw;
+    } else {
+        $dl = '';
+    }
     $desc = trim($_POST['description'] ?? '');
     $sec  = trim($_POST['sectors'] ?? '');
     $geo  = trim($_POST['geo'] ?? '');
@@ -114,11 +123,20 @@ include 'header.php';
       <div class="form-grid">
         <div class="field">
           <label>Deadline (si connue)</label>
-          <input type="text" name="deadline" placeholder="Ex: 30 Juin 2026, Rolling..." value="<?= h($_POST['deadline'] ?? '') ?>">
+          <input type="date" name="deadline" id="sub-deadline" min="<?= date('Y-m-d') ?>" value="<?= h($_POST['deadline'] ?? '') ?>">
+          <label style="display:flex;align-items:center;gap:7px;font-size:13px;color:var(--text-sec);cursor:pointer;text-transform:none;letter-spacing:0;font-family:var(--font);margin-top:8px">
+            <input type="checkbox" name="deadline_rolling" id="sub-rolling" value="1" <?= isset($_POST['deadline_rolling']) ? 'checked' : '' ?> style="accent-color:var(--accent);width:16px;height:16px">
+            Candidatures en continu (rolling)
+          </label>
         </div>
         <div class="field">
           <label>G&eacute;ographie</label>
-          <input type="text" name="geo" placeholder="Ex: Tunisie, Afrique, Global..." value="<?= h($_POST['geo'] ?? '') ?>">
+          <select name="geo">
+            <option value="">— Non précisé —</option>
+            <?php foreach (['Tunisie', 'Maghreb', 'Afrique', 'MENA', 'Europe', 'Global'] as $g): ?>
+            <option value="<?= $g ?>" <?= (($_POST['geo'] ?? '') === $g) ? 'selected' : '' ?>><?= $g ?></option>
+            <?php endforeach; ?>
+          </select>
         </div>
       </div>
 
@@ -148,6 +166,17 @@ include 'header.php';
 
     </form>
   </div>
+
+  <script>
+  // Case "rolling" cochée → désactiver le champ date
+  (function() {
+    var rolling = document.getElementById('sub-rolling');
+    var dl = document.getElementById('sub-deadline');
+    function sync() { dl.disabled = rolling.checked; if (rolling.checked) dl.value = ''; }
+    rolling.addEventListener('change', sync);
+    sync();
+  })();
+  </script>
   <?php endif; ?>
 </div>
 
