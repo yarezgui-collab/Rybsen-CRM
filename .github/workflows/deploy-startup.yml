@@ -79,16 +79,25 @@ jobs:
 
           # Déclencher la migration (le script se supprime lui-même après)
           echo "=== Résultat de la migration ==="
-          curl -f -s "https://startup.rybsen.fr/startup/run_migration.php?token=$TOKEN" | tee /tmp/migration_result.json
+          HTTP_CODE=$(curl -o /tmp/migration_result.json -w "%{http_code}" \
+            "https://startup.rybsen.fr/startup/run_migration.php?token=$TOKEN")
+          echo "HTTP $HTTP_CODE"
+          echo "--- Body ---"
+          cat /tmp/migration_result.json
           echo ""
 
           # Vérifier le succès
           python3 -c "
           import json, sys
-          data = json.load(open('/tmp/migration_result.json'))
+          body = open('/tmp/migration_result.json').read().strip()
+          if not body:
+              print('ERROR: empty response from migration script')
+              sys.exit(1)
+          data = json.loads(body)
           if not data.get('success'):
               print('Migration failed:', data)
               sys.exit(1)
           for r in data.get('results', []):
               print(r)
+          print('Migration complete.')
           "

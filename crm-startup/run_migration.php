@@ -1,6 +1,10 @@
 <?php
 // One-shot migration runner — auto-deletes after execution
+ob_start();
 define('MIGRATION_TOKEN', 'MIGRATION_TOKEN_PLACEHOLDER');
+
+require_once __DIR__ . '/config.php';
+ob_end_clean(); // discard any output from config.php
 
 header('Content-Type: application/json');
 
@@ -8,8 +12,6 @@ if (!isset($_GET['token']) || !hash_equals(MIGRATION_TOKEN, (string)$_GET['token
     http_response_code(403);
     die(json_encode(['error' => 'Forbidden']));
 }
-
-require_once __DIR__ . '/config.php';
 $db = getDB();
 
 $results = [];
