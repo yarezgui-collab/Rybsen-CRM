@@ -29,6 +29,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
             if ($user && password_verify($password, $user['password'])) {
                 resetLoginAttempts($email);
+                // Anti fixation de session : nouvel ID à chaque authentification
+                session_regenerate_id(true);
                 $_SESSION['fm_user_id'] = $user['id'];
                 $_SESSION['fm_role']    = $user['role'];
                 $_SESSION['fm_name']    = $user['startup_name'];

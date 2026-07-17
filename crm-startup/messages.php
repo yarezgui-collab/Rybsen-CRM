@@ -101,10 +101,10 @@ include 'header.php';
   <p style="color:var(--muted);font-size:14px;margin-top:4px">Communiquez directement avec les autres startups.</p>
 </div>
 
-<div style="display:grid;grid-template-columns:300px 1fr;gap:16px;height:calc(100vh - 200px);min-height:500px">
+<div class="msg-layout <?= $partner ? 'has-conv' : '' ?>" style="display:grid;grid-template-columns:300px 1fr;gap:16px;height:calc(100vh - 200px);min-height:500px">
 
   <!-- ── SIDEBAR CONVERSATIONS ── -->
-  <div style="background:var(--card);border:1px solid var(--border);border-radius:var(--radius-lg);display:flex;flex-direction:column;overflow:hidden">
+  <div class="msg-sidebar" style="background:var(--card);border:1px solid var(--border);border-radius:var(--radius-lg);display:flex;flex-direction:column;overflow:hidden">
     
     <!-- Nouveau message -->
     <div style="padding:14px;border-bottom:1px solid var(--border)">
@@ -169,11 +169,12 @@ include 'header.php';
   </div>
 
   <!-- ── ZONE MESSAGE ── -->
-  <div style="background:var(--card);border:1px solid var(--border);border-radius:var(--radius-lg);display:flex;flex-direction:column;overflow:hidden">
-    
+  <div class="msg-zone" style="background:var(--card);border:1px solid var(--border);border-radius:var(--radius-lg);display:flex;flex-direction:column;overflow:hidden">
+
     <?php if ($partner): ?>
     <!-- Header conversation -->
     <div style="padding:16px 20px;border-bottom:1px solid var(--border);display:flex;align-items:center;gap:14px">
+      <a href="messages.php" class="msg-back" style="display:none;color:var(--muted);font-size:20px;text-decoration:none;flex-shrink:0;padding:4px" title="Retour aux conversations">&larr;</a>
       <div style="width:40px;height:40px;background:var(--surface);border:1px solid var(--border);border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:18px;font-weight:700;color:var(--accent);flex-shrink:0">
         <?= mb_strtoupper(mb_substr($partner['startup_name'],0,1)) ?>
       </div>
@@ -310,9 +311,15 @@ document.getElementById('modal-new').addEventListener('click', function(e){ if(e
 </script>
 
 <style>
-/* Layout messages responsive */
+/* Layout messages responsive : sur mobile, une seule colonne à la fois */
 @media (max-width: 768px) {
-  .msg-layout { grid-template-columns: 1fr !important; }
+  .msg-layout { grid-template-columns: 1fr !important; height: calc(100vh - 160px) !important; }
+  /* Conversation ouverte → plein écran, sidebar masquée */
+  .msg-layout.has-conv .msg-sidebar { display: none !important; }
+  /* Aucune conversation → liste seule, zone masquée */
+  .msg-layout:not(.has-conv) .msg-zone { display: none !important; }
+  .msg-back { display: inline-block !important; }
+  .msg-bubble { max-width: 85%; }
 }
 </style>
 
