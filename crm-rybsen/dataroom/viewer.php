@@ -22,8 +22,11 @@ if (drDocRestricted($db, intval($acc['id']), $id)) {
     exit;
 }
 
+drLog($db, intval($acc['id']), 'vue_document', $id);
+
 $titre = ($DR_LANG === 'en' && $doc['titre_en']) ? $doc['titre_en'] : $doc['titre'];
 $isImage = str_starts_with($doc['mime'], 'image/');
+$isVideo = str_starts_with($doc['mime'], 'video/');
 $wmText = trim(($acc['prenom'] ?? '') . ' ' . $acc['nom']) . ' · ' . $acc['email'] . ' · ' . date('d/m/Y');
 
 drHead($titre, true);
@@ -44,6 +47,10 @@ drHead($titre, true);
   box-shadow:0 6px 30px rgba(0,0,0,.35); border-radius:4px; background:#fff;
   pointer-events:none;
 }
+.viewer-stage video {
+  max-width:min(920px, 96vw); width:100%; height:auto;
+  box-shadow:0 6px 30px rgba(0,0,0,.35); border-radius:4px; background:#000;
+}
 .wm-overlay {
   position:absolute; inset:0; overflow:hidden; pointer-events:none; z-index:5;
   display:flex; flex-wrap:wrap; align-content:space-around; justify-content:space-around;
@@ -59,7 +66,7 @@ drHead($titre, true);
 <div class="viewer-bar">
   <a href="/dataroom/room.php" style="text-decoration:none;font-size:13.5px;font-weight:700;color:var(--cyan-dark)"><?= e(t('back_room')) ?></a>
   <div style="flex:1;min-width:180px;font-weight:800;font-size:14.5px;color:var(--navy-2)">
-    <?= $isImage ? '🖼' : '📄' ?> <?= e($titre) ?>
+    <?= $isImage ? '🖼' : ($isVideo ? '🎬' : '📄') ?> <?= e($titre) ?>
     <span style="font-weight:400;color:var(--muted);font-size:12px">· <?= e($doc['version']) ?></span>
   </div>
   <span style="font-size:11px;background:#FEF3E2;color:#92600E;border:1px solid #F3D9AC;border-radius:20px;padding:4px 12px;font-weight:700">
@@ -71,6 +78,10 @@ drHead($titre, true);
   <div class="wm-overlay" id="wm"></div>
   <?php if ($isImage): ?>
     <img src="/dataroom/file.php?id=<?= $id ?>" alt="" draggable="false">
+  <?php elseif ($isVideo): ?>
+    <video controls controlsList="nodownload noremoteplayback" disablePictureInPicture playsinline preload="metadata">
+      <source src="/dataroom/file.php?id=<?= $id ?>" type="<?= e($doc['mime']) ?>">
+    </video>
   <?php else: ?>
     <div id="pdf-status" style="color:rgba(255,255,255,.7);font-size:13px;padding:40px">⏳ …</div>
   <?php endif; ?>
@@ -92,7 +103,7 @@ document.addEventListener('keydown', e => {
 });
 </script>
 
-<?php if (!$isImage): ?>
+<?php if (!$isImage && !$isVideo): ?>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
 <script>
 (async function(){

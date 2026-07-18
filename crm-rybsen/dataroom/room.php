@@ -100,7 +100,7 @@ drHead(t('room_title'));
       $titre = ($DR_LANG === 'en' && $d['titre_en']) ? $d['titre_en'] : $d['titre']; ?>
   <div style="display:flex;align-items:center;gap:16px;padding:14px 24px;border-bottom:1px solid #F0F4F6;flex-wrap:wrap">
     <div style="width:38px;height:38px;border-radius:9px;background:#E8F8FB;display:flex;align-items:center;justify-content:center;font-size:16px;flex-shrink:0">
-      <?= str_starts_with($d['mime'], 'image/') ? '🖼' : '📄' ?>
+      <?= str_starts_with($d['mime'], 'image/') ? '🖼' : (str_starts_with($d['mime'], 'video/') ? '🎬' : '📄') ?>
     </div>
     <div style="flex:1;min-width:200px">
       <div style="font-weight:700;font-size:14px;color:var(--ink)"><?= e($titre) ?></div>

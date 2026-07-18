@@ -98,8 +98,8 @@ if (($user['role'] ?? '') !== 'admin'): ?>
     <div style="padding:20px">
       <form id="upload-form" class="form-grid" onsubmit="return uploadDoc(event)">
         <div class="form-group full">
-          <label>Fichier (PDF, JPG, PNG, WEBP — 30 Mo max — convertir Excel/PPT en PDF)</label>
-          <input type="file" id="up-file" accept=".pdf,.jpg,.jpeg,.png,.webp" required>
+          <label>Fichier — PDF/JPG/PNG/WEBP (30 Mo max) ou MP4/WEBM (500 Mo max) — convertir Excel/PPT en PDF</label>
+          <input type="file" id="up-file" accept=".pdf,.jpg,.jpeg,.png,.webp,.mp4,.webm" required>
         </div>
         <div class="form-group"><label>Titre (FR) *</label><input type="text" id="up-titre" required placeholder="Pitch Deck 2026"></div>
         <div class="form-group"><label>Titre (EN)</label><input type="text" id="up-titre-en" placeholder="Pitch Deck 2026"></div>
