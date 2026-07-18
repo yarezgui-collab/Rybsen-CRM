@@ -107,7 +107,7 @@ if (($user['role'] ?? '') !== 'admin'): ?>
           <label>Catégorie</label>
           <select id="up-cat">
             <option>Pitch & Vision</option><option>Produit & Technologie</option><option>Financier</option>
-            <option>Juridique</option><option>Équipe</option><option>Marché & Traction</option><option>Autre</option>
+            <option>Juridique</option><option>Équipe</option><option>Marché & Traction</option><option>Vidéo</option><option>Autre</option>
           </select>
         </div>
         <div class="form-group"><label>Version</label><input type="text" id="up-version" value="v1"></div>
@@ -205,7 +205,7 @@ if (($user['role'] ?? '') !== 'admin'): ?>
           <label>Catégorie</label>
           <select id="dc-cat">
             <option>Pitch & Vision</option><option>Produit & Technologie</option><option>Financier</option>
-            <option>Juridique</option><option>Équipe</option><option>Marché & Traction</option><option>Autre</option>
+            <option>Juridique</option><option>Équipe</option><option>Marché & Traction</option><option>Vidéo</option><option>Autre</option>
           </select>
         </div>
         <div class="form-group"><label>Version</label><input type="text" id="dc-version"></div>

@@ -38,6 +38,7 @@ $catMeta = [
   'Juridique'             => ['⚖️', 'Legal'],
   'Équipe'                => ['👥', 'Team'],
   'Marché & Traction'     => ['📈', 'Market & Traction'],
+  'Vidéo'                 => ['🎬', 'Video'],
   'Autre'                 => ['📁', 'Other'],
 ];
 $grouped = [];
