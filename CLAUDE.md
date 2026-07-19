@@ -94,12 +94,16 @@ franchises et points de vente. Voir `crm-labo-benyedder/README.md` pour le conte
 - Chemin distant : domains/rybsen.fr/public_html/tby (même compte SFTP que crm-patisserie)
 - config.php n'est jamais commité : généré à chaque run depuis des secrets GitHub, puis déployé
   par SFTP avec le reste (DB_HOST fixé à 'localhost' dans le workflow)
+- Après le SFTP, le workflow appelle run_demo_data.php (protégé par jeton) pour charger les
+  données de démonstration — idempotent, sans risque à chaque déploiement
 - Secrets GitHub requis :
   - Réutilisés (déjà existants) : PATISSERIE_SFTP_HOST / PATISSERIE_SFTP_PORT / PATISSERIE_SFTP_USER / PATISSERIE_SFTP_PASSWORD
-  - Propres à ce projet (à créer) : BENYEDDER_DB_NAME (= nom base = nom utilisateur MySQL, ex: u293743867_Tby) / BENYEDDER_DB_PASSWORD
+  - Propres à ce projet (créés) : BENYEDDER_DB_NAME (= nom base = nom utilisateur MySQL, u293743867_Tby) / BENYEDDER_DB_PASSWORD
+  - Propre à ce projet (à créer) : BENYEDDER_MIGRATION_TOKEN (jeton aléatoire protégeant run_demo_data.php)
 - Exclut du déploiement : *.sql, config.example.php, .gitignore
 - La base MySQL doit déjà contenir le schéma : install.sql exécuté manuellement via phpMyAdmin
-  avant le premier déploiement (non automatisé, pour ne jamais écraser des données existantes)
+  avant le premier déploiement (non automatisé volontairement, pour ne jamais écraser le schéma
+  ou des données existantes en cas de modification future du fichier)
 
 ## Structure du projet
 - Stack : PHP 8+ PDO MySQL sur Hostinger shared hosting (même pattern que crm-rybsen/)

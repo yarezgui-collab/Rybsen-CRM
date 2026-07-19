@@ -36,8 +36,10 @@ PHP 8 + PDO MySQL, même pattern que `crm-rybsen/` (modules/, api/, includes/, a
    (inutile en production : le déploiement automatique le génère depuis les secrets GitHub).
 2. Exécuter `install.sql` dans phpMyAdmin (ou `mysql < install.sql`) sur la base cible.
    Idempotent — peut être rejoué sans risque de doublons.
-3. (Optionnel, démo commerciale) Exécuter `demo_data.sql` pour ajouter 4 clients de
-   démonstration répartis sur les 3 canaux + 2 produits supplémentaires. Idempotent également.
+3. Les données de démonstration (4 clients répartis sur les 3 canaux + 2 produits) sont
+   chargées **automatiquement à chaque déploiement** via `run_demo_data.php`, protégé par le
+   secret `BENYEDDER_MIGRATION_TOKEN` et idempotent (aucun doublon si rejoué). Pas d'action
+   manuelle nécessaire.
 4. Se connecter avec le compte admin initial :
    - email : `admin@benyedder.tn`
    - mot de passe temporaire : `BenYedder2026!` (à changer dans Utilisateurs → Changer mon mot de passe)
@@ -81,8 +83,9 @@ PHP 8 + PDO MySQL, même pattern que `crm-rybsen/` (modules/, api/, includes/, a
 | Secret | Rôle | Statut |
 |---|---|---|
 | `PATISSERIE_SFTP_HOST` / `_PORT` / `_USER` / `_PASSWORD` | Connexion SFTP (compte partagé avec crm-patisserie) | ✅ Déjà existants |
-| `BENYEDDER_DB_NAME` | Nom de la base MySQL = nom d'utilisateur (`u293743867_Tby`) | ⚠️ À créer |
-| `BENYEDDER_DB_PASSWORD` | Mot de passe MySQL | ⚠️ À créer |
+| `BENYEDDER_DB_NAME` | Nom de la base MySQL = nom d'utilisateur (`u293743867_Tby`) | ✅ Créé |
+| `BENYEDDER_DB_PASSWORD` | Mot de passe MySQL | ✅ Créé |
+| `BENYEDDER_MIGRATION_TOKEN` | Jeton partagé protégeant `run_demo_data.php` (valeur aléatoire, n'importe quelle chaîne longue) | ⚠️ À créer |
 
 À ajouter dans Settings → Secrets and variables → Actions du repo. `DB_HOST` est fixé à
 `localhost` dans le workflow (même hébergement que le PHP).

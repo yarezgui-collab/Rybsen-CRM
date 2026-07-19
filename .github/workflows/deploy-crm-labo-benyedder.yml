@@ -24,13 +24,19 @@ jobs:
         env:
           DB_NAME: ${{ secrets.BENYEDDER_DB_NAME }}
           DB_PASS: ${{ secrets.BENYEDDER_DB_PASSWORD }}
+          MIGRATION_TOKEN: ${{ secrets.BENYEDDER_MIGRATION_TOKEN }}
         run: |
           if [ -z "$DB_NAME" ] || [ -z "$DB_PASS" ]; then
             echo "::error::Secrets BENYEDDER_DB_NAME et/ou BENYEDDER_DB_PASSWORD manquants — voir Settings > Secrets and variables > Actions"
             exit 1
           fi
+          if [ -z "$MIGRATION_TOKEN" ]; then
+            echo "::error::Secret BENYEDDER_MIGRATION_TOKEN manquant — voir Settings > Secrets and variables > Actions"
+            exit 1
+          fi
           DB_NAME_ESC=$(printf '%s' "$DB_NAME" | sed "s/[\\\\']/\\\\&/g")
           DB_PASS_ESC=$(printf '%s' "$DB_PASS" | sed "s/[\\\\']/\\\\&/g")
+          TOKEN_ESC=$(printf '%s' "$MIGRATION_TOKEN" | sed "s/[\\\\']/\\\\&/g")
           cat > crm-labo-benyedder/config.php << PHPCONFIG
           <?php
           define('DB_HOST', 'localhost');
@@ -38,6 +44,7 @@ jobs:
           define('DB_USER', '${DB_NAME_ESC}');
           define('DB_PASS', '${DB_PASS_ESC}');
           define('DB_CHARSET', 'utf8mb4');
+          define('MIGRATION_TOKEN', '${TOKEN_ESC}');
 
           function getDB() {
               static \$pdo = null;
@@ -118,3 +125,18 @@ jobs:
             -P "$SFTP_PORT" \
             -b /tmp/sftp_batch.txt \
             "$SFTP_USER@$SFTP_HOST"
+
+      - name: Charger les données de démonstration (idempotent)
+        env:
+          MIGRATION_TOKEN: ${{ secrets.BENYEDDER_MIGRATION_TOKEN }}
+        run: |
+          response=$(curl -sS -X POST "https://tby.rybsen.fr/run_demo_data.php" \
+            -H "X-Migration-Token: $MIGRATION_TOKEN" \
+            -w "\n%{http_code}")
+          http_code=$(echo "$response" | tail -n1)
+          body=$(echo "$response" | sed '$d')
+          echo "$body"
+          if [ "$http_code" != "200" ]; then
+            echo "::error::Échec du chargement des données de démonstration (HTTP $http_code)"
+            exit 1
+          fi
