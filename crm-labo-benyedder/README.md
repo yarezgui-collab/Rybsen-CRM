@@ -32,28 +32,42 @@ PHP 8 + PDO MySQL, même pattern que `crm-rybsen/` (modules/, api/, includes/, a
 
 ## Installation
 
-1. Copier `config.example.php` en `config.php` et renseigner les identifiants MySQL Hostinger.
+1. Copier `config.example.php` en `config.php` et renseigner les identifiants MySQL Hostinger
+   (inutile en production : le déploiement automatique le génère depuis les secrets GitHub).
 2. Exécuter `install.sql` dans phpMyAdmin (ou `mysql < install.sql`) sur la base cible.
-3. Se connecter avec le compte admin initial :
+   Idempotent — peut être rejoué sans risque de doublons.
+3. Les données de démonstration (4 clients répartis sur les 3 canaux + 2 produits) sont
+   chargées **automatiquement à chaque déploiement** via `run_demo_data.php`, protégé par le
+   secret `BENYEDDER_MIGRATION_TOKEN` et idempotent (aucun doublon si rejoué). Pas d'action
+   manuelle nécessaire.
+4. Se connecter avec le compte admin initial :
    - email : `admin@benyedder.tn`
-   - mot de passe temporaire : `BenYedder2026!` (à changer après la première connexion)
+   - mot de passe temporaire : `BenYedder2026!` (à changer dans Utilisateurs → Changer mon mot de passe)
 
 ## État d'avancement
 
-**Opérationnel :**
-- Authentification multi-rôles
-- Modèle de données complet (25 tables + 3 vues : marge produit, stock bas, encours clients)
-- Module Clients à terme (CRUD)
-- Module Catalogue : produits, matières premières, recettes/BOM avec calcul de marge
+**Opérationnel — vérifié de bout en bout (voir rapport de vérification) :**
+- Authentification multi-rôles + gestion des comptes (admin) + changement de mot de passe
+- Modèle de données complet (25 tables + 4 vues : marge produit, stock bas, stock produits finis, encours clients)
+- Clients à terme, Franchises, Points de vente (CRUD)
+- Catalogue : produits, matières premières, recettes/BOM avec calcul de marge en direct
+- Commandes multi-canal (terme/franchise/point de vente), workflow de statuts
+- Production : agrégation des commandes confirmées en ordres de fabrication, clôture avec
+  création de lots tracés (numéro, DLC) et décrémentation automatique des matières premières
+  selon la recette
+- Stock : mouvements matières/produits, corrections manuelles, pertes/invendus, stock vitrine
+  par point de vente, vente passager avec encaissement immédiat
+- Livraisons/Dispatch : depuis un ordre terminé vers le canal d'origine, mise à jour du stock
+- Facturation : génération depuis une commande livrée, mode de paiement résolu automatiquement
+  par canal, paiements partiels/complets, statuts encours
+- Statistiques : marge par produit, stock bas, consommation matières, ventes par canal,
+  produits les plus vendus, encours clients
+- Événements spéciaux (calendrier saisonnier / traiteur) et paramètres/fonctionnalités (admin)
 
-**À développer (placeholders en place, nav déjà branchée) :**
-- Commandes multi-canal + agrégation
-- Production (ordres de fabrication, lots/DLC)
-- Stock (mouvements, décrémentation auto via recette, pertes/invendus)
-- Livraisons / dispatch
-- Facturation & paiements
-- Statistiques & événements spéciaux
-- Gestion utilisateurs & paramètres (admin)
+**Non couvert dans cette itération :**
+- Portails self-service pour franchise / point de vente / client à terme (ces rôles existent
+  et sont protégés côté permissions, mais n'ont pas encore d'interface dédiée limitée à leurs
+  propres données — seuls admin/labo/production ont une interface complète aujourd'hui)
 
 ## Déploiement — 100% automatique
 
@@ -69,8 +83,9 @@ PHP 8 + PDO MySQL, même pattern que `crm-rybsen/` (modules/, api/, includes/, a
 | Secret | Rôle | Statut |
 |---|---|---|
 | `PATISSERIE_SFTP_HOST` / `_PORT` / `_USER` / `_PASSWORD` | Connexion SFTP (compte partagé avec crm-patisserie) | ✅ Déjà existants |
-| `BENYEDDER_DB_NAME` | Nom de la base MySQL = nom d'utilisateur (`u293743867_Tby`) | ⚠️ À créer |
-| `BENYEDDER_DB_PASSWORD` | Mot de passe MySQL | ⚠️ À créer |
+| `BENYEDDER_DB_NAME` | Nom de la base MySQL = nom d'utilisateur (`u293743867_Tby`) | ✅ Créé |
+| `BENYEDDER_DB_PASSWORD` | Mot de passe MySQL | ✅ Créé |
+| `BENYEDDER_MIGRATION_TOKEN` | Jeton partagé protégeant `run_demo_data.php` (valeur aléatoire, n'importe quelle chaîne longue) | ⚠️ À créer |
 
 À ajouter dans Settings → Secrets and variables → Actions du repo. `DB_HOST` est fixé à
 `localhost` dans le workflow (même hébergement que le PHP).
