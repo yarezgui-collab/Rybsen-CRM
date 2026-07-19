@@ -1,0 +1,53 @@
+name: Deploy crm-labo-benyedder to Hostinger
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - 'crm-labo-benyedder/**'
+  workflow_dispatch:
+
+jobs:
+  deploy:
+    name: SFTP → Labo Ben Yedder
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Install sshpass
+        run: sudo apt-get install -y sshpass
+
+      - name: Build SFTP batch file
+        run: |
+          printf -- '-mkdir api\n-mkdir assets\n-mkdir includes\n-mkdir modules\n' > /tmp/sftp_batch.txt
+          find crm-labo-benyedder -type f \
+            ! -name 'config.php' \
+            ! -name '*.sql' \
+            ! -name 'config.example.php' \
+            ! -path '*/.git/*' \
+            ! -name '.gitignore' \
+            | sort | while read f; do
+              remote="${f#crm-labo-benyedder/}"
+              printf 'put %s %s\n' "$f" "$remote"
+            done >> /tmp/sftp_batch.txt
+          printf 'bye\n' >> /tmp/sftp_batch.txt
+          echo "=== Batch file ===" && cat /tmp/sftp_batch.txt
+
+      - name: Deploy via SFTP
+        env:
+          SFTP_HOST: ${{ secrets.BENYEDDER_SFTP_HOST }}
+          SFTP_PORT: ${{ secrets.BENYEDDER_SFTP_PORT }}
+          SFTP_USER: ${{ secrets.BENYEDDER_SFTP_USER }}
+          SFTP_PASS: ${{ secrets.BENYEDDER_SFTP_PASSWORD }}
+        run: |
+          sshpass -p "$SFTP_PASS" sftp \
+            -oBatchMode=no \
+            -oStrictHostKeyChecking=no \
+            -oPasswordAuthentication=yes \
+            -oConnectTimeout=30 \
+            -P "$SFTP_PORT" \
+            -b /tmp/sftp_batch.txt \
+            "$SFTP_USER@$SFTP_HOST"
