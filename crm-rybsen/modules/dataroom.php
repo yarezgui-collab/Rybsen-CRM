@@ -112,6 +112,12 @@ if (($user['role'] ?? '') !== 'admin'): ?>
         </div>
         <div class="form-group"><label>Version</label><input type="text" id="up-version" value="v1"></div>
         <div class="form-group full"><label>Description</label><input type="text" id="up-desc" placeholder="Visible par les investisseurs"></div>
+        <div class="form-group full" id="up-progress-wrap" style="display:none">
+          <div style="background:#f0f0f0;border-radius:8px;height:10px;overflow:hidden">
+            <div id="up-progress-bar" style="background:var(--teal);height:100%;width:0%;transition:width .15s"></div>
+          </div>
+          <div id="up-progress-txt" style="font-size:12px;color:#888;margin-top:4px">0 %</div>
+        </div>
         <div class="form-group full">
           <button type="submit" class="btn btn-teal" id="up-btn">⬆️ Uploader</button>
         </div>
@@ -481,33 +487,96 @@ async function loadDrDocs() {
   </tr>`).join('') : '<tr><td colspan="8" style="text-align:center;padding:30px;color:#999">Aucun document — uploadez le premier ci-dessus</td></tr>';
 }
 
-async function uploadDoc(ev) {
+const UP_DOC_EXTS   = ['pdf', 'jpg', 'jpeg', 'png', 'webp'];
+const UP_VIDEO_EXTS = ['mp4', 'webm'];
+const UP_DOC_MAX   = 30  * 1024 * 1024;
+const UP_VIDEO_MAX = 500 * 1024 * 1024;
+
+function uploadResetUI() {
+  const btn = document.getElementById('up-btn');
+  btn.disabled = false; btn.textContent = '⬆️ Uploader';
+  document.getElementById('up-progress-wrap').style.display = 'none';
+  document.getElementById('up-progress-bar').style.width = '0%';
+  document.getElementById('up-progress-txt').textContent = '0 %';
+}
+
+function uploadDoc(ev) {
   ev.preventDefault();
   const btn = document.getElementById('up-btn');
-  const fd = new FormData();
   const file = document.getElementById('up-file').files[0];
   if (!file) return false;
+
+  // Validation côté client AVANT envoi — évite d'attendre la fin d'un
+  // upload volumineux pour découvrir que le format est refusé (ex: HEIC/MOV
+  // depuis un iPhone/iPad — convertir en JPG/MP4 avant d'importer).
+  const ext = (file.name.split('.').pop() || '').toLowerCase();
+  const isVideo = UP_VIDEO_EXTS.includes(ext);
+  const isDoc = UP_DOC_EXTS.includes(ext);
+  if (!isVideo && !isDoc) {
+    RYBSEN.toast(`Format ".${ext}" non pris en charge. Utilisez PDF/JPG/PNG/WEBP ou MP4/WEBM (convertir les .heic/.mov avant import).`, 'error');
+    return false;
+  }
+  const maxSize = isVideo ? UP_VIDEO_MAX : UP_DOC_MAX;
+  if (file.size > maxSize) {
+    RYBSEN.toast(`Fichier trop volumineux (${Math.round(file.size / 1024 / 1024)} Mo, max ${Math.round(maxSize / 1024 / 1024)} Mo pour ce format).`, 'error');
+    return false;
+  }
+
+  const fd = new FormData();
   fd.append('fichier', file);
   fd.append('titre', document.getElementById('up-titre').value);
   fd.append('titre_en', document.getElementById('up-titre-en').value);
   fd.append('categorie', document.getElementById('up-cat').value);
   fd.append('version', document.getElementById('up-version').value);
   fd.append('description', document.getElementById('up-desc').value);
+
   btn.disabled = true; btn.textContent = '⏳ Upload en cours…';
-  try {
-    const res = await fetch('/api/dataroom_upload.php', {
-      method: 'POST',
-      headers: { 'X-Requested-With': 'XMLHttpRequest' },
-      body: fd
-    });
-    const r = await res.json();
+  const wrap = document.getElementById('up-progress-wrap');
+  const bar  = document.getElementById('up-progress-bar');
+  const txt  = document.getElementById('up-progress-txt');
+  wrap.style.display = '';
+
+  const xhr = new XMLHttpRequest();
+  xhr.open('POST', '/api/dataroom_upload.php');
+  xhr.setRequestHeader('X-Requested-With', 'XMLHttpRequest');
+  xhr.timeout = 20 * 60 * 1000; // 20 min — vidéos volumineuses sur réseau mobile
+
+  xhr.upload.addEventListener('progress', e => {
+    if (!e.lengthComputable) return;
+    const pct = Math.round(e.loaded / e.total * 100);
+    bar.style.width = pct + '%';
+    txt.textContent = pct + ' %' + (pct >= 100 ? ' — traitement côté serveur…' : '');
+  });
+
+  xhr.addEventListener('load', () => {
+    let r;
+    try { r = JSON.parse(xhr.responseText); }
+    catch (e) {
+      RYBSEN.toast('Réponse serveur invalide (HTTP ' + xhr.status + '). Réessayez ou contactez l\'administrateur.', 'error');
+      uploadResetUI();
+      return;
+    }
     if (r.ok) {
       RYBSEN.toast('Document ajouté ✓');
       document.getElementById('upload-form').reset();
       loadDrDocs();
-    } else RYBSEN.toast(r.error || 'Erreur upload', 'error');
-  } catch (err) { RYBSEN.toast('Erreur réseau : ' + err.message, 'error'); }
-  btn.disabled = false; btn.textContent = '⬆️ Uploader';
+    } else {
+      RYBSEN.toast(r.error || 'Erreur upload', 'error');
+    }
+    uploadResetUI();
+  });
+
+  xhr.addEventListener('error', () => {
+    RYBSEN.toast('Erreur réseau pendant l\'upload — vérifiez la connexion et réessayez.', 'error');
+    uploadResetUI();
+  });
+  xhr.addEventListener('timeout', () => {
+    RYBSEN.toast('Upload trop long (délai dépassé) — réessayez avec une connexion plus stable ou un fichier plus léger.', 'error');
+    uploadResetUI();
+  });
+  xhr.addEventListener('abort', uploadResetUI);
+
+  xhr.send(fd);
   return false;
 }
 
