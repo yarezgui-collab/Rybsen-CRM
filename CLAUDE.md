@@ -74,3 +74,52 @@ Tu travailles sur le projet CRM déployé sur crm.rybsen.com (Hostinger).
 2. Credentials SFTP uniquement en secrets GitHub Actions (préfixe STARTUP_)
 3. Toujours créer une branche feature, merger via PR → main
 4. Appliquer migration_v3.sql manuellement via phpMyAdmin au premier déploiement
+
+---
+
+# CRM Labo Ben Yedder — Instructions Claude Code
+
+Traiteur Pâtisserie Ben Yedder : labo de fabrication distribuant vers clients à terme,
+franchises et points de vente. Voir `crm-labo-benyedder/README.md` pour le contexte métier complet.
+
+## Dépôt GitHub
+- Repo : yarezgui-collab/Rybsen-CRM
+- Dossier source : crm-labo-benyedder/
+- Ne jamais pousser directement sur `main` sans PR
+
+## Déploiement SFTP automatique — 100% automatisé, y compris config.php
+- Fichier : .github/workflows/deploy-crm-labo-benyedder.yml
+- Déclenché sur push `main` (paths: `crm-labo-benyedder/**`)
+- URL prod : https://tby.rybsen.fr
+- Chemin distant : domains/rybsen.fr/public_html/tby (même compte SFTP que crm-patisserie)
+- config.php n'est jamais commité : généré à chaque run depuis des secrets GitHub, puis déployé
+  par SFTP avec le reste (DB_HOST fixé à 'localhost' dans le workflow)
+- Secrets GitHub requis :
+  - Réutilisés (déjà existants) : PATISSERIE_SFTP_HOST / PATISSERIE_SFTP_PORT / PATISSERIE_SFTP_USER / PATISSERIE_SFTP_PASSWORD
+  - Propres à ce projet (à créer) : BENYEDDER_DB_NAME (= nom base = nom utilisateur MySQL, ex: u293743867_Tby) / BENYEDDER_DB_PASSWORD
+- Exclut du déploiement : *.sql, config.example.php, .gitignore
+- La base MySQL doit déjà contenir le schéma : install.sql exécuté manuellement via phpMyAdmin
+  avant le premier déploiement (non automatisé, pour ne jamais écraser des données existantes)
+
+## Structure du projet
+- Stack : PHP 8+ PDO MySQL sur Hostinger shared hosting (même pattern que crm-rybsen/)
+- Modules dans crm-labo-benyedder/modules/, API centralisée dans crm-labo-benyedder/api/api.php
+- Layout partagé : crm-labo-benyedder/includes/header.php + footer.php (nav adaptée par rôle)
+- Pattern JS : loadX() → applyFiltersX() → renderX(data), namespace global `LABO` (LABO.escape() anti-XSS)
+
+## Modèle de données
+- install.sql : schéma complet (clients/franchises/points de vente, catalogue produits +
+  matières premières + recettes/BOM, commandes multi-canal, production/ordres de fabrication,
+  lots & traçabilité DLC, stock, pertes/invendus, livraisons, facturation, événements spéciaux)
+- Vues utiles : v_marge_produits, v_stock_bas, v_encours_clients
+- Rôles utilisateurs : admin, labo, production, franchise, point_vente, client_terme —
+  chaque rôle a sa propre interface (nav filtrée dans includes/header.php)
+
+## Contraintes critiques
+1. `crm-labo-benyedder/config.php` ne doit JAMAIS être commité dans git
+2. Credentials SFTP uniquement en secrets GitHub Actions (préfixe BENYEDDER_)
+3. Toujours créer une branche feature, merger via PR → main
+4. Ne jamais recalculer ou écraser des valeurs monétaires existantes en base
+5. DECIMAL(10,3) pour toutes les valeurs monétaires et quantités (cohérence avec crm-rybsen)
+6. La décrémentation de stock matières premières doit toujours passer par la recette (BOM),
+   jamais de modification manuelle du stock hors mouvement tracé
