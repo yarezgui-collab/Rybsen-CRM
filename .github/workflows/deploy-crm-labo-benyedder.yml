@@ -20,12 +20,78 @@ jobs:
       - name: Install sshpass
         run: sudo apt-get install -y sshpass
 
+      - name: Generate config.php from secrets
+        env:
+          DB_NAME: ${{ secrets.BENYEDDER_DB_NAME }}
+          DB_PASS: ${{ secrets.BENYEDDER_DB_PASSWORD }}
+        run: |
+          if [ -z "$DB_NAME" ] || [ -z "$DB_PASS" ]; then
+            echo "::error::Secrets BENYEDDER_DB_NAME et/ou BENYEDDER_DB_PASSWORD manquants — voir Settings > Secrets and variables > Actions"
+            exit 1
+          fi
+          DB_NAME_ESC=$(printf '%s' "$DB_NAME" | sed "s/[\\\\']/\\\\&/g")
+          DB_PASS_ESC=$(printf '%s' "$DB_PASS" | sed "s/[\\\\']/\\\\&/g")
+          cat > crm-labo-benyedder/config.php << PHPCONFIG
+          <?php
+          define('DB_HOST', 'localhost');
+          define('DB_NAME', '${DB_NAME_ESC}');
+          define('DB_USER', '${DB_NAME_ESC}');
+          define('DB_PASS', '${DB_PASS_ESC}');
+          define('DB_CHARSET', 'utf8mb4');
+
+          function getDB() {
+              static \$pdo = null;
+              if (\$pdo === null) {
+                  try {
+                      \$dsn = "mysql:host=" . DB_HOST . ";dbname=" . DB_NAME . ";charset=" . DB_CHARSET;
+                      \$pdo = new PDO(\$dsn, DB_USER, DB_PASS, [
+                          PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION,
+                          PDO::ATTR_DEFAULT_FETCH_MODE => PDO::FETCH_ASSOC,
+                          PDO::ATTR_EMULATE_PREPARES => false,
+                      ]);
+                  } catch (PDOException \$e) {
+                      http_response_code(500);
+                      die(json_encode(['error' => 'Connexion échouée: ' . \$e->getMessage()]));
+                  }
+              }
+              return \$pdo;
+          }
+
+          function requireLogin() {
+              if (session_status() === PHP_SESSION_NONE) session_start();
+              if (!isset(\$_SESSION['user_id'])) {
+                  if (!empty(\$_SERVER['HTTP_X_REQUESTED_WITH'])) {
+                      http_response_code(401);
+                      die(json_encode(['error' => 'Non authentifié']));
+                  }
+                  header('Location: /login.php');
+                  exit;
+              }
+          }
+
+          function currentUser() {
+              if (session_status() === PHP_SESSION_NONE) session_start();
+              return \$_SESSION['user'] ?? null;
+          }
+
+          function requireRole(array \$roles) {
+              \$u = currentUser();
+              if (!\$u || !in_array(\$u['role'], \$roles, true)) {
+                  if (!empty(\$_SERVER['HTTP_X_REQUESTED_WITH'])) {
+                      http_response_code(403);
+                      die(json_encode(['error' => 'Accès refusé pour ce rôle']));
+                  }
+                  header('Location: /index.php');
+                  exit;
+              }
+          }
+          PHPCONFIG
+
       - name: Build SFTP batch file
         run: |
           printf 'cd domains/rybsen.fr/public_html/tby\n' > /tmp/sftp_batch.txt
           printf -- '-mkdir api\n-mkdir assets\n-mkdir includes\n-mkdir modules\n' >> /tmp/sftp_batch.txt
           find crm-labo-benyedder -type f \
-            ! -name 'config.php' \
             ! -name '*.sql' \
             ! -name 'config.example.php' \
             ! -path '*/.git/*' \
@@ -35,7 +101,7 @@ jobs:
               printf 'put %s %s\n' "$f" "$remote"
             done >> /tmp/sftp_batch.txt
           printf 'bye\n' >> /tmp/sftp_batch.txt
-          echo "=== Batch file ===" && cat /tmp/sftp_batch.txt
+          echo "=== Batch file (config.php content hidden) ===" && grep -v config.php /tmp/sftp_batch.txt
 
       - name: Deploy via SFTP
         env:

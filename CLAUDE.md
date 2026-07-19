@@ -87,16 +87,19 @@ franchises et points de vente. Voir `crm-labo-benyedder/README.md` pour le conte
 - Dossier source : crm-labo-benyedder/
 - Ne jamais pousser directement sur `main` sans PR
 
-## Déploiement SFTP automatique
+## Déploiement SFTP automatique — 100% automatisé, y compris config.php
 - Fichier : .github/workflows/deploy-crm-labo-benyedder.yml
 - Déclenché sur push `main` (paths: `crm-labo-benyedder/**`)
 - URL prod : https://tby.rybsen.fr
 - Chemin distant : domains/rybsen.fr/public_html/tby (même compte SFTP que crm-patisserie)
-- Secrets GitHub réutilisés (déjà existants, pas de nouveau secret) :
-  PATISSERIE_SFTP_HOST / PATISSERIE_SFTP_PORT / PATISSERIE_SFTP_USER / PATISSERIE_SFTP_PASSWORD
-- Exclut du déploiement : config.php, *.sql, config.example.php, .gitignore
-- La base MySQL dédiée doit être créée manuellement sur hPanel, install.sql exécuté via
-  phpMyAdmin, et config.php déposé manuellement sur le serveur au premier déploiement
+- config.php n'est jamais commité : généré à chaque run depuis des secrets GitHub, puis déployé
+  par SFTP avec le reste (DB_HOST fixé à 'localhost' dans le workflow)
+- Secrets GitHub requis :
+  - Réutilisés (déjà existants) : PATISSERIE_SFTP_HOST / PATISSERIE_SFTP_PORT / PATISSERIE_SFTP_USER / PATISSERIE_SFTP_PASSWORD
+  - Propres à ce projet (à créer) : BENYEDDER_DB_NAME (= nom base = nom utilisateur MySQL, ex: u293743867_Tby) / BENYEDDER_DB_PASSWORD
+- Exclut du déploiement : *.sql, config.example.php, .gitignore
+- La base MySQL doit déjà contenir le schéma : install.sql exécuté manuellement via phpMyAdmin
+  avant le premier déploiement (non automatisé, pour ne jamais écraser des données existantes)
 
 ## Structure du projet
 - Stack : PHP 8+ PDO MySQL sur Hostinger shared hosting (même pattern que crm-rybsen/)
