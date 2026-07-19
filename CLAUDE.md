@@ -90,9 +90,13 @@ franchises et points de vente. Voir `crm-labo-benyedder/README.md` pour le conte
 ## Déploiement SFTP automatique
 - Fichier : .github/workflows/deploy-crm-labo-benyedder.yml
 - Déclenché sur push `main` (paths: `crm-labo-benyedder/**`)
-- Secrets GitHub requis (à créer, sous-domaine + base MySQL à provisionner sur Hostinger) :
-  BENYEDDER_SFTP_HOST / BENYEDDER_SFTP_PORT / BENYEDDER_SFTP_USER / BENYEDDER_SFTP_PASSWORD
+- URL prod : https://tby.rybsen.fr
+- Chemin distant : domains/rybsen.fr/public_html/tby (même compte SFTP que crm-patisserie)
+- Secrets GitHub réutilisés (déjà existants, pas de nouveau secret) :
+  PATISSERIE_SFTP_HOST / PATISSERIE_SFTP_PORT / PATISSERIE_SFTP_USER / PATISSERIE_SFTP_PASSWORD
 - Exclut du déploiement : config.php, *.sql, config.example.php, .gitignore
+- La base MySQL dédiée doit être créée manuellement sur hPanel, install.sql exécuté via
+  phpMyAdmin, et config.php déposé manuellement sur le serveur au premier déploiement
 
 ## Structure du projet
 - Stack : PHP 8+ PDO MySQL sur Hostinger shared hosting (même pattern que crm-rybsen/)

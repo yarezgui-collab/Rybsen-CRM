@@ -22,7 +22,8 @@ jobs:
 
       - name: Build SFTP batch file
         run: |
-          printf -- '-mkdir api\n-mkdir assets\n-mkdir includes\n-mkdir modules\n' > /tmp/sftp_batch.txt
+          printf 'cd domains/rybsen.fr/public_html/tby\n' > /tmp/sftp_batch.txt
+          printf -- '-mkdir api\n-mkdir assets\n-mkdir includes\n-mkdir modules\n' >> /tmp/sftp_batch.txt
           find crm-labo-benyedder -type f \
             ! -name 'config.php' \
             ! -name '*.sql' \
@@ -38,10 +39,10 @@ jobs:
 
       - name: Deploy via SFTP
         env:
-          SFTP_HOST: ${{ secrets.BENYEDDER_SFTP_HOST }}
-          SFTP_PORT: ${{ secrets.BENYEDDER_SFTP_PORT }}
-          SFTP_USER: ${{ secrets.BENYEDDER_SFTP_USER }}
-          SFTP_PASS: ${{ secrets.BENYEDDER_SFTP_PASSWORD }}
+          SFTP_HOST: ${{ secrets.PATISSERIE_SFTP_HOST }}
+          SFTP_PORT: ${{ secrets.PATISSERIE_SFTP_PORT }}
+          SFTP_USER: ${{ secrets.PATISSERIE_SFTP_USER }}
+          SFTP_PASS: ${{ secrets.PATISSERIE_SFTP_PASSWORD }}
         run: |
           sshpass -p "$SFTP_PASS" sftp \
             -oBatchMode=no \

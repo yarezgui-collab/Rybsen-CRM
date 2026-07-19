@@ -57,7 +57,12 @@ PHP 8 + PDO MySQL, même pattern que `crm-rybsen/` (modules/, api/, includes/, a
 
 ## Déploiement
 
-Automatique via GitHub Actions (`.github/workflows/deploy-crm-labo-benyedder.yml`) au push sur
-`main` dans `crm-labo-benyedder/**`. Nécessite les secrets GitHub `BENYEDDER_SFTP_HOST`,
-`BENYEDDER_SFTP_PORT`, `BENYEDDER_SFTP_USER`, `BENYEDDER_SFTP_PASSWORD` (à créer — le
-sous-domaine et la base MySQL Hostinger doivent être créés au préalable).
+- URL prod : https://tby.rybsen.fr
+- Chemin distant : `domains/rybsen.fr/public_html/tby`
+- Automatique via GitHub Actions (`.github/workflows/deploy-crm-labo-benyedder.yml`) au push sur
+  `main` dans `crm-labo-benyedder/**`.
+- Réutilise les secrets GitHub existants de crm-patisserie (même compte SFTP) :
+  `PATISSERIE_SFTP_HOST`, `PATISSERIE_SFTP_PORT`, `PATISSERIE_SFTP_USER`,
+  `PATISSERIE_SFTP_PASSWORD` — aucun nouveau secret à créer.
+- La base MySQL dédiée doit être créée sur hPanel, puis `install.sql` exécuté manuellement via
+  phpMyAdmin, et `config.php` déposé manuellement sur le serveur (jamais commité).
