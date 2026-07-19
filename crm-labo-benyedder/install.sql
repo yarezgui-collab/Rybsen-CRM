@@ -59,9 +59,20 @@ CREATE TABLE IF NOT EXISTS points_vente (
   created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
-ALTER TABLE users
-  ADD CONSTRAINT fk_user_client FOREIGN KEY (client_id) REFERENCES clients(id) ON DELETE SET NULL,
-  ADD CONSTRAINT fk_user_pv FOREIGN KEY (point_vente_id) REFERENCES points_vente(id) ON DELETE SET NULL;
+-- Ajout conditionnel des FK (évite une erreur si ce script est exécuté plusieurs fois)
+DELIMITER $$
+CREATE PROCEDURE add_user_fk_if_missing()
+BEGIN
+  IF NOT EXISTS (SELECT 1 FROM information_schema.TABLE_CONSTRAINTS WHERE TABLE_SCHEMA=DATABASE() AND TABLE_NAME='users' AND CONSTRAINT_NAME='fk_user_client') THEN
+    ALTER TABLE users ADD CONSTRAINT fk_user_client FOREIGN KEY (client_id) REFERENCES clients(id) ON DELETE SET NULL;
+  END IF;
+  IF NOT EXISTS (SELECT 1 FROM information_schema.TABLE_CONSTRAINTS WHERE TABLE_SCHEMA=DATABASE() AND TABLE_NAME='users' AND CONSTRAINT_NAME='fk_user_pv') THEN
+    ALTER TABLE users ADD CONSTRAINT fk_user_pv FOREIGN KEY (point_vente_id) REFERENCES points_vente(id) ON DELETE SET NULL;
+  END IF;
+END$$
+DELIMITER ;
+CALL add_user_fk_if_missing();
+DROP PROCEDURE add_user_fk_if_missing;
 
 -- ============================================================
 -- FOURNISSEURS & MATIÈRES PREMIÈRES
@@ -346,6 +357,20 @@ GROUP BY p.id, p.nom, p.prix_vente;
 CREATE OR REPLACE VIEW v_stock_bas AS
 SELECT * FROM matieres_premieres WHERE actif = 1 AND stock_actuel <= seuil_alerte;
 
+-- Stock produits finis (grand livre des mouvements, pas de colonne stock_actuel dédiée)
+CREATE OR REPLACE VIEW v_stock_produits AS
+SELECT
+  p.id AS produit_id,
+  p.nom,
+  COALESCE(SUM(CASE
+    WHEN m.type_mouvement = 'entree' THEN m.quantite
+    WHEN m.type_mouvement = 'sortie' THEN -m.quantite
+    ELSE m.quantite
+  END), 0) AS stock_actuel
+FROM produits p
+LEFT JOIN mouvements_stock_produits m ON m.produit_id = p.id
+GROUP BY p.id, p.nom;
+
 -- Encours des clients à terme (factures émises non soldées)
 CREATE OR REPLACE VIEW v_encours_clients AS
 SELECT
@@ -379,21 +404,40 @@ INSERT INTO parametres (cle, valeur) VALUES
 ('feature_evenementiel', '1')
 ON DUPLICATE KEY UPDATE valeur = valeur;
 
-INSERT INTO matieres_premieres (nom, unite, stock_actuel, seuil_alerte, prix_unitaire) VALUES
-('Farine', 'kg', 200.000, 30.000, 1.200),
-('Beurre', 'kg', 80.000, 15.000, 14.500),
-('Sucre', 'kg', 100.000, 20.000, 2.100),
-('Œufs', 'unité', 500.000, 100.000, 0.350),
-('Amandes', 'kg', 40.000, 8.000, 22.000),
-('Miel', 'kg', 25.000, 5.000, 18.000)
-ON DUPLICATE KEY UPDATE nom = nom;
+-- Note: nom n'est pas une clé UNIQUE sur ces tables, donc chaque ligne est
+-- insérée uniquement si elle n'existe pas déjà (évite les doublons si ce
+-- script est exécuté plusieurs fois).
+INSERT INTO matieres_premieres (nom, unite, stock_actuel, seuil_alerte, prix_unitaire)
+SELECT * FROM (SELECT 'Farine' nom, 'kg' unite, 200.000 stock_actuel, 30.000 seuil_alerte, 1.200 prix_unitaire) v
+WHERE NOT EXISTS (SELECT 1 FROM matieres_premieres WHERE nom = v.nom);
+INSERT INTO matieres_premieres (nom, unite, stock_actuel, seuil_alerte, prix_unitaire)
+SELECT * FROM (SELECT 'Beurre', 'kg', 80.000, 15.000, 14.500) v
+WHERE NOT EXISTS (SELECT 1 FROM matieres_premieres WHERE nom = 'Beurre');
+INSERT INTO matieres_premieres (nom, unite, stock_actuel, seuil_alerte, prix_unitaire)
+SELECT * FROM (SELECT 'Sucre', 'kg', 100.000, 20.000, 2.100) v
+WHERE NOT EXISTS (SELECT 1 FROM matieres_premieres WHERE nom = 'Sucre');
+INSERT INTO matieres_premieres (nom, unite, stock_actuel, seuil_alerte, prix_unitaire)
+SELECT * FROM (SELECT 'Œufs', 'unité', 500.000, 100.000, 0.350) v
+WHERE NOT EXISTS (SELECT 1 FROM matieres_premieres WHERE nom = 'Œufs');
+INSERT INTO matieres_premieres (nom, unite, stock_actuel, seuil_alerte, prix_unitaire)
+SELECT * FROM (SELECT 'Amandes', 'kg', 40.000, 8.000, 22.000) v
+WHERE NOT EXISTS (SELECT 1 FROM matieres_premieres WHERE nom = 'Amandes');
+INSERT INTO matieres_premieres (nom, unite, stock_actuel, seuil_alerte, prix_unitaire)
+SELECT * FROM (SELECT 'Miel', 'kg', 25.000, 5.000, 18.000) v
+WHERE NOT EXISTS (SELECT 1 FROM matieres_premieres WHERE nom = 'Miel');
 
-INSERT INTO produits (nom, categorie, prix_vente, unite) VALUES
-('Croissant', 'Viennoiserie', 0.900, 'pièce'),
-('Pain au chocolat', 'Viennoiserie', 1.000, 'pièce'),
-('Baklawa', 'Pâtisserie traditionnelle', 1.500, 'pièce'),
-('Kaak Warka', 'Pâtisserie traditionnelle', 1.200, 'pièce')
-ON DUPLICATE KEY UPDATE nom = nom;
+INSERT INTO produits (nom, categorie, prix_vente, unite)
+SELECT * FROM (SELECT 'Croissant' nom, 'Viennoiserie' categorie, 0.900 prix_vente, 'pièce' unite) v
+WHERE NOT EXISTS (SELECT 1 FROM produits WHERE nom = 'Croissant');
+INSERT INTO produits (nom, categorie, prix_vente, unite)
+SELECT * FROM (SELECT 'Pain au chocolat', 'Viennoiserie', 1.000, 'pièce') v
+WHERE NOT EXISTS (SELECT 1 FROM produits WHERE nom = 'Pain au chocolat');
+INSERT INTO produits (nom, categorie, prix_vente, unite)
+SELECT * FROM (SELECT 'Baklawa', 'Pâtisserie traditionnelle', 1.500, 'pièce') v
+WHERE NOT EXISTS (SELECT 1 FROM produits WHERE nom = 'Baklawa');
+INSERT INTO produits (nom, categorie, prix_vente, unite)
+SELECT * FROM (SELECT 'Kaak Warka', 'Pâtisserie traditionnelle', 1.200, 'pièce') v
+WHERE NOT EXISTS (SELECT 1 FROM produits WHERE nom = 'Kaak Warka');
 
 INSERT INTO recettes (produit_id, matiere_id, quantite_necessaire)
 SELECT p.id, m.id, v.qte FROM (

@@ -111,7 +111,7 @@ franchises et points de vente. Voir `crm-labo-benyedder/README.md` pour le conte
 - install.sql : schéma complet (clients/franchises/points de vente, catalogue produits +
   matières premières + recettes/BOM, commandes multi-canal, production/ordres de fabrication,
   lots & traçabilité DLC, stock, pertes/invendus, livraisons, facturation, événements spéciaux)
-- Vues utiles : v_marge_produits, v_stock_bas, v_encours_clients
+- Vues utiles : v_marge_produits, v_stock_bas, v_stock_produits, v_encours_clients
 - Rôles utilisateurs : admin, labo, production, franchise, point_vente, client_terme —
   chaque rôle a sa propre interface (nav filtrée dans includes/header.php)
 

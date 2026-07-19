@@ -20,8 +20,8 @@ require_once 'includes/header.php';
 <div class="section-card">
   <div class="section-header"><div class="section-title">🥐 Bienvenue, <?= htmlspecialchars($user['nom']) ?></div></div>
   <div class="empty-placeholder">
-    <p class="empty-placeholder-main">Le flux commandes → production → dispatch → facturation est en cours de construction.</p>
-    <p class="empty-placeholder-desc">Le catalogue (produits, matières premières, recettes) et les clients à terme sont déjà opérationnels — commencez par là dans le menu.</p>
+    <p class="empty-placeholder-main">Le flux complet est opérationnel : Commandes → Production → Stock → Livraisons → Facturation.</p>
+    <p class="empty-placeholder-desc">Créez une commande, confirmez-la, générez un ordre de fabrication depuis Production, clôturez-le, dispatchez-la depuis Livraisons, puis facturez-la — chaque étape met à jour le stock et les statistiques automatiquement.</p>
   </div>
 </div>
 

@@ -6,7 +6,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Ben Yedder CRM — <?= htmlspecialchars($pageTitle ?? 'Tableau de bord') ?></title>
 <link rel="stylesheet" href="/assets/style.css">
-<script src="/assets/app.js" defer></script>
+<script src="/assets/app.js"></script>
 </head>
 <body>
 <nav class="sidebar" id="sidebar">
