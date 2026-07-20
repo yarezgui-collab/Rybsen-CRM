@@ -98,8 +98,10 @@ jobs:
         run: |
           printf 'cd domains/rybsen.fr/public_html/tby\n' > /tmp/sftp_batch.txt
           printf -- '-mkdir api\n-mkdir assets\n-mkdir includes\n-mkdir modules\n' >> /tmp/sftp_batch.txt
+          # Déploie tous les fichiers SAUF les dumps SQL — mais on GARDE install.sql,
+          # nécessaire à run_migration.php pour appliquer le schéma côté serveur.
           find crm-labo-benyedder -type f \
-            ! -name '*.sql' \
+            ! \( -name '*.sql' ! -name 'install.sql' \) \
             ! -name 'config.example.php' \
             ! -path '*/.git/*' \
             ! -name '.gitignore' \
@@ -125,6 +127,29 @@ jobs:
             -P "$SFTP_PORT" \
             -b /tmp/sftp_batch.txt \
             "$SFTP_USER@$SFTP_HOST"
+
+      - name: Appliquer le schéma de base de données (install.sql, idempotent)
+        env:
+          MIGRATION_TOKEN: ${{ secrets.BENYEDDER_MIGRATION_TOKEN }}
+        run: |
+          # Exécute install.sql côté serveur (CREATE TABLE IF NOT EXISTS, procédures
+          # conditionnelles pour les colonnes, CREATE OR REPLACE pour les vues).
+          # Idempotent : n'ajoute que ce qui manque, n'écrase jamais les données existantes.
+          response=$(curl -sS -X POST "https://tby.rybsen.fr/run_migration.php" \
+            -H "X-Migration-Token: $MIGRATION_TOKEN" \
+            -w "\n%{http_code}")
+          http_code=$(echo "$response" | tail -n1)
+          body=$(echo "$response" | sed '$d')
+          echo "$body"
+          if [ "$http_code" != "200" ]; then
+            echo "::error::Échec de l'application du schéma (HTTP $http_code)"
+            exit 1
+          fi
+          # Bloque le déploiement si une requête SQL a échoué (champ "ok":false)
+          if echo "$body" | grep -q '"ok":false'; then
+            echo "::error::Des requêtes du schéma ont échoué — voir la sortie ci-dessus"
+            exit 1
+          fi
 
       - name: Charger les données de démonstration (idempotent)
         env:

@@ -101,9 +101,15 @@ franchises et points de vente. Voir `crm-labo-benyedder/README.md` pour le conte
   - Propres à ce projet (créés) : BENYEDDER_DB_NAME (= nom base = nom utilisateur MySQL, u293743867_Tby) / BENYEDDER_DB_PASSWORD
   - Propre à ce projet (à créer) : BENYEDDER_MIGRATION_TOKEN (jeton aléatoire protégeant run_demo_data.php)
 - Exclut du déploiement : *.sql, config.example.php, .gitignore
-- La base MySQL doit déjà contenir le schéma : install.sql exécuté manuellement via phpMyAdmin
-  avant le premier déploiement (non automatisé volontairement, pour ne jamais écraser le schéma
-  ou des données existantes en cas de modification future du fichier)
+- Le schéma est appliqué automatiquement à chaque déploiement via run_migration.php (protégé par
+  BENYEDDER_MIGRATION_TOKEN) : ce endpoint exécute install.sql côté serveur, en respectant les
+  DELIMITER (procédures stockées). Idempotent — CREATE TABLE IF NOT EXISTS, procédures
+  conditionnelles (information_schema) pour les colonnes, CREATE OR REPLACE pour les vues ; ne
+  crée que ce qui manque, n'écrase jamais les données existantes. Le workflow bloque le déploiement
+  si une requête échoue ("ok":false). run_migration.php est appelé AVANT run_demo_data.php.
+- *.sql (dont install.sql) n'est pas déployé par SFTP : run_migration.php lit install.sql… donc
+  install.sql DOIT être déployé. Il est inclus dans le SFTP (l'exclusion *.sql concerne les autres
+  dumps) — vérifier que install.sql est bien présent sur le serveur pour que la migration fonctionne.
 
 ## Structure du projet
 - Stack : PHP 8+ PDO MySQL sur Hostinger shared hosting (même pattern que crm-rybsen/)
