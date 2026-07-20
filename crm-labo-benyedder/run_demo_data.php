@@ -95,4 +95,31 @@ foreach ($recettes as [$pnom, $mnom, $qte]) {
     }
 }
 
+// ── Comptes de connexion pour tester chaque portail externe (mot de passe : Demo2026!) ──
+$demoHash = '$2y$12$OCO2J8b3/LbKX53L9s6UKevkJ0lE.AVQdwENxZAbvOQnu4RL/NHLq';
+
+$stmt = $db->prepare("SELECT id FROM clients WHERE nom = 'Franchise Ben Yedder Sfax'");
+$stmt->execute();
+if ($fid = $stmt->fetchColumn()) {
+    insertIfMissing($db, 'users', 'email', 'demo.franchise@benyedder.tn',
+        "INSERT INTO users (nom,email,password_hash,role,avatar,client_id) VALUES (?,?,?,'franchise','FR',?)",
+        ['Franchise Sfax (démo)', 'demo.franchise@benyedder.tn', $demoHash, $fid], $log);
+}
+
+$stmt = $db->prepare("SELECT id FROM clients WHERE nom = 'Café de la Gare'");
+$stmt->execute();
+if ($cid = $stmt->fetchColumn()) {
+    insertIfMissing($db, 'users', 'email', 'demo.client@benyedder.tn',
+        "INSERT INTO users (nom,email,password_hash,role,avatar,client_id) VALUES (?,?,?,'client_terme','CG',?)",
+        ['Café de la Gare (démo)', 'demo.client@benyedder.tn', $demoHash, $cid], $log);
+}
+
+$stmt = $db->prepare("SELECT id FROM points_vente WHERE nom = 'Boutique El Menzah'");
+$stmt->execute();
+if ($pvid = $stmt->fetchColumn()) {
+    insertIfMissing($db, 'users', 'email', 'demo.pointvente@benyedder.tn',
+        "INSERT INTO users (nom,email,password_hash,role,avatar,point_vente_id) VALUES (?,?,?,'point_vente','PV',?)",
+        ['Boutique El Menzah (démo)', 'demo.pointvente@benyedder.tn', $demoHash, $pvid], $log);
+}
+
 echo json_encode(['ok' => true, 'log' => $log], JSON_UNESCAPED_UNICODE);

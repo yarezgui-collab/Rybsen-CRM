@@ -16,6 +16,16 @@ require_once '../includes/header.php';
 </div>
 
 <div class="section-card">
+  <div class="section-header"><div class="section-title">⏳ Déclarations de paiement en attente</div></div>
+  <div class="table-wrap">
+    <table>
+      <thead><tr><th>Facture</th><th>Client</th><th>Montant déclaré</th><th>Mode</th><th>Référence</th><th>Date</th><th>Actions</th></tr></thead>
+      <tbody id="decl-body"><tr><td colspan="7" style="text-align:center;padding:20px;color:var(--text-muted)">Chargement...</td></tr></tbody>
+    </table>
+  </div>
+</div>
+
+<div class="section-card">
   <div class="section-header"><div class="section-title">🧾 Factures</div></div>
   <div class="filters-bar">
     <select id="filter-statut">
@@ -166,8 +176,40 @@ async function delPaiement(id, factureId) {
   if (r.ok) { LABO.toast('Paiement supprimé'); loadFact(); openDetail(factureId); }
 }
 
+async function loadDeclarations() {
+  const rows = await LABO.api('declarations_list');
+  const enAttente = rows.filter(d => d.statut === 'en_attente');
+  const e = LABO.escape;
+  document.getElementById('decl-body').innerHTML = enAttente.length ? enAttente.map(d => `
+    <tr>
+      <td><strong>${e(d.facture_numero)}</strong></td>
+      <td>${e(d.client_nom || d.point_vente_nom || '—')}</td>
+      <td class="num">${LABO.formatCurrency(d.montant)}</td>
+      <td>${e(d.mode)}</td>
+      <td>${e(d.reference) || '—'}</td>
+      <td>${LABO.formatDate(d.date_declaration)}</td>
+      <td>
+        <button class="btn btn-teal btn-sm" onclick="validerDeclaration(${d.id})">✓ Valider</button>
+        <button class="btn btn-danger btn-sm" onclick="rejeterDeclaration(${d.id})">✕ Rejeter</button>
+      </td>
+    </tr>`).join('') : '<tr><td colspan="7" style="text-align:center;padding:20px;color:var(--text-muted)">Aucune déclaration en attente</td></tr>';
+}
+async function validerDeclaration(id) {
+  if (!confirm('Confirmer la réception réelle de ce paiement ?')) return;
+  const r = await LABO.api('declaration_valider', { id });
+  if (r.ok) { LABO.toast('Paiement validé ✓'); loadDeclarations(); loadFact(); }
+  else LABO.toast(r.error || 'Erreur', 'error');
+}
+async function rejeterDeclaration(id) {
+  const motif = prompt('Motif du rejet (optionnel) :') || '';
+  const r = await LABO.api('declaration_rejeter', { id, motif });
+  if (r.ok) { LABO.toast('Déclaration rejetée'); loadDeclarations(); }
+  else LABO.toast(r.error || 'Erreur', 'error');
+}
+
 document.getElementById('filter-statut').addEventListener('change', applyFilters);
 loadCandidats();
 loadFact();
+loadDeclarations();
 </script>
 <?php require_once '../includes/footer.php'; ?>

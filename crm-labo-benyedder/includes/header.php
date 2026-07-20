@@ -33,14 +33,29 @@
   </a>
   <?php endif; ?>
 
+  <?php if (in_array($role, ['admin','labo'], true)): ?>
   <a href="/modules/commandes.php" class="nav-item <?= ($activePage??'')==='commandes' ? 'active':'' ?>">
-    <span class="nav-icon">📦</span><span class="nav-text"><?= $role === 'admin' || $role === 'labo' ? 'Commandes' : 'Mes commandes' ?></span>
+    <span class="nav-icon">📦</span><span class="nav-text">Commandes</span>
   </a>
+  <?php elseif (in_array($role, ['franchise','client_terme'], true)): ?>
+  <a href="/modules/mes_commandes.php" class="nav-item <?= ($activePage??'')==='mes_commandes' ? 'active':'' ?>">
+    <span class="nav-icon">📦</span><span class="nav-text">Mes commandes</span>
+  </a>
+  <?php elseif ($role === 'point_vente'): ?>
+  <a href="/modules/mes_commandes.php" class="nav-item <?= ($activePage??'')==='mes_commandes' ? 'active':'' ?>">
+    <span class="nav-icon">📦</span><span class="nav-text">Réapprovisionnement</span>
+  </a>
+  <?php endif; ?>
 
   <?php if (in_array($role, ['admin','labo'], true)): ?>
   <div class="nav-section-label">CATALOGUE</div>
   <a href="/modules/catalogue.php" class="nav-item <?= ($activePage??'')==='catalogue' ? 'active':'' ?>">
     <span class="nav-icon">📖</span><span class="nav-text">Produits &amp; Recettes</span>
+  </a>
+  <?php elseif (in_array($role, ['franchise','client_terme','point_vente'], true)): ?>
+  <div class="nav-section-label">CATALOGUE</div>
+  <a href="/modules/mes_produits.php" class="nav-item <?= ($activePage??'')==='mes_produits' ? 'active':'' ?>">
+    <span class="nav-icon">📖</span><span class="nav-text">Produits &amp; tarifs</span>
   </a>
   <?php endif; ?>
 
@@ -51,23 +66,36 @@
   </a>
   <?php endif; ?>
 
-  <?php if (in_array($role, ['admin','labo','point_vente'], true)): ?>
+  <?php if (in_array($role, ['admin','labo'], true)): ?>
   <div class="nav-section-label">STOCK</div>
   <a href="/modules/stock.php" class="nav-item <?= ($activePage??'')==='stock' ? 'active':'' ?>">
-    <span class="nav-icon">📊</span><span class="nav-text"><?= $role === 'point_vente' ? 'Mon stock' : 'Stock & matières' ?></span>
+    <span class="nav-icon">📊</span><span class="nav-text">Stock & matières</span>
   </a>
-  <?php endif; ?>
-
-  <?php if (in_array($role, ['admin','labo'], true)): ?>
   <a href="/modules/livraisons.php" class="nav-item <?= ($activePage??'')==='livraisons' ? 'active':'' ?>">
     <span class="nav-icon">🚚</span><span class="nav-text">Livraisons / Dispatch</span>
   </a>
   <?php endif; ?>
 
-  <div class="nav-section-label">FACTURATION</div>
-  <a href="/modules/facturation.php" class="nav-item <?= ($activePage??'')==='facturation' ? 'active':'' ?>">
-    <span class="nav-icon">🧾</span><span class="nav-text"><?= $role === 'admin' ? 'Factures & paiements' : 'Mes factures' ?></span>
+  <?php if ($role === 'point_vente'): ?>
+  <div class="nav-section-label">CAISSE</div>
+  <a href="/modules/caisse.php" class="nav-item <?= ($activePage??'')==='caisse' ? 'active':'' ?>">
+    <span class="nav-icon">💰</span><span class="nav-text">Vente passager</span>
   </a>
+  <a href="/modules/mon_stock.php" class="nav-item <?= ($activePage??'')==='mon_stock' ? 'active':'' ?>">
+    <span class="nav-icon">📊</span><span class="nav-text">Mon stock vitrine</span>
+  </a>
+  <?php endif; ?>
+
+  <div class="nav-section-label">FACTURATION</div>
+  <?php if ($role === 'admin' || $role === 'labo'): ?>
+  <a href="/modules/facturation.php" class="nav-item <?= ($activePage??'')==='facturation' ? 'active':'' ?>">
+    <span class="nav-icon">🧾</span><span class="nav-text">Factures & paiements</span>
+  </a>
+  <?php else: ?>
+  <a href="/modules/mes_factures.php" class="nav-item <?= ($activePage??'')==='mes_factures' ? 'active':'' ?>">
+    <span class="nav-icon">🧾</span><span class="nav-text">Mes factures</span>
+  </a>
+  <?php endif; ?>
 
   <?php if ($role === 'admin'): ?>
   <div class="nav-section-label">ANALYSE</div>

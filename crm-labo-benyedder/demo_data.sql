@@ -58,9 +58,29 @@ JOIN produits p ON p.nom = v.pnom
 JOIN matieres_premieres m ON m.nom = v.mnom
 ON DUPLICATE KEY UPDATE quantite_necessaire = VALUES(quantite_necessaire);
 
+-- ------------------------------------------------------------
+-- Comptes de connexion pour tester chaque portail externe
+-- Mot de passe pour les 3 : Demo2026!
+-- ------------------------------------------------------------
+INSERT INTO users (nom, email, password_hash, role, avatar, client_id)
+SELECT 'Franchise Sfax (démo)', 'demo.franchise@benyedder.tn', '$2y$12$OCO2J8b3/LbKX53L9s6UKevkJ0lE.AVQdwENxZAbvOQnu4RL/NHLq', 'franchise', 'FR', id
+FROM clients WHERE nom = 'Franchise Ben Yedder Sfax'
+AND NOT EXISTS (SELECT 1 FROM users WHERE email = 'demo.franchise@benyedder.tn');
+
+INSERT INTO users (nom, email, password_hash, role, avatar, client_id)
+SELECT 'Café de la Gare (démo)', 'demo.client@benyedder.tn', '$2y$12$OCO2J8b3/LbKX53L9s6UKevkJ0lE.AVQdwENxZAbvOQnu4RL/NHLq', 'client_terme', 'CG', id
+FROM clients WHERE nom = 'Café de la Gare'
+AND NOT EXISTS (SELECT 1 FROM users WHERE email = 'demo.client@benyedder.tn');
+
+INSERT INTO users (nom, email, password_hash, role, avatar, point_vente_id)
+SELECT 'Boutique El Menzah (démo)', 'demo.pointvente@benyedder.tn', '$2y$12$OCO2J8b3/LbKX53L9s6UKevkJ0lE.AVQdwENxZAbvOQnu4RL/NHLq', 'point_vente', 'PV', id
+FROM points_vente WHERE nom = 'Boutique El Menzah'
+AND NOT EXISTS (SELECT 1 FROM users WHERE email = 'demo.pointvente@benyedder.tn');
+
 -- ============================================================
 -- Pour retirer uniquement ces données de démo plus tard :
 -- ============================================================
+-- DELETE FROM users WHERE email IN ('demo.franchise@benyedder.tn','demo.client@benyedder.tn','demo.pointvente@benyedder.tn');
 -- DELETE FROM franchises WHERE client_id IN (SELECT id FROM clients WHERE nom='Franchise Ben Yedder Sfax');
 -- DELETE FROM clients WHERE nom IN ('Café de la Gare','Hôtel El Manar','Franchise Ben Yedder Sfax');
 -- DELETE FROM points_vente WHERE nom='Boutique El Menzah';
