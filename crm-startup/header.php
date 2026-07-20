@@ -10,6 +10,12 @@ if (isLoggedIn()) {
         $stmt = $db->prepare('SELECT COUNT(*) FROM fm_messages WHERE receiver_id = ? AND is_read = 0');
         $stmt->execute([$_SESSION['fm_user_id']]);
         $unread_count = (int)$stmt->fetchColumn();
+
+        // Présence en ligne : throttlée à 20s pour ne pas écrire en BDD à chaque page vue
+        if (!isset($_SESSION['last_activity_write']) || time() - $_SESSION['last_activity_write'] > 20) {
+            $db->prepare('UPDATE fm_users SET last_activity = NOW() WHERE id = ?')->execute([$_SESSION['fm_user_id']]);
+            $_SESSION['last_activity_write'] = time();
+        }
     } catch (Exception $e) { $unread_count = 0; }
 }
 ?>
@@ -475,6 +481,45 @@ tr:hover td { background: rgba(255,255,255,.02); }
 .modal-field-value { font-size: 14px; color: var(--text); font-weight: 500; }
 .modal-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 20px; }
 
+/* ── PRÉSENCE EN LIGNE ──────────────────────────── */
+.presence-dot {
+  width: 9px; height: 9px; border-radius: 50%; flex-shrink: 0;
+  border: 2px solid var(--card); box-sizing: content-box;
+}
+.presence-dot.online { background: var(--accent3); }
+.presence-dot.offline { background: var(--subtle); }
+.avatar-wrap { position: relative; display: inline-flex; flex-shrink: 0; }
+.avatar-wrap .presence-dot { position: absolute; bottom: -1px; right: -1px; }
+
+/* ── BASCULE VUE GRILLE / LISTE ─────────────────── */
+.view-toggle { display: inline-flex; border: 1px solid var(--border); border-radius: var(--radius-sm); overflow: hidden; flex-shrink: 0; }
+.view-toggle button {
+  display: flex; align-items: center; justify-content: center;
+  width: 40px; height: 40px; background: var(--surface); border: none;
+  color: var(--muted); cursor: pointer; transition: all .15s;
+}
+.view-toggle button + button { border-left: 1px solid var(--border); }
+.view-toggle button.active { background: var(--accent-dim); color: var(--accent); }
+.view-toggle button:hover { color: var(--text); }
+
+/* Vue liste : rangées compactes au lieu de cartes en grille */
+.list-view .grid-cards { display: flex !important; flex-direction: column; gap: 8px; }
+.list-view .grid-cards .item-card {
+  display: flex !important; flex-direction: row !important; align-items: center;
+  gap: 14px; padding: 12px 16px;
+}
+.list-view .grid-cards .item-card .card-icon { font-size: 20px; }
+.list-view .grid-cards .item-card .card-body { flex: 1; min-width: 0; display: flex; align-items: center; gap: 16px; }
+.list-view .grid-cards .item-card .card-title-block { min-width: 180px; flex-shrink: 0; }
+.list-view .grid-cards .item-card .card-desc { display: none; }
+.list-view .grid-cards .item-card .card-meta-grid { display: flex !important; gap: 16px; flex-shrink: 0; }
+.list-view .grid-cards .item-card .card-badges { flex-shrink: 0; }
+.list-view .grid-cards .item-card .card-footer { border-top: none !important; padding-top: 0 !important; margin-left: auto; flex-shrink: 0; }
+@media (max-width: 768px) {
+  .list-view .grid-cards .item-card { flex-wrap: wrap; }
+  .list-view .grid-cards .item-card .card-body { flex-wrap: wrap; }
+}
+
 /* ── MESSAGE BUBBLE ─────────────────────────────── */
 .msg-bubble {
   max-width: 72%; padding: 10px 14px;
@@ -545,9 +590,7 @@ tr:hover td { background: rgba(255,255,255,.02); }
     <a class="nav-link <?= $current_page==='messages'?'active':'' ?>" href="messages.php" style="position:relative">
       <svg width="14" height="14" viewBox="0 0 16 16" fill="currentColor"><path d="M14 2H2a1 1 0 00-1 1v8a1 1 0 001 1h3l2 3 2-3h5a1 1 0 001-1V3a1 1 0 00-1-1z"/></svg>
       Messages
-      <?php if ($unread_count > 0): ?>
-        <span class="nav-badge"><?= min($unread_count, 99) ?></span>
-      <?php endif; ?>
+      <span class="nav-badge" id="nav-unread-badge" style="<?= $unread_count > 0 ? '' : 'display:none' ?>"><?= min($unread_count, 99) ?></span>
     </a>
     <a class="nav-link <?= $current_page==='profile'?'active':'' ?>" href="profile.php">Mon profil</a>
     <?php if (isAdmin()): ?>
@@ -564,4 +607,28 @@ tr:hover td { background: rgba(255,255,255,.02); }
     <a class="btn-logout" href="logout.php">Quitter</a>
   </div>
 </nav>
+<?php if (isLoggedIn()): ?>
+<script>
+// Badge messages non lus : rafraîchi périodiquement (polling — pas de WebSocket sur hébergement mutualisé)
+(function() {
+  var badge = document.getElementById('nav-unread-badge');
+  if (!badge || document.hidden === undefined) return;
+  function refresh() {
+    if (document.hidden) return; // pas d'appel réseau sur un onglet en arrière-plan
+    fetch('api_messages.php?action=unread_count', { credentials: 'same-origin' })
+      .then(function(r) { return r.json(); })
+      .then(function(d) {
+        if (d.unread > 0) {
+          badge.textContent = Math.min(d.unread, 99);
+          badge.style.display = '';
+        } else {
+          badge.style.display = 'none';
+        }
+      })
+      .catch(function() {});
+  }
+  setInterval(refresh, 20000);
+})();
+</script>
+<?php endif; ?>
 <div class="page-wrap">

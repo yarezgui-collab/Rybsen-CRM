@@ -4,6 +4,7 @@ requireLogin();
 $page_title = 'Programmes';
 
 $db  = getDB();
+$uid = (int)$_SESSION['fm_user_id'];
 $msg = $_GET['msg'] ?? '';
 
 // Auto-archivage des programmes expirés depuis plus de 3 jours
@@ -11,15 +12,19 @@ $db->exec("UPDATE fm_programs SET status='archived'
            WHERE status='active' AND deadline_date IS NOT NULL
            AND deadline_date < DATE_SUB(CURDATE(), INTERVAL 3 DAY)");
 
-// Programmes actifs, urgents d'abord puis par deadline croissante
-$programs = $db->query("
-    SELECT * FROM fm_programs
-    WHERE status = 'active'
+// Programmes actifs, urgents d'abord puis par deadline croissante ; favoris de l'utilisateur en une seule requête
+$stmt = $db->prepare("
+    SELECT p.*, (f.id IS NOT NULL) AS is_favorite
+    FROM fm_programs p
+    LEFT JOIN fm_favorites f ON f.program_id = p.id AND f.user_id = ?
+    WHERE p.status = 'active'
     ORDER BY
-      CASE WHEN deadline_date IS NOT NULL AND deadline_date >= CURDATE() THEN 0 ELSE 1 END,
-      deadline_date ASC,
-      name ASC
-")->fetchAll();
+      CASE WHEN p.deadline_date IS NOT NULL AND p.deadline_date >= CURDATE() THEN 0 ELSE 1 END,
+      p.deadline_date ASC,
+      p.name ASC
+");
+$stmt->execute([$uid]);
+$programs = $stmt->fetchAll();
 
 // KPIs
 $total   = count($programs);
@@ -63,6 +68,8 @@ include 'header.php';
   </div>
   <a href="submit.php" class="btn btn-primary">&#43; Soumettre un programme</a>
 </div>
+
+<script>window._csrf = '<?= htmlspecialchars(csrfToken(), ENT_QUOTES, 'UTF-8') ?>';</script>
 
 <?php if ($msg === 'access_denied'): ?>
   <div class="alert alert-warn">&#9888; Accès réservé aux administrateurs.</div>
@@ -125,6 +132,10 @@ include 'header.php';
       <input type="checkbox" id="f-tn" style="accent-color:var(--accent);width:16px;height:16px">
       &#127481;&#127475; Focus Tunisie
     </label>
+    <label style="display:flex;align-items:center;gap:7px;font-size:13px;color:var(--text-sec);cursor:pointer;white-space:nowrap">
+      <input type="checkbox" id="f-fav" style="accent-color:var(--accent);width:16px;height:16px">
+      &#9733; Mes favoris
+    </label>
   </div>
   <?php if ($all_sectors): ?>
   <div class="sector-pills" style="margin-top:12px">
@@ -137,8 +148,25 @@ include 'header.php';
 </div>
 
 <div class="section-head">
-  <span class="section-title">PROGRAMMES</span>
-  <span class="count-pill" id="prog-count"><?= $total ?> résultat(s)</span>
+  <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap">
+    <span class="section-title">PROGRAMMES</span>
+    <span class="count-pill" id="prog-count"><?= $total ?> résultat(s)</span>
+  </div>
+  <div style="display:flex;align-items:center;gap:10px">
+    <select id="f-sort" style="padding:8px 12px;background:var(--surface);border:1.5px solid var(--border);border-radius:var(--radius);color:var(--text);font-size:13px;outline:none;min-height:40px;-webkit-appearance:none">
+      <option value="deadline">Trier : Deadline</option>
+      <option value="name">Trier : Alphabétique</option>
+      <option value="recent">Trier : Plus récent</option>
+    </select>
+    <div class="view-toggle" role="group" aria-label="Mode d'affichage">
+      <button type="button" id="view-grid" class="active" title="Vue grille" aria-pressed="true">
+        <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor"><path d="M2 2h5v5H2zm7 0h5v5H9zM2 9h5v5H2zm7 0h5v5H9z"/></svg>
+      </button>
+      <button type="button" id="view-list" title="Vue liste" aria-pressed="false">
+        <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor"><path d="M2 3h12v2H2zm0 4h12v2H2zm0 4h12v2H2z"/></svg>
+      </button>
+    </div>
+  </div>
 </div>
 
 <?php if (empty($programs)): ?>
@@ -149,7 +177,7 @@ include 'header.php';
   </div>
 <?php else: ?>
 
-<div id="prog-grid" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(320px,1fr));gap:16px">
+<div id="prog-grid" class="grid-cards" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(320px,1fr));gap:16px">
   <?php foreach ($programs as $p):
     $dt = $p['deadline_date'] ? calcDeadlineType($p['deadline_date']) : ($p['deadline_type'] ?: 'open');
     $days_left = null;
@@ -159,33 +187,44 @@ include 'header.php';
     $ptype = $p['type'] ?: 'grant';
     $p_sectors = array_filter(array_map('trim', explode(',', $p['sectors'] ?? '')));
     $search_blob = mb_strtolower($p['name'] . ' ' . $p['organisation'] . ' ' . ($p['description'] ?? '') . ' ' . ($p['geo'] ?? '') . ' ' . implode(' ', $p_sectors));
+    $sort_deadline_ts = $p['deadline_date'] ? strtotime($p['deadline_date']) : 9999999999;
+    $is_fav = !empty($p['is_favorite']);
   ?>
-  <div class="card clickable prog-card"
+  <div class="card clickable prog-card item-card"
        data-search="<?= h($search_blob) ?>"
        data-type="<?= h($ptype) ?>"
        data-deadline="<?= h($dt) ?>"
        data-tn="<?= !empty($p['tunisia_focus']) ? '1' : '0' ?>"
+       data-fav="<?= $is_fav ? '1' : '0' ?>"
        data-sectors="<?= h(mb_strtolower(implode(',', $p_sectors))) ?>"
-       style="display:flex;flex-direction:column;gap:10px">
-    <div style="display:flex;align-items:flex-start;gap:12px">
-      <div style="font-size:28px;flex-shrink:0;line-height:1.2"><?= $p['emoji'] ? h($p['emoji']) : '&#128176;' ?></div>
-      <div style="flex:1;min-width:0">
+       data-sort-name="<?= h(mb_strtolower($p['name'])) ?>"
+       data-sort-deadline="<?= $sort_deadline_ts ?>"
+       data-sort-created="<?= strtotime($p['created_at']) ?>"
+       style="display:flex;flex-direction:column;gap:10px;position:relative">
+    <button type="button" class="btn-favorite" data-program-id="<?= (int)$p['id'] ?>"
+      style="position:absolute;top:14px;right:14px;background:none;border:none;cursor:pointer;font-size:20px;line-height:1;color:<?= $is_fav ? 'var(--accent4)' : 'var(--border-light)' ?>;padding:4px;z-index:1"
+      title="<?= $is_fav ? 'Retirer des favoris' : 'Ajouter aux favoris' ?>">
+      <?= $is_fav ? '&#9733;' : '&#9734;' ?>
+    </button>
+    <div class="card-body" style="display:flex;align-items:flex-start;gap:12px">
+      <div class="card-icon" style="font-size:28px;flex-shrink:0;line-height:1.2"><?= $p['emoji'] ? h($p['emoji']) : '&#128176;' ?></div>
+      <div class="card-title-block" style="flex:1;min-width:0;padding-right:24px">
         <a href="program.php?id=<?= (int)$p['id'] ?>" style="font-size:15.5px;font-weight:700;color:#fff;line-height:1.35;text-decoration:none"><?= h($p['name']) ?></a>
         <div style="font-size:12.5px;color:var(--muted);margin-top:2px"><?= h($p['organisation']) ?></div>
       </div>
-    </div>
-    <div style="display:flex;gap:6px;flex-wrap:wrap">
-      <span class="badge badge-<?= h($ptype) ?>"><?= h($type_labels[$ptype] ?? ucfirst($ptype)) ?></span>
-      <?php if (!empty($p['tunisia_focus'])): ?><span class="badge badge-tn">&#127481;&#127475; Tunisie</span><?php endif; ?>
-      <?php foreach (array_slice($p_sectors, 0, 3) as $s): ?>
-        <span class="badge badge-tn"><?= h($s) ?></span>
-      <?php endforeach; ?>
-      <?php if (count($p_sectors) > 3): ?><span class="badge badge-tn">+<?= count($p_sectors) - 3 ?></span><?php endif; ?>
+      <div class="card-badges" style="display:flex;gap:6px;flex-wrap:wrap">
+        <span class="badge badge-<?= h($ptype) ?>"><?= h($type_labels[$ptype] ?? ucfirst($ptype)) ?></span>
+        <?php if (!empty($p['tunisia_focus'])): ?><span class="badge badge-tn">&#127481;&#127475; Tunisie</span><?php endif; ?>
+        <?php foreach (array_slice($p_sectors, 0, 3) as $s): ?>
+          <span class="badge badge-tn"><?= h($s) ?></span>
+        <?php endforeach; ?>
+        <?php if (count($p_sectors) > 3): ?><span class="badge badge-tn">+<?= count($p_sectors) - 3 ?></span><?php endif; ?>
+      </div>
     </div>
     <?php if ($p['description']): ?>
-    <p style="font-size:13px;color:var(--text-sec);line-height:1.55;display:-webkit-box;-webkit-line-clamp:3;-webkit-box-orient:vertical;overflow:hidden"><?= h($p['description']) ?></p>
+    <p class="card-desc" style="font-size:13px;color:var(--text-sec);line-height:1.55;display:-webkit-box;-webkit-line-clamp:3;-webkit-box-orient:vertical;overflow:hidden"><?= h($p['description']) ?></p>
     <?php endif; ?>
-    <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;font-size:12px;margin-top:auto">
+    <div class="card-meta-grid" style="display:grid;grid-template-columns:1fr 1fr;gap:8px;font-size:12px;margin-top:auto">
       <?php if ($p['amount']): ?>
       <div>
         <div style="font-size:10px;color:var(--subtle);text-transform:uppercase;letter-spacing:1px;font-family:var(--mono)">Montant</div>
@@ -199,7 +238,7 @@ include 'header.php';
       </div>
       <?php endif; ?>
     </div>
-    <div style="display:flex;align-items:center;justify-content:space-between;gap:10px;padding-top:10px;border-top:1px solid var(--border)">
+    <div class="card-footer" style="display:flex;align-items:center;justify-content:space-between;gap:10px;padding-top:10px;border-top:1px solid var(--border)">
       <span class="dl-<?= h($dt) ?>">
         <?php if ($days_left !== null): ?>
           &#9200; <?= $days_left <= 0 ? "Aujourd'hui" : 'J-' . $days_left ?> &middot; <?= date('d/m/Y', strtotime($p['deadline_date'])) ?>
@@ -229,6 +268,8 @@ include 'header.php';
   var typeSel  = document.getElementById('f-type');
   var dlSel    = document.getElementById('f-deadline');
   var tnChk    = document.getElementById('f-tn');
+  var favChk   = document.getElementById('f-fav');
+  var sortSel  = document.getElementById('f-sort');
   var pills    = document.querySelectorAll('.sector-pill');
   var cards    = document.querySelectorAll('.prog-card');
   var countEl  = document.getElementById('prog-count');
@@ -241,6 +282,7 @@ include 'header.php';
     var t  = typeSel.value;
     var dl = dlSel.value;
     var tn = tnChk.checked;
+    var fav = favChk.checked;
     var visible = 0;
 
     cards.forEach(function(c) {
@@ -253,6 +295,7 @@ include 'header.php';
         if (dl === 'open' && c.dataset.deadline !== 'open') ok = false;
       }
       if (ok && tn && c.dataset.tn !== '1') ok = false;
+      if (ok && fav && c.dataset.fav !== '1') ok = false;
       if (ok && sector && c.dataset.sectors.split(',').indexOf(sector) === -1) ok = false;
       c.style.display = ok ? '' : 'none';
       if (ok) visible++;
@@ -263,10 +306,23 @@ include 'header.php';
     grid.style.display  = visible === 0 ? 'none' : '';
   }
 
+  function applySort() {
+    var key = sortSel.value;
+    var attr = key === 'name' ? 'sortName' : (key === 'recent' ? 'sortCreated' : 'sortDeadline');
+    var sorted = Array.prototype.slice.call(cards).sort(function(a, b) {
+      if (attr === 'sortName') return a.dataset[attr].localeCompare(b.dataset[attr]);
+      var av = parseFloat(a.dataset[attr]), bv = parseFloat(b.dataset[attr]);
+      return key === 'recent' ? bv - av : av - bv;
+    });
+    sorted.forEach(function(c) { grid.appendChild(c); });
+  }
+
   search.addEventListener('input', applyFilters);
   typeSel.addEventListener('change', applyFilters);
   dlSel.addEventListener('change', applyFilters);
   tnChk.addEventListener('change', applyFilters);
+  favChk.addEventListener('change', applyFilters);
+  sortSel.addEventListener('change', applySort);
   pills.forEach(function(p) {
     p.addEventListener('click', function() {
       pills.forEach(function(x) { x.classList.remove('active'); });
@@ -275,6 +331,49 @@ include 'header.php';
       applyFilters();
     });
   });
+
+  // Favoris : toggle AJAX sans recharger la page
+  document.querySelectorAll('.btn-favorite').forEach(function(btn) {
+    btn.addEventListener('click', function(e) {
+      e.preventDefault();
+      e.stopPropagation();
+      var fd = new FormData();
+      fd.append('program_id', btn.dataset.programId);
+      fd.append('csrf_token', window._csrf);
+      fetch('api_favorites.php', { method: 'POST', body: fd, credentials: 'same-origin' })
+        .then(function(r) { return r.json(); })
+        .then(function(d) {
+          var card = btn.closest('.prog-card');
+          card.dataset.fav = d.favorited ? '1' : '0';
+          btn.innerHTML = d.favorited ? '&#9733;' : '&#9734;';
+          btn.style.color = d.favorited ? 'var(--accent4)' : 'var(--border-light)';
+          if (favChk.checked) applyFilters();
+        })
+        .catch(function() {});
+    });
+  });
+})();
+</script>
+
+<script>
+// Bascule vue grille / liste — persistée par utilisateur dans ce navigateur
+(function() {
+  var gridBtn = document.getElementById('view-grid');
+  var listBtn = document.getElementById('view-list');
+  var container = document.body;
+  var KEY = 'stn_view_dashboard';
+
+  function setView(mode) {
+    container.classList.toggle('list-view', mode === 'list');
+    gridBtn.classList.toggle('active', mode === 'grid');
+    listBtn.classList.toggle('active', mode === 'list');
+    gridBtn.setAttribute('aria-pressed', mode === 'grid');
+    listBtn.setAttribute('aria-pressed', mode === 'list');
+    localStorage.setItem(KEY, mode);
+  }
+  gridBtn.addEventListener('click', function() { setView('grid'); });
+  listBtn.addEventListener('click', function() { setView('list'); });
+  setView(localStorage.getItem(KEY) === 'list' ? 'list' : 'grid');
 })();
 </script>
 <?php endif; ?>
