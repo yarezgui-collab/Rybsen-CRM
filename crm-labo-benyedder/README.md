@@ -23,12 +23,17 @@ PHP 8 + PDO MySQL, même pattern que `crm-rybsen/` (modules/, api/, includes/, a
 
 | Rôle | Accès |
 |---|---|
-| `admin` | Tout — CRUD complet, utilisateurs, paramètres/fonctionnalités |
-| `labo` | Clients, franchises, points de vente, catalogue, commandes, production, stock |
+| `admin` | Tout — CRUD complet, utilisateurs, paramètres/fonctionnalités, validation des paiements déclarés |
+| `labo` | Clients, franchises, points de vente, catalogue, commandes, production, stock, facturation |
 | `production` | Ordres de fabrication |
-| `franchise` | Ses commandes, ses factures |
-| `point_vente` | Vente passager, réappro vitrine, stock local |
-| `client_terme` | Ses commandes, ses factures/encours |
+| `franchise` | Portail autonome : ses commandes, catalogue en lecture, ses factures/encours, déclaration de paiement |
+| `point_vente` | Portail autonome : caisse (vente passager), réapprovisionnement, son stock vitrine |
+| `client_terme` | Portail autonome : ses commandes, catalogue en lecture, ses factures/encours, déclaration de paiement |
+
+Chaque portail externe est **isolé côté serveur** : l'entité (client_id / point_vente_id) vient
+toujours de la session, jamais de ce qu'envoie le navigateur — impossible pour une franchise de
+voir les données d'une autre, même en modifiant les requêtes. Vérifié par 35 tests automatisés
+incluant des tentatives d'accès croisées (IDOR).
 
 ## Installation
 
@@ -63,11 +68,23 @@ PHP 8 + PDO MySQL, même pattern que `crm-rybsen/` (modules/, api/, includes/, a
 - Statistiques : marge par produit, stock bas, consommation matières, ventes par canal,
   produits les plus vendus, encours clients
 - Événements spéciaux (calendrier saisonnier / traiteur) et paramètres/fonctionnalités (admin)
+- **Portails self-service** franchise / point de vente / client à terme : commandes en libre
+  service, catalogue en lecture, factures & encours, déclaration de paiement (avec validation
+  admin obligatoire avant impact sur le solde), caisse et stock vitrine pour les points de vente
+- Comptes de démonstration pour tester chaque portail (voir plus bas)
 
-**Non couvert dans cette itération :**
-- Portails self-service pour franchise / point de vente / client à terme (ces rôles existent
-  et sont protégés côté permissions, mais n'ont pas encore d'interface dédiée limitée à leurs
-  propres données — seuls admin/labo/production ont une interface complète aujourd'hui)
+Aucune limitation connue à ce stade — l'ensemble du flux (admin ↔ 3 portails externes) a été
+vérifié de bout en bout, y compris les scénarios d'attaque (accès croisé entre deux comptes).
+
+## Comptes de démonstration
+
+| Portail | Email | Mot de passe |
+|---|---|---|
+| Franchise (Sfax) | `demo.franchise@benyedder.tn` | `Demo2026!` |
+| Client à terme (Café de la Gare) | `demo.client@benyedder.tn` | `Demo2026!` |
+| Point de vente (Boutique El Menzah) | `demo.pointvente@benyedder.tn` | `Demo2026!` |
+
+Créés automatiquement par `run_demo_data.php` à chaque déploiement.
 
 ## Déploiement — 100% automatique
 

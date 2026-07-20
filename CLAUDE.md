@@ -114,10 +114,18 @@ franchises et points de vente. Voir `crm-labo-benyedder/README.md` pour le conte
 ## Modèle de données
 - install.sql : schéma complet (clients/franchises/points de vente, catalogue produits +
   matières premières + recettes/BOM, commandes multi-canal, production/ordres de fabrication,
-  lots & traçabilité DLC, stock, pertes/invendus, livraisons, facturation, événements spéciaux)
+  lots & traçabilité DLC, stock, pertes/invendus, livraisons, facturation, déclarations de
+  paiement, événements spéciaux)
 - Vues utiles : v_marge_produits, v_stock_bas, v_stock_produits, v_encours_clients
 - Rôles utilisateurs : admin, labo, production, franchise, point_vente, client_terme —
   chaque rôle a sa propre interface (nav filtrée dans includes/header.php)
+- Portails externes (franchise/point_vente/client_terme) : portée toujours dérivée de la
+  session (`$user['client_id']` / `$user['point_vente_id']`), jamais du body envoyé par le
+  client — voir `monScope()` dans api/api.php. Toute nouvelle action `mes_*` doit suivre ce
+  pattern pour ne pas réintroduire une faille d'accès croisé entre comptes.
+- Paiement déclaré par une franchise/client à terme = statut `en_attente` dans
+  `declarations_paiement`, jamais un impact direct sur le solde ; seul admin/labo peut
+  `declaration_valider` (crée le vrai mouvement dans `paiements`) ou `declaration_rejeter`.
 
 ## Contraintes critiques
 1. `crm-labo-benyedder/config.php` ne doit JAMAIS être commité dans git

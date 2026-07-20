@@ -79,8 +79,14 @@ if ($action === 'cli_delete') {
 // CATALOGUE — PRODUITS
 // ──────────────────────────────────────────
 if ($action === 'prod_list') {
-    apiRequireRole(['admin','labo']);
-    $rows = $db->query("SELECT * FROM produits ORDER BY categorie, nom")->fetchAll();
+    // Lecture seule ouverte aussi aux portails externes (aucune donnée de coût/recette ici) ;
+    // les portails externes ne voient que les produits actifs (commandables).
+    apiRequireRole(['admin','labo','franchise','client_terme','point_vente']);
+    if (in_array($user['role'], ['admin','labo'], true)) {
+        $rows = $db->query("SELECT * FROM produits ORDER BY categorie, nom")->fetchAll();
+    } else {
+        $rows = $db->query("SELECT id,nom,categorie,prix_vente,unite FROM produits WHERE actif=1 ORDER BY categorie, nom")->fetchAll();
+    }
     respond($rows);
 }
 if ($action === 'prod_save') {
@@ -923,6 +929,283 @@ if ($action === 'param_save') {
     $db->prepare("INSERT INTO parametres (cle,valeur) VALUES (?,?) ON DUPLICATE KEY UPDATE valeur=VALUES(valeur)")
         ->execute([$d['cle'], $d['valeur']]);
     respond(['ok' => true]);
+}
+
+// ──────────────────────────────────────────
+// PORTAILS EXTERNES — commandes en libre-service
+// La portée (quelle entité) vient TOUJOURS de la session, jamais du body envoyé
+// par le client, pour empêcher qu'une entité accède aux données d'une autre.
+// ──────────────────────────────────────────
+function monScope(array $user): array {
+    if ($user['role'] === 'franchise') {
+        if (empty($user['client_id'])) error400('Ce compte franchise n\'est rattaché à aucune franchise — contactez l\'administrateur');
+        return ['canal' => 'franchise', 'col' => 'client_id', 'val' => $user['client_id']];
+    }
+    if ($user['role'] === 'client_terme') {
+        if (empty($user['client_id'])) error400('Ce compte n\'est rattaché à aucun client — contactez l\'administrateur');
+        return ['canal' => 'terme', 'col' => 'client_id', 'val' => $user['client_id']];
+    }
+    if ($user['role'] === 'point_vente') {
+        if (empty($user['point_vente_id'])) error400('Ce compte n\'est rattaché à aucun point de vente — contactez l\'administrateur');
+        return ['canal' => 'point_vente', 'col' => 'point_vente_id', 'val' => $user['point_vente_id']];
+    }
+    http_response_code(403);
+    respond(['error' => 'Rôle non autorisé pour cette action']);
+}
+
+if ($action === 'mes_cmd_list') {
+    apiRequireRole(['franchise','client_terme','point_vente']);
+    $s = monScope($user);
+    $stmt = $db->prepare("SELECT cmd.*,
+            (SELECT COALESCE(SUM(quantite*prix_unitaire),0) FROM lignes_commande WHERE commande_id=cmd.id) as montant_total
+        FROM commandes cmd WHERE cmd.canal = ? AND cmd.{$s['col']} = ? ORDER BY cmd.date_commande DESC, cmd.id DESC");
+    $stmt->execute([$s['canal'], $s['val']]);
+    respond($stmt->fetchAll());
+}
+if ($action === 'mes_cmd_get') {
+    apiRequireRole(['franchise','client_terme','point_vente']);
+    $s = monScope($user);
+    $stmt = $db->prepare("SELECT * FROM commandes WHERE id=? AND canal=? AND {$s['col']} = ?");
+    $stmt->execute([$body['id'], $s['canal'], $s['val']]);
+    $cmd = $stmt->fetch();
+    if (!$cmd) error400('Commande introuvable');
+    $l = $db->prepare("SELECT lc.*, p.nom as produit_nom, p.unite FROM lignes_commande lc JOIN produits p ON p.id=lc.produit_id WHERE lc.commande_id=?");
+    $l->execute([$cmd['id']]);
+    $cmd['lignes'] = $l->fetchAll();
+    respond($cmd);
+}
+if ($action === 'mes_cmd_save') {
+    apiRequireRole(['franchise','client_terme','point_vente']);
+    $s = monScope($user);
+    $d = $body;
+    $lignes = $d['lignes'] ?? [];
+    if (empty($lignes)) error400('Au moins une ligne de produit est requise');
+
+    if (!empty($d['id'])) {
+        // Vérifie que la commande à modifier appartient bien à cette entité et est encore en brouillon
+        $chk = $db->prepare("SELECT statut FROM commandes WHERE id=? AND canal=? AND {$s['col']} = ?");
+        $chk->execute([$d['id'], $s['canal'], $s['val']]);
+        $statutActuel = $chk->fetchColumn();
+        if ($statutActuel === false) error400('Commande introuvable');
+        if ($statutActuel !== 'brouillon') error400('Seule une commande en brouillon peut être modifiée');
+        $stmt = $db->prepare("UPDATE commandes SET type=?,date_commande=?,date_livraison_prevue=?,notes=? WHERE id=?");
+        $stmt->execute([$d['type'] ?? 'ponctuelle', $d['date_commande'], $d['date_livraison_prevue'] ?: null, $d['notes'], $d['id']]);
+        $cmdId = $d['id'];
+        $db->prepare("DELETE FROM lignes_commande WHERE commande_id=?")->execute([$cmdId]);
+    } else {
+        $clientId = $s['col'] === 'client_id' ? $s['val'] : null;
+        $pvId = $s['col'] === 'point_vente_id' ? $s['val'] : null;
+        $stmt = $db->prepare("INSERT INTO commandes (canal,type,client_id,point_vente_id,statut,date_commande,date_livraison_prevue,notes,created_by) VALUES (?,?,?,?,'brouillon',?,?,?,?)");
+        $stmt->execute([$s['canal'], $d['type'] ?? 'ponctuelle', $clientId, $pvId, $d['date_commande'], $d['date_livraison_prevue'] ?: null, $d['notes'], $user['id']]);
+        $cmdId = $db->lastInsertId();
+    }
+    $stmtL = $db->prepare("INSERT INTO lignes_commande (commande_id,produit_id,quantite,prix_unitaire) VALUES (?,?,?,?)");
+    foreach ($lignes as $l) {
+        $stmtL->execute([$cmdId, $l['produit_id'], $l['quantite'], $l['prix_unitaire']]);
+    }
+    respond(['ok' => true, 'id' => $cmdId]);
+}
+if ($action === 'mes_cmd_set_statut') {
+    apiRequireRole(['franchise','client_terme','point_vente']);
+    $s = monScope($user);
+    if (!in_array($body['statut'], ['confirmee','annulee'], true)) error400('Statut non autorisé');
+    $chk = $db->prepare("SELECT statut FROM commandes WHERE id=? AND canal=? AND {$s['col']} = ?");
+    $chk->execute([$body['id'], $s['canal'], $s['val']]);
+    $statutActuel = $chk->fetchColumn();
+    if ($statutActuel === false) error400('Commande introuvable');
+    if ($statutActuel !== 'brouillon') error400('Cette commande ne peut plus être modifiée');
+    $db->prepare("UPDATE commandes SET statut=? WHERE id=?")->execute([$body['statut'], $body['id']]);
+    respond(['ok' => true]);
+}
+
+// ──────────────────────────────────────────
+// PORTAILS EXTERNES — factures & déclarations de paiement
+// ──────────────────────────────────────────
+if ($action === 'mes_fact_list') {
+    apiRequireRole(['franchise','client_terme','point_vente']);
+    $s = monScope($user);
+    $stmt = $db->prepare("SELECT f.*, COALESCE((SELECT SUM(montant) FROM paiements WHERE facture_id=f.id),0) as montant_paye
+        FROM factures f WHERE f.{$s['col']} = ? ORDER BY f.id DESC");
+    $stmt->execute([$s['val']]);
+    respond($stmt->fetchAll());
+}
+if ($action === 'mes_fact_get') {
+    apiRequireRole(['franchise','client_terme','point_vente']);
+    $s = monScope($user);
+    $stmt = $db->prepare("SELECT * FROM factures WHERE id=? AND {$s['col']} = ?");
+    $stmt->execute([$body['id'], $s['val']]);
+    $fact = $stmt->fetch();
+    if (!$fact) error400('Facture introuvable');
+    $p = $db->prepare("SELECT * FROM paiements WHERE facture_id=? ORDER BY date_paiement");
+    $p->execute([$fact['id']]);
+    $fact['paiements'] = $p->fetchAll();
+    $decl = $db->prepare("SELECT * FROM declarations_paiement WHERE facture_id=? ORDER BY created_at DESC");
+    $decl->execute([$fact['id']]);
+    $fact['declarations'] = $decl->fetchAll();
+    if ($fact['commande_id']) {
+        $l = $db->prepare("SELECT lc.*, pr.nom as produit_nom FROM lignes_commande lc JOIN produits pr ON pr.id=lc.produit_id WHERE lc.commande_id=?");
+        $l->execute([$fact['commande_id']]);
+        $fact['lignes'] = $l->fetchAll();
+    } else {
+        $fact['lignes'] = [];
+    }
+    respond($fact);
+}
+if ($action === 'paiement_declarer') {
+    apiRequireRole(['franchise','client_terme']);
+    $s = monScope($user);
+    $d = $body;
+    if (empty($d['facture_id']) || empty($d['montant'])) error400('Montant requis');
+    $chk = $db->prepare("SELECT id FROM factures WHERE id=? AND {$s['col']} = ?");
+    $chk->execute([$d['facture_id'], $s['val']]);
+    if (!$chk->fetch()) error400('Facture introuvable');
+    $stmt = $db->prepare("INSERT INTO declarations_paiement (facture_id,montant,date_declaration,mode,reference,notes,statut,declare_par) VALUES (?,?,?,?,?,?,'en_attente',?)");
+    $stmt->execute([$d['facture_id'], $d['montant'], $d['date_declaration'] ?? date('Y-m-d'), $d['mode'] ?? 'virement', $d['reference'], $d['notes'], $user['id']]);
+    respond(['ok' => true]);
+}
+
+// ──────────────────────────────────────────
+// ADMIN — validation des déclarations de paiement
+// ──────────────────────────────────────────
+if ($action === 'declarations_list') {
+    apiRequireRole(['admin','labo']);
+    $sql = "SELECT dp.*, f.numero as facture_numero, f.montant_ttc, cl.nom as client_nom, pv.nom as point_vente_nom
+            FROM declarations_paiement dp
+            JOIN factures f ON f.id = dp.facture_id
+            LEFT JOIN clients cl ON cl.id = f.client_id
+            LEFT JOIN points_vente pv ON pv.id = f.point_vente_id
+            ORDER BY FIELD(dp.statut,'en_attente','validee','rejetee'), dp.created_at DESC";
+    respond($db->query($sql)->fetchAll());
+}
+if ($action === 'declaration_valider') {
+    apiRequireRole(['admin','labo']);
+    $stmt = $db->prepare("SELECT * FROM declarations_paiement WHERE id=?");
+    $stmt->execute([$body['id']]);
+    $decl = $stmt->fetch();
+    if (!$decl) error400('Déclaration introuvable');
+    if ($decl['statut'] !== 'en_attente') error400('Cette déclaration a déjà été traitée');
+
+    $db->beginTransaction();
+    try {
+        $db->prepare("INSERT INTO paiements (facture_id,montant,date_paiement,mode,reference,notes) VALUES (?,?,?,?,?,?)")
+            ->execute([$decl['facture_id'], $decl['montant'], $decl['date_declaration'], $decl['mode'], $decl['reference'], 'Validé depuis déclaration #' . $decl['id']]);
+        $paiementId = $db->lastInsertId();
+
+        $ttcStmt = $db->prepare("SELECT montant_ttc FROM factures WHERE id=?");
+        $ttcStmt->execute([$decl['facture_id']]);
+        $ttc = floatval($ttcStmt->fetchColumn());
+        $paidStmt = $db->prepare("SELECT COALESCE(SUM(montant),0) FROM paiements WHERE facture_id=?");
+        $paidStmt->execute([$decl['facture_id']]);
+        $paid = floatval($paidStmt->fetchColumn());
+        $statutFacture = $paid >= $ttc - 0.001 ? 'payee' : ($paid > 0 ? 'partiellement_payee' : 'emise');
+        $db->prepare("UPDATE factures SET statut=? WHERE id=?")->execute([$statutFacture, $decl['facture_id']]);
+
+        $db->prepare("UPDATE declarations_paiement SET statut='validee', valide_par=?, valide_le=NOW(), paiement_id=? WHERE id=?")
+            ->execute([$user['id'], $paiementId, $decl['id']]);
+        $db->commit();
+        respond(['ok' => true]);
+    } catch (Exception $e) {
+        $db->rollBack();
+        error400('Erreur: ' . $e->getMessage());
+    }
+}
+if ($action === 'declaration_rejeter') {
+    apiRequireRole(['admin','labo']);
+    $stmt = $db->prepare("SELECT statut FROM declarations_paiement WHERE id=?");
+    $stmt->execute([$body['id']]);
+    $statutActuel = $stmt->fetchColumn();
+    if ($statutActuel === false) error400('Déclaration introuvable');
+    if ($statutActuel !== 'en_attente') error400('Cette déclaration a déjà été traitée');
+    $db->prepare("UPDATE declarations_paiement SET statut='rejetee', valide_par=?, valide_le=NOW(), notes=CONCAT(COALESCE(notes,''), ?) WHERE id=?")
+        ->execute([$user['id'], $body['motif'] ? (' — Rejet: ' . $body['motif']) : '', $body['id']]);
+    respond(['ok' => true]);
+}
+
+// ──────────────────────────────────────────
+// PORTAIL POINT DE VENTE — caisse & stock vitrine
+// ──────────────────────────────────────────
+if ($action === 'mon_stock_pv_list') {
+    apiRequireRole(['point_vente']);
+    if (empty($user['point_vente_id'])) error400('Ce compte n\'est rattaché à aucun point de vente — contactez l\'administrateur');
+    $stmt = $db->prepare("SELECT spv.*, p.nom as produit_nom, p.unite FROM stocks_points_vente spv
+        JOIN produits p ON p.id = spv.produit_id WHERE spv.point_vente_id = ? ORDER BY p.nom");
+    $stmt->execute([$user['point_vente_id']]);
+    respond($stmt->fetchAll());
+}
+if ($action === 'caisse_vente_save') {
+    apiRequireRole(['point_vente']);
+    if (empty($user['point_vente_id'])) error400('Ce compte n\'est rattaché à aucun point de vente — contactez l\'administrateur');
+    $d = $body;
+    if (empty($d['produit_id']) || empty($d['quantite'])) error400('Produit et quantité requis');
+    $pvId = $user['point_vente_id'];
+
+    $stmtP = $db->prepare("SELECT prix_vente FROM produits WHERE id=?");
+    $stmtP->execute([$d['produit_id']]);
+    $prix = $stmtP->fetchColumn();
+    if ($prix === false) error400('Produit introuvable');
+    $montant = $prix * $d['quantite'];
+    $tvaStmt = $db->prepare("SELECT valeur FROM parametres WHERE cle='tva_defaut'");
+    $tvaStmt->execute();
+    $tva = floatval($tvaStmt->fetchColumn() ?: 19);
+    $ttc = round($montant * (1 + $tva/100), 3);
+
+    $db->beginTransaction();
+    try {
+        $db->prepare("INSERT INTO stocks_points_vente (point_vente_id,produit_id,quantite) VALUES (?,?,0)
+            ON DUPLICATE KEY UPDATE quantite = quantite")->execute([$pvId, $d['produit_id']]);
+        $db->prepare("UPDATE stocks_points_vente SET quantite = quantite - ? WHERE point_vente_id=? AND produit_id=?")
+            ->execute([$d['quantite'], $pvId, $d['produit_id']]);
+        $db->prepare("INSERT INTO mouvements_stock_produits (produit_id,type_mouvement,quantite,origine,reference_id,notes) VALUES (?,'sortie',?,'vente',?,?)")
+            ->execute([$d['produit_id'], $d['quantite'], $pvId, 'Vente passager (caisse)']);
+
+        $numero = nextDocNumero($db, 'factures', 'FAC');
+        $db->prepare("INSERT INTO factures (numero,point_vente_id,montant_ht,taux_tva,montant_ttc,mode_paiement,statut,date_emission) VALUES (?,?,?,?,?,'comptant','payee',CURDATE())")
+            ->execute([$numero, $pvId, $montant, $tva, $ttc]);
+        $factureId = $db->lastInsertId();
+        $db->prepare("INSERT INTO paiements (facture_id,montant,date_paiement,mode) VALUES (?,?,CURDATE(),'especes')")->execute([$factureId, $ttc]);
+
+        $db->commit();
+        respond(['ok' => true, 'numero' => $numero, 'montant_ttc' => $ttc]);
+    } catch (Exception $e) {
+        $db->rollBack();
+        error400('Erreur: ' . $e->getMessage());
+    }
+}
+if ($action === 'mes_ventes_list') {
+    apiRequireRole(['point_vente']);
+    if (empty($user['point_vente_id'])) error400('Ce compte n\'est rattaché à aucun point de vente — contactez l\'administrateur');
+    $stmt = $db->prepare("SELECT f.*, COALESCE((SELECT SUM(montant) FROM paiements WHERE facture_id=f.id),0) as montant_paye
+        FROM factures f WHERE f.point_vente_id = ? ORDER BY f.id DESC");
+    $stmt->execute([$user['point_vente_id']]);
+    respond($stmt->fetchAll());
+}
+
+// ──────────────────────────────────────────
+// PORTAILS EXTERNES — tableau de bord
+// ──────────────────────────────────────────
+if ($action === 'mes_dashboard_stats') {
+    apiRequireRole(['franchise','client_terme','point_vente']);
+    $s = monScope($user);
+    $stats = [];
+    if ($user['role'] === 'point_vente') {
+        $stmt = $db->prepare("SELECT COUNT(*), COALESCE(SUM(montant_ttc),0) FROM factures WHERE point_vente_id=? AND date_emission=CURDATE()");
+        $stmt->execute([$s['val']]);
+        [$stats['ventes_jour'], $stats['montant_jour']] = $stmt->fetch(PDO::FETCH_NUM);
+        $stmt2 = $db->prepare("SELECT COUNT(*) FROM stocks_points_vente WHERE point_vente_id=? AND quantite <= 0");
+        $stmt2->execute([$s['val']]);
+        $stats['produits_epuises'] = $stmt2->fetchColumn();
+    } else {
+        $stmt = $db->prepare("SELECT COUNT(*) FROM commandes WHERE {$s['col']}=? AND canal=? AND statut NOT IN ('facturee','annulee')");
+        $stmt->execute([$s['val'], $s['canal']]);
+        $stats['commandes_en_cours'] = $stmt->fetchColumn();
+        $stmt2 = $db->prepare("SELECT encours FROM v_encours_clients WHERE client_id=?");
+        $stmt2->execute([$s['val']]);
+        $stats['encours'] = $stmt2->fetchColumn() ?: 0;
+        $stmt3 = $db->prepare("SELECT COUNT(*) FROM declarations_paiement dp JOIN factures f ON f.id=dp.facture_id WHERE f.{$s['col']}=? AND dp.statut='en_attente'");
+        $stmt3->execute([$s['val']]);
+        $stats['declarations_en_attente'] = $stmt3->fetchColumn();
+    }
+    respond($stats);
 }
 
 error400('Action inconnue: ' . $action);

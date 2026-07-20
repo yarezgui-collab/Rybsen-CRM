@@ -328,6 +328,31 @@ CREATE TABLE IF NOT EXISTS paiements (
   CONSTRAINT fk_pai_facture FOREIGN KEY (facture_id) REFERENCES factures(id) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
+-- Déclaration de paiement par une franchise/client à terme depuis son portail —
+-- reste "en_attente" tant que l'admin/labo n'a pas validé (création réelle d'un
+-- mouvement dans `paiements`) ou rejeté. Jamais de mise à jour directe du solde.
+CREATE TABLE IF NOT EXISTS declarations_paiement (
+  id INT AUTO_INCREMENT PRIMARY KEY,
+  facture_id INT NOT NULL,
+  montant DECIMAL(10,3) NOT NULL,
+  date_declaration DATE NOT NULL,
+  mode ENUM('especes','carte','cheque','virement') NOT NULL DEFAULT 'virement',
+  reference VARCHAR(100),
+  notes VARCHAR(255),
+  statut ENUM('en_attente','validee','rejetee') NOT NULL DEFAULT 'en_attente',
+  declare_par INT NULL,
+  valide_par INT NULL,
+  valide_le DATETIME NULL,
+  paiement_id INT NULL,
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  KEY idx_decl_facture (facture_id),
+  KEY idx_decl_statut (statut),
+  CONSTRAINT fk_decl_facture FOREIGN KEY (facture_id) REFERENCES factures(id) ON DELETE CASCADE,
+  CONSTRAINT fk_decl_declare_par FOREIGN KEY (declare_par) REFERENCES users(id) ON DELETE SET NULL,
+  CONSTRAINT fk_decl_valide_par FOREIGN KEY (valide_par) REFERENCES users(id) ON DELETE SET NULL,
+  CONSTRAINT fk_decl_paiement FOREIGN KEY (paiement_id) REFERENCES paiements(id) ON DELETE SET NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
 -- ============================================================
 -- PARAMÈTRES (nom établissement, devise, feature flags admin)
 -- ============================================================
@@ -376,13 +401,12 @@ CREATE OR REPLACE VIEW v_encours_clients AS
 SELECT
   c.id AS client_id,
   c.nom,
-  COALESCE(SUM(f.montant_ttc), 0) - COALESCE((
-    SELECT SUM(p.montant) FROM paiements p
-    INNER JOIN factures f2 ON f2.id = p.facture_id
-    WHERE f2.client_id = c.id
-  ), 0) AS encours
+  COALESCE(SUM(f.montant_ttc - COALESCE(p.paye, 0)), 0) AS encours
 FROM clients c
 LEFT JOIN factures f ON f.client_id = c.id AND f.mode_paiement = 'terme' AND f.statut != 'brouillon'
+LEFT JOIN (
+  SELECT facture_id, SUM(montant) AS paye FROM paiements GROUP BY facture_id
+) p ON p.facture_id = f.id
 GROUP BY c.id, c.nom;
 
 -- ============================================================
