@@ -118,9 +118,18 @@ require_once '../includes/header.php';
         <div class="form-group full"><label>Nom *</label><input type="text" id="mp-nom"></div>
         <div class="form-group"><label>Unité</label><input type="text" id="mp-unite" value="kg"></div>
         <div class="form-group"><label>Stock actuel</label><input type="number" step="0.001" id="mp-stock"></div>
-        <div class="form-group"><label>Seuil d'alerte</label><input type="number" step="0.001" id="mp-seuil"></div>
         <div class="form-group"><label>Prix unitaire (DT)</label><input type="number" step="0.001" id="mp-prix"></div>
+        <div class="form-group full"><label>Mode d'alerte de stock</label>
+          <select id="mp-seuil-mode" onchange="onMpSeuilMode()">
+            <option value="quantite">Seuil en quantité</option>
+            <option value="pourcentage">Seuil en pourcentage d'un stock de référence</option>
+          </select>
+        </div>
+        <div class="form-group" id="wrap-mp-seuil"><label>Seuil d'alerte (quantité)</label><input type="number" step="0.001" id="mp-seuil"></div>
+        <div class="form-group" id="wrap-mp-ref" style="display:none"><label>Stock de référence</label><input type="number" step="0.001" id="mp-stock-ref"></div>
+        <div class="form-group" id="wrap-mp-pct" style="display:none"><label>Seuil (%)</label><input type="number" step="0.1" id="mp-seuil-pct" placeholder="Ex: 30"></div>
       </div>
+      <div class="alert-box info" style="margin-top:6px">Mode quantité : alerte dès que le stock passe sous le seuil. Mode pourcentage : alerte dès que le stock passe sous X % du stock de référence.</div>
     </div>
     <div class="modal-footer">
       <button class="btn btn-outline" onclick="LABO.closeModal('modal-mp')">Annuler</button>
@@ -202,7 +211,7 @@ function renderMp() {
     <tr>
       <td><strong>${e(m.nom)}</strong></td>
       <td class="num">${parseFloat(m.stock_actuel).toFixed(3)} ${e(m.unite)}</td>
-      <td class="num" style="${parseFloat(m.stock_actuel) <= parseFloat(m.seuil_alerte) ? 'color:var(--red);font-weight:700' : ''}">${parseFloat(m.seuil_alerte).toFixed(3)}</td>
+      <td class="num" style="${estSousSeuil(m) ? 'color:var(--red);font-weight:700' : ''}">${m.seuil_mode === 'pourcentage' ? (parseFloat(m.seuil_pourcentage).toFixed(0) + '% de ' + parseFloat(m.stock_reference).toFixed(0)) : parseFloat(m.seuil_alerte).toFixed(3)}</td>
       <td class="num">${LABO.formatCurrency(m.prix_unitaire)}</td>
       <td>${e(m.fournisseur_nom) || '—'}</td>
       <td>
@@ -210,6 +219,20 @@ function renderMp() {
         <button onclick="delMp(${m.id})" class="btn btn-danger btn-sm">🗑</button>
       </td>
     </tr>`).join('') : '<tr><td colspan="6" style="text-align:center;padding:30px;color:var(--text-muted)">Aucune matière première</td></tr>';
+}
+function estSousSeuil(m) {
+  const stock = parseFloat(m.stock_actuel);
+  if (m.seuil_mode === 'pourcentage') {
+    const ref = parseFloat(m.stock_reference);
+    return ref > 0 && stock <= ref * parseFloat(m.seuil_pourcentage) / 100;
+  }
+  return stock <= parseFloat(m.seuil_alerte);
+}
+function onMpSeuilMode() {
+  const mode = document.getElementById('mp-seuil-mode').value;
+  document.getElementById('wrap-mp-seuil').style.display = mode === 'quantite' ? '' : 'none';
+  document.getElementById('wrap-mp-ref').style.display = mode === 'pourcentage' ? '' : 'none';
+  document.getElementById('wrap-mp-pct').style.display = mode === 'pourcentage' ? '' : 'none';
 }
 function editMpById(id) { const m = allMp.find(x => x.id === id); if (m) editMp(m); }
 function openAddMp() {
@@ -219,7 +242,11 @@ function openAddMp() {
   document.getElementById('mp-unite').value = 'kg';
   document.getElementById('mp-stock').value = '';
   document.getElementById('mp-seuil').value = '';
+  document.getElementById('mp-seuil-mode').value = 'quantite';
+  document.getElementById('mp-stock-ref').value = '';
+  document.getElementById('mp-seuil-pct').value = '';
   document.getElementById('mp-prix').value = '';
+  onMpSeuilMode();
   LABO.openModal('modal-mp');
 }
 function editMp(m) {
@@ -229,7 +256,11 @@ function editMp(m) {
   document.getElementById('mp-unite').value = m.unite;
   document.getElementById('mp-stock').value = m.stock_actuel;
   document.getElementById('mp-seuil').value = m.seuil_alerte;
+  document.getElementById('mp-seuil-mode').value = m.seuil_mode || 'quantite';
+  document.getElementById('mp-stock-ref').value = m.stock_reference || '';
+  document.getElementById('mp-seuil-pct').value = m.seuil_pourcentage || '';
   document.getElementById('mp-prix').value = m.prix_unitaire;
+  onMpSeuilMode();
   LABO.openModal('modal-mp');
 }
 async function saveMp() {
@@ -241,6 +272,9 @@ async function saveMp() {
     unite: document.getElementById('mp-unite').value,
     stock_actuel: document.getElementById('mp-stock').value || 0,
     seuil_alerte: document.getElementById('mp-seuil').value || 0,
+    seuil_mode: document.getElementById('mp-seuil-mode').value,
+    stock_reference: document.getElementById('mp-stock-ref').value || 0,
+    seuil_pourcentage: document.getElementById('mp-seuil-pct').value || 0,
     prix_unitaire: document.getElementById('mp-prix').value || 0,
     actif: 1
   });

@@ -77,6 +77,17 @@ SELECT 'Boutique El Menzah (démo)', 'demo.pointvente@benyedder.tn', '$2y$12$OCO
 FROM points_vente WHERE nom = 'Boutique El Menzah'
 AND NOT EXISTS (SELECT 1 FROM users WHERE email = 'demo.pointvente@benyedder.tn');
 
+-- Comptes "production" de démonstration, rattachés chacun à une cuisine (mdp Demo2026!)
+INSERT INTO users (nom, email, password_hash, role, avatar, cuisine_id)
+SELECT 'Chef Viennoiserie (démo)', 'demo.viennoiserie@benyedder.tn', '$2y$12$OCO2J8b3/LbKX53L9s6UKevkJ0lE.AVQdwENxZAbvOQnu4RL/NHLq', 'production', 'CV', id
+FROM cuisines_production WHERE nom = 'Viennoiserie'
+AND NOT EXISTS (SELECT 1 FROM users WHERE email = 'demo.viennoiserie@benyedder.tn');
+
+INSERT INTO users (nom, email, password_hash, role, avatar, cuisine_id)
+SELECT 'Chef Pâtisserie (démo)', 'demo.patisserie@benyedder.tn', '$2y$12$OCO2J8b3/LbKX53L9s6UKevkJ0lE.AVQdwENxZAbvOQnu4RL/NHLq', 'production', 'CP', id
+FROM cuisines_production WHERE nom = 'Pâtisserie traditionnelle'
+AND NOT EXISTS (SELECT 1 FROM users WHERE email = 'demo.patisserie@benyedder.tn');
+
 -- ============================================================
 -- Pour retirer uniquement ces données de démo plus tard :
 -- ============================================================

@@ -64,8 +64,8 @@ require_once '../includes/header.php';
     </div>
     <div class="table-wrap">
       <table>
-        <thead><tr><th>Date</th><th>Produit</th><th>Quantité</th><th>Source</th><th>Point de vente</th><th>Motif</th></tr></thead>
-        <tbody id="perte-body"><tr><td colspan="6" style="text-align:center;padding:30px;color:var(--text-muted)">Chargement...</td></tr></tbody>
+        <thead><tr><th>Date</th><th>Produit</th><th>Quantité</th><th>Type</th><th>Source</th><th>Point de vente</th><th>Motif</th></tr></thead>
+        <tbody id="perte-body"><tr><td colspan="7" style="text-align:center;padding:30px;color:var(--text-muted)">Chargement...</td></tr></tbody>
       </table>
     </div>
   </div>
@@ -120,10 +120,17 @@ require_once '../includes/header.php';
           </select>
         </div>
         <div class="form-group" id="wrap-perte-pv"><label>Point de vente</label><select id="perte-pv"></select></div>
+        <div class="form-group full"><label>Type</label>
+          <select id="perte-type">
+            <option value="invendu">Invendu (conservé / stocké — n'impacte pas le stock)</option>
+            <option value="casse">Casse (sortie de stock)</option>
+            <option value="perime">Périmé (sortie de stock)</option>
+          </select>
+        </div>
         <div class="form-group full"><label>Produit</label><select id="perte-produit"></select></div>
         <div class="form-group"><label>Quantité</label><input type="number" step="0.001" id="perte-qte"></div>
         <div class="form-group"><label>Date</label><input type="date" id="perte-date"></div>
-        <div class="form-group full"><label>Motif</label><input type="text" id="perte-motif" placeholder="Ex: Invendu fin de journée"></div>
+        <div class="form-group full"><label>Motif</label><input type="text" id="perte-motif" placeholder="Ex: fin de journée"></div>
       </div>
     </div>
     <div class="modal-footer">
@@ -229,10 +236,11 @@ async function loadPertes() {
       <td>${LABO.formatDate(p.date_perte)}</td>
       <td>${e(p.produit_nom)}</td>
       <td class="num">${parseFloat(p.quantite).toFixed(3)}</td>
+      <td><span class="badge ${p.type_perte==='invendu'?'badge-gold':'badge-red'}">${({invendu:'Invendu',casse:'Casse',perime:'Périmé'})[p.type_perte]||e(p.type_perte||'')}</span></td>
       <td>${e(p.source)}</td>
       <td>${e(p.point_vente_nom) || '—'}</td>
       <td>${e(p.motif) || '—'}</td>
-    </tr>`).join('') : '<tr><td colspan="6" style="text-align:center;padding:30px;color:var(--text-muted)">Aucune perte déclarée</td></tr>';
+    </tr>`).join('') : '<tr><td colspan="7" style="text-align:center;padding:30px;color:var(--text-muted)">Aucune perte déclarée</td></tr>';
 }
 async function declarerPerte() {
   const r = await LABO.api('perte_save', {
@@ -240,6 +248,7 @@ async function declarerPerte() {
     point_vente_id: document.getElementById('perte-source').value === 'point_vente' ? document.getElementById('perte-pv').value : null,
     produit_id: document.getElementById('perte-produit').value,
     quantite: document.getElementById('perte-qte').value,
+    type_perte: document.getElementById('perte-type').value,
     date_perte: document.getElementById('perte-date').value || new Date().toISOString().slice(0,10),
     motif: document.getElementById('perte-motif').value
   });

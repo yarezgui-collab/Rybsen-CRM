@@ -101,9 +101,15 @@ franchises et points de vente. Voir `crm-labo-benyedder/README.md` pour le conte
   - Propres à ce projet (créés) : BENYEDDER_DB_NAME (= nom base = nom utilisateur MySQL, u293743867_Tby) / BENYEDDER_DB_PASSWORD
   - Propre à ce projet (à créer) : BENYEDDER_MIGRATION_TOKEN (jeton aléatoire protégeant run_demo_data.php)
 - Exclut du déploiement : *.sql, config.example.php, .gitignore
-- La base MySQL doit déjà contenir le schéma : install.sql exécuté manuellement via phpMyAdmin
-  avant le premier déploiement (non automatisé volontairement, pour ne jamais écraser le schéma
-  ou des données existantes en cas de modification future du fichier)
+- Le schéma est appliqué automatiquement à chaque déploiement via run_migration.php (protégé par
+  BENYEDDER_MIGRATION_TOKEN) : ce endpoint exécute install.sql côté serveur, en respectant les
+  DELIMITER (procédures stockées). Idempotent — CREATE TABLE IF NOT EXISTS, procédures
+  conditionnelles (information_schema) pour les colonnes, CREATE OR REPLACE pour les vues ; ne
+  crée que ce qui manque, n'écrase jamais les données existantes. Le workflow bloque le déploiement
+  si une requête échoue ("ok":false). run_migration.php est appelé AVANT run_demo_data.php.
+- *.sql (dont install.sql) n'est pas déployé par SFTP : run_migration.php lit install.sql… donc
+  install.sql DOIT être déployé. Il est inclus dans le SFTP (l'exclusion *.sql concerne les autres
+  dumps) — vérifier que install.sql est bien présent sur le serveur pour que la migration fonctionne.
 
 ## Structure du projet
 - Stack : PHP 8+ PDO MySQL sur Hostinger shared hosting (même pattern que crm-rybsen/)
@@ -135,3 +141,22 @@ franchises et points de vente. Voir `crm-labo-benyedder/README.md` pour le conte
 5. DECIMAL(10,3) pour toutes les valeurs monétaires et quantités (cohérence avec crm-rybsen)
 6. La décrémentation de stock matières premières doit toujours passer par la recette (BOM),
    jamais de modification manuelle du stock hors mouvement tracé
+
+## Évolutions v2 (cuisines, catalogue par compte, stock temps réel, hors-ligne)
+- Nouvelles tables (dans install.sql, ajoutées de façon idempotente via la procédure
+  `upgrade_schema_v2` pour les colonnes, `CREATE TABLE IF NOT EXISTS` pour les tables) :
+  `cuisines_production`, `categories` (nom↔cuisine_id), `catalogue_autorise`
+  (cible_type client/point_vente + cible_id → produit_id ; vide = catalogue complet),
+  `stocks_clients`, `inventaires` / `inventaire_lignes`. Colonnes ajoutées :
+  seuils configurables sur `matieres_premieres` et `produits` (seuil_mode quantite|pourcentage,
+  seuil_pourcentage, stock_reference), `users.cuisine_id`, `ordres_fabrication.cuisine_id`,
+  `pertes.type_perte` (casse|perime|invendu), `factures.client_ref` (UNIQUE, idempotence caisse).
+- Sur une base existante, re-exécuter install.sql applique la mise à niveau sans rien écraser.
+- Production multi-cuisines : `of_generate` crée un OF par cuisine (catégorie du produit →
+  categories.cuisine_id) ; un compte `production` porte `cuisine_id` et ne voit que ses OF ;
+  livraison bloquée tant que toutes les cuisines d'une commande n'ont pas terminé.
+- Invendu (`type_perte='invendu'`) = conservé, n'impacte PAS le stock ; casse/périmé = sortie.
+- Hors-ligne (points de vente) : PWA (sw.js + manifest.webmanifest + assets/offline.js). La
+  caisse met les ventes en file locale et les synchronise via `caisse_vente_save` avec un
+  `client_ref` (UUID) — l'action est idempotente : une vente rejouée n'est jamais doublée.
+  Toute nouvelle action encaissant hors-ligne doit suivre ce pattern client_ref/idempotence.

@@ -13,8 +13,8 @@ require_once '../includes/header.php';
   </div>
   <div class="table-wrap">
     <table>
-      <thead><tr><th>#</th><th>Type</th><th>Date commande</th><th>Livraison prévue</th><th>Montant</th><th>Statut</th><th>Actions</th></tr></thead>
-      <tbody id="cmd-body"><tr><td colspan="7" style="text-align:center;padding:30px;color:var(--text-muted)">Chargement...</td></tr></tbody>
+      <thead><tr><th>#</th><th>Date commande</th><th>Livraison prévue</th><th>Montant</th><th>Statut</th><th>Actions</th></tr></thead>
+      <tbody id="cmd-body"><tr><td colspan="6" style="text-align:center;padding:30px;color:var(--text-muted)">Chargement...</td></tr></tbody>
     </table>
   </div>
 </div>
@@ -35,12 +35,7 @@ require_once '../includes/header.php';
     <div class="modal-body">
       <input type="hidden" id="cmd-id">
       <div class="form-grid">
-        <div class="form-group"><label>Type</label>
-          <select id="cmd-type">
-            <option value="ponctuelle">Ponctuelle</option>
-            <option value="reguliere">Régulière</option>
-          </select>
-        </div>
+        <input type="hidden" id="cmd-type" value="ponctuelle">
         <div class="form-group"><label>Date de commande</label><input type="date" id="cmd-date"></div>
         <div class="form-group"><label>Livraison souhaitée</label><input type="date" id="cmd-date-liv"></div>
         <div class="form-group full"><label>Notes</label><input type="text" id="cmd-notes"></div>
@@ -82,7 +77,6 @@ function renderCmd() {
   document.getElementById('cmd-body').innerHTML = allCmd.length ? allCmd.map(c => `
     <tr style="cursor:pointer" onclick="if(event.target.closest('button'))return; openDetail(${c.id})">
       <td>#${c.id}</td>
-      <td>${LABO.escape(c.type)}</td>
       <td>${LABO.formatDate(c.date_commande)}</td>
       <td>${LABO.formatDate(c.date_livraison_prevue)}</td>
       <td class="num">${LABO.formatCurrency(c.montant_total)}</td>
@@ -92,7 +86,7 @@ function renderCmd() {
         <button onclick="setStatut(${c.id},'confirmee')" class="btn btn-teal btn-sm">Confirmer</button>
         <button onclick="setStatut(${c.id},'annulee')" class="btn btn-danger btn-sm">Annuler</button>` : ''}
       </td>
-    </tr>`).join('') : '<tr><td colspan="7" style="text-align:center;padding:30px;color:var(--text-muted)">Aucune commande pour le moment</td></tr>';
+    </tr>`).join('') : '<tr><td colspan="6" style="text-align:center;padding:30px;color:var(--text-muted)">Aucune commande pour le moment</td></tr>';
 }
 
 function addLigne(produitId = '', quantite = 1) {
@@ -176,7 +170,6 @@ async function openDetail(id) {
   document.getElementById('detail-body').innerHTML = `
     <div class="form-grid" style="margin-bottom:16px">
       <div class="form-group"><label>Statut</label><div><span class="badge ${statutBadge[cmd.statut]}">${statutLabels[cmd.statut]}</span></div></div>
-      <div class="form-group"><label>Type</label><div>${e(cmd.type)}</div></div>
       <div class="form-group"><label>Date commande</label><div>${LABO.formatDate(cmd.date_commande)}</div></div>
       <div class="form-group"><label>Livraison prévue</label><div>${LABO.formatDate(cmd.date_livraison_prevue)}</div></div>
     </div>

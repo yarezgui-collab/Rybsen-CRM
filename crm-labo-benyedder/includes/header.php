@@ -1,4 +1,6 @@
-<?php requireLogin(); $user = currentUser(); $role = $user['role'] ?? 'client_terme'; ?>
+<?php requireLogin(); $user = currentUser(); $role = $user['role'] ?? 'client_terme';
+$roleLabels = ['admin'=>'Administrateur','labo'=>'Laboratoire central','production'=>'Production','franchise'=>'Franchise','point_vente'=>'Point de vente','client_terme'=>'Client à terme'];
+?>
 <!DOCTYPE html>
 <html lang="fr">
 <head>
@@ -6,7 +8,11 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Ben Yedder CRM — <?= htmlspecialchars($pageTitle ?? 'Tableau de bord') ?></title>
 <link rel="stylesheet" href="/assets/style.css">
+<link rel="manifest" href="/manifest.webmanifest">
+<meta name="theme-color" content="#6B4A2F">
+<link rel="apple-touch-icon" href="/assets/icon.svg">
 <script src="/assets/app.js"></script>
+<script src="/assets/offline.js"></script>
 </head>
 <body>
 <nav class="sidebar" id="sidebar">
@@ -52,6 +58,9 @@
   <a href="/modules/catalogue.php" class="nav-item <?= ($activePage??'')==='catalogue' ? 'active':'' ?>">
     <span class="nav-icon">📖</span><span class="nav-text">Produits &amp; Recettes</span>
   </a>
+  <a href="/modules/catalogue_comptes.php" class="nav-item <?= ($activePage??'')==='catalogue_comptes' ? 'active':'' ?>">
+    <span class="nav-icon">📋</span><span class="nav-text">Catalogue par compte</span>
+  </a>
   <?php elseif (in_array($role, ['franchise','client_terme','point_vente'], true)): ?>
   <div class="nav-section-label">CATALOGUE</div>
   <a href="/modules/mes_produits.php" class="nav-item <?= ($activePage??'')==='mes_produits' ? 'active':'' ?>">
@@ -62,12 +71,20 @@
   <?php if (in_array($role, ['admin','labo','production'], true)): ?>
   <div class="nav-section-label">PRODUCTION</div>
   <a href="/modules/production.php" class="nav-item <?= ($activePage??'')==='production' ? 'active':'' ?>">
-    <span class="nav-icon">⚙️</span><span class="nav-text">Ordres de fabrication</span>
+    <span class="nav-icon">⚙️</span><span class="nav-text"><?= $role==='production' ? 'Ma cuisine' : 'Ordres de fabrication' ?></span>
   </a>
+  <?php if (in_array($role, ['admin','labo'], true)): ?>
+  <a href="/modules/cuisines.php" class="nav-item <?= ($activePage??'')==='cuisines' ? 'active':'' ?>">
+    <span class="nav-icon">🍳</span><span class="nav-text">Cuisines de production</span>
+  </a>
+  <?php endif; ?>
   <?php endif; ?>
 
   <?php if (in_array($role, ['admin','labo'], true)): ?>
   <div class="nav-section-label">STOCK</div>
+  <a href="/modules/stock_central.php" class="nav-item <?= ($activePage??'')==='stock_central' ? 'active':'' ?>">
+    <span class="nav-icon">📡</span><span class="nav-text">Stock temps réel</span>
+  </a>
   <a href="/modules/stock.php" class="nav-item <?= ($activePage??'')==='stock' ? 'active':'' ?>">
     <span class="nav-icon">📊</span><span class="nav-text">Stock & matières</span>
   </a>
@@ -83,6 +100,13 @@
   </a>
   <a href="/modules/mon_stock.php" class="nav-item <?= ($activePage??'')==='mon_stock' ? 'active':'' ?>">
     <span class="nav-icon">📊</span><span class="nav-text">Mon stock vitrine</span>
+  </a>
+  <?php endif; ?>
+
+  <?php if (in_array($role, ['franchise','client_terme'], true)): ?>
+  <div class="nav-section-label">STOCK</div>
+  <a href="/modules/mon_stock_client.php" class="nav-item <?= ($activePage??'')==='mon_stock_client' ? 'active':'' ?>">
+    <span class="nav-icon">📊</span><span class="nav-text">Mon stock</span>
   </a>
   <?php endif; ?>
 
@@ -119,7 +143,7 @@
       <div class="user-avatar"><?= htmlspecialchars($user['avatar'] ?? 'BY') ?></div>
       <div class="user-info">
         <div class="user-name"><?= htmlspecialchars($user['nom'] ?? '') ?></div>
-        <div class="user-role"><?= htmlspecialchars($role) ?></div>
+        <div class="user-role"><?= htmlspecialchars($roleLabels[$role] ?? $role) ?></div>
       </div>
     </div>
     <a href="/logout.php" class="logout-btn">Déconnexion</a>
@@ -130,6 +154,21 @@
     <button class="menu-toggle" onclick="document.getElementById('sidebar').classList.toggle('open')">☰</button>
     <div class="topbar-title"><?= htmlspecialchars($pageTitle ?? 'Tableau de bord') ?></div>
     <div class="topbar-right">
+      <?php if ($role === 'point_vente'): ?>
+      <span id="net-status" class="alert-badge" style="background:#e8f5e9;color:#2e7d32;border-color:#c8e6c9">● En ligne</span>
+      <script>
+        (function(){
+          function upd(n, online){
+            var el = document.getElementById('net-status'); if(!el) return;
+            if(!online){ el.style.background='#fdecea'; el.style.color='#c62828'; el.style.borderColor='#f5c6cb'; el.textContent = '⚠ Hors-ligne' + (n?(' · '+n+' à synchro'):''); }
+            else if(n){ el.style.background='#fff8e1'; el.style.color='#f57f17'; el.style.borderColor='#ffe0b2'; el.textContent = '↻ Synchro… '+n; }
+            else { el.style.background='#e8f5e9'; el.style.color='#2e7d32'; el.style.borderColor='#c8e6c9'; el.textContent='● En ligne'; }
+          }
+          function bind(){ if(window.OfflineCaisse){ OfflineCaisse.onChange(upd); } else setTimeout(bind, 200); }
+          bind();
+        })();
+      </script>
+      <?php endif; ?>
       <?php if (in_array($role, ['admin','labo'], true)):
         try {
           $db = getDB();
