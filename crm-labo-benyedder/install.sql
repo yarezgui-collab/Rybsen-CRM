@@ -469,6 +469,12 @@ BEGIN
   IF NOT EXISTS (SELECT 1 FROM information_schema.COLUMNS WHERE TABLE_SCHEMA=DATABASE() AND TABLE_NAME='pertes' AND COLUMN_NAME='type_perte') THEN
     ALTER TABLE pertes ADD COLUMN type_perte ENUM('casse','perime','invendu') NOT NULL DEFAULT 'casse';
   END IF;
+  -- Référence client (UUID) d'une vente : garantit l'idempotence de la synchro hors-ligne
+  -- (une même vente encaissée hors-ligne puis synchronisée n'est jamais enregistrée deux fois).
+  IF NOT EXISTS (SELECT 1 FROM information_schema.COLUMNS WHERE TABLE_SCHEMA=DATABASE() AND TABLE_NAME='factures' AND COLUMN_NAME='client_ref') THEN
+    ALTER TABLE factures ADD COLUMN client_ref VARCHAR(64) NULL,
+      ADD UNIQUE KEY uniq_facture_client_ref (client_ref);
+  END IF;
 END$$
 DELIMITER ;
 CALL upgrade_schema_v2();

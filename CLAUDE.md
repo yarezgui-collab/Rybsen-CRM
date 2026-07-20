@@ -135,3 +135,22 @@ franchises et points de vente. Voir `crm-labo-benyedder/README.md` pour le conte
 5. DECIMAL(10,3) pour toutes les valeurs monétaires et quantités (cohérence avec crm-rybsen)
 6. La décrémentation de stock matières premières doit toujours passer par la recette (BOM),
    jamais de modification manuelle du stock hors mouvement tracé
+
+## Évolutions v2 (cuisines, catalogue par compte, stock temps réel, hors-ligne)
+- Nouvelles tables (dans install.sql, ajoutées de façon idempotente via la procédure
+  `upgrade_schema_v2` pour les colonnes, `CREATE TABLE IF NOT EXISTS` pour les tables) :
+  `cuisines_production`, `categories` (nom↔cuisine_id), `catalogue_autorise`
+  (cible_type client/point_vente + cible_id → produit_id ; vide = catalogue complet),
+  `stocks_clients`, `inventaires` / `inventaire_lignes`. Colonnes ajoutées :
+  seuils configurables sur `matieres_premieres` et `produits` (seuil_mode quantite|pourcentage,
+  seuil_pourcentage, stock_reference), `users.cuisine_id`, `ordres_fabrication.cuisine_id`,
+  `pertes.type_perte` (casse|perime|invendu), `factures.client_ref` (UNIQUE, idempotence caisse).
+- Sur une base existante, re-exécuter install.sql applique la mise à niveau sans rien écraser.
+- Production multi-cuisines : `of_generate` crée un OF par cuisine (catégorie du produit →
+  categories.cuisine_id) ; un compte `production` porte `cuisine_id` et ne voit que ses OF ;
+  livraison bloquée tant que toutes les cuisines d'une commande n'ont pas terminé.
+- Invendu (`type_perte='invendu'`) = conservé, n'impacte PAS le stock ; casse/périmé = sortie.
+- Hors-ligne (points de vente) : PWA (sw.js + manifest.webmanifest + assets/offline.js). La
+  caisse met les ventes en file locale et les synchronise via `caisse_vente_save` avec un
+  `client_ref` (UUID) — l'action est idempotente : une vente rejouée n'est jamais doublée.
+  Toute nouvelle action encaissant hors-ligne doit suivre ce pattern client_ref/idempotence.

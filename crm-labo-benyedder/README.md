@@ -49,6 +49,29 @@ incluant des tentatives d'accès croisées (IDOR).
    - email : `admin@benyedder.tn`
    - mot de passe temporaire : `BenYedder2026!` (à changer dans Utilisateurs → Changer mon mot de passe)
 
+> **Mise à niveau v2 (cuisines, catalogue par compte, stock temps réel, seuils, hors-ligne)** :
+> re-exécuter `install.sql` dans phpMyAdmin sur une base existante. Le script est idempotent —
+> il ajoute uniquement les nouvelles tables/colonnes manquantes (procédure `upgrade_schema_v2`)
+> sans toucher aux données existantes. Aucune donnée n'est écrasée.
+
+## Évolutions v2
+
+- **Cuisines de production** : plusieurs ateliers (viennoiserie, pâtisserie, glacier…), chacun
+  avec son compte. La génération crée un ordre de fabrication **par cuisine** selon la catégorie
+  des produits ; réaffectation manuelle possible en cas exceptionnel. La livraison d'une commande
+  répartie sur plusieurs cuisines n'est possible que lorsque **toutes** ont terminé.
+- **Catalogue par compte** : l'admin choisit les catégories/articles autorisés pour chaque
+  franchise, point de vente ou client à terme (liste vide = catalogue complet).
+- **Seuils de stock configurables** par article : en quantité absolue **ou** en pourcentage d'un
+  stock de référence.
+- **Stock temps réel** : tableau de bord admin dédié (labo central, points de vente, clients à
+  terme), inventaire physique rapide avec ajustement automatique de l'écart, distinction
+  invendu (conservé) vs casse/périmé (sortie de stock).
+- **Mode hors-ligne (points de vente)** : application installable (PWA). La caisse fonctionne
+  pendant les coupures internet — les ventes sont mises en file localement puis synchronisées
+  automatiquement au retour du réseau. Chaque vente porte une référence unique garantissant
+  qu'elle n'est **jamais enregistrée deux fois** (idempotence côté serveur).
+
 ## État d'avancement
 
 **Opérationnel — vérifié de bout en bout (voir rapport de vérification) :**

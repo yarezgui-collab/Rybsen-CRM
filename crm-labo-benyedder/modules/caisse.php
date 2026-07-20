@@ -45,27 +45,45 @@ function updateTotal() {
   document.getElementById('vente-prix').textContent = LABO.formatCurrency(prix);
   document.getElementById('vente-total').textContent = 'Total : ' + LABO.formatCurrency(prix * qte);
 }
-async function encaisser() {
-  const produitId = document.getElementById('vente-produit').value;
+function encaisser() {
+  const sel = document.getElementById('vente-produit');
+  const produitId = sel.value;
   const qte = document.getElementById('vente-qte').value;
   if (!produitId || !qte || qte < 1) { LABO.toast('Quantité invalide', 'error'); return; }
-  const r = await LABO.api('caisse_vente_save', { produit_id: produitId, quantite: qte });
-  if (r.ok) {
-    LABO.toast('Vente encaissée — ' + r.numero + ' (' + LABO.formatCurrency(r.montant_ttc) + ')');
-    document.getElementById('vente-qte').value = 1;
-    updateTotal();
-    loadVentes();
-  } else LABO.toast(r.error || 'Erreur', 'error');
+  const prix = parseFloat(sel.selectedOptions[0]?.dataset.prix || 0);
+  const nom = sel.selectedOptions[0]?.textContent || '';
+  // La vente est toujours mise en file localement (fonctionne hors-ligne), puis synchronisée.
+  OfflineCaisse.enqueueSale({ produit_id: produitId, quantite: qte, _nom: nom, _montant: prix * qte * 1.19 });
+  if (navigator.onLine) LABO.toast('Vente encaissée ✓');
+  else LABO.toast('Vente enregistrée hors-ligne — sera synchronisée au retour du réseau', 'info');
+  document.getElementById('vente-qte').value = 1;
+  updateTotal();
+  setTimeout(loadVentes, 400);
+}
+
+function renderPending() {
+  const q = (function(){ try { return JSON.parse(localStorage.getItem('benyedder_ventes_queue')||'[]'); } catch(e){ return []; } })();
+  const e = LABO.escape;
+  return q.map(v => `<tr style="opacity:.7">
+    <td><strong>— local —</strong></td>
+    <td>${LABO.formatDate(new Date(v._ts).toISOString().slice(0,10))}</td>
+    <td class="num">${v._montant ? LABO.formatCurrency(v._montant) : '—'}</td>
+    <td><span class="badge badge-gold">⏳ À synchroniser</span></td></tr>`).join('');
 }
 async function loadVentes() {
-  const rows = await LABO.api('mes_ventes_list');
   const e = LABO.escape;
   const statutLabels = { emise: 'Émise', payee: 'Payée' };
   const statutBadge = { emise: 'badge-navy', payee: 'badge-green' };
-  document.getElementById('ventes-body').innerHTML = rows.length ? rows.map(f => `
-    <tr><td><strong>${e(f.numero)}</strong></td><td>${LABO.formatDate(f.date_emission)}</td><td class="num">${LABO.formatCurrency(f.montant_ttc)}</td><td><span class="badge ${statutBadge[f.statut]||'badge-grey'}">${statutLabels[f.statut]||e(f.statut)}</span></td></tr>`).join('')
-    : '<tr><td colspan="4" style="text-align:center;padding:30px;color:var(--text-muted)">Aucune vente pour le moment</td></tr>';
+  let serverRows = [];
+  try { const r = await LABO.api('mes_ventes_list'); if (Array.isArray(r)) serverRows = r; } catch (err) {}
+  const pending = renderPending();
+  const server = serverRows.map(f => `
+    <tr><td><strong>${e(f.numero)}</strong></td><td>${LABO.formatDate(f.date_emission)}</td><td class="num">${LABO.formatCurrency(f.montant_ttc)}</td><td><span class="badge ${statutBadge[f.statut]||'badge-grey'}">${statutLabels[f.statut]||e(f.statut)}</span></td></tr>`).join('');
+  document.getElementById('ventes-body').innerHTML = (pending + server) || '<tr><td colspan="4" style="text-align:center;padding:30px;color:var(--text-muted)">Aucune vente pour le moment</td></tr>';
 }
+
+// Rafraîchit la liste quand la file de synchro change (vente synchronisée → passe côté serveur)
+if (window.OfflineCaisse) OfflineCaisse.onChange(function(){ loadVentes(); });
 
 (async function () { await loadProduits(); await loadVentes(); })();
 </script>

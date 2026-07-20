@@ -1277,6 +1277,18 @@ if ($action === 'caisse_vente_save') {
     if (empty($d['produit_id']) || empty($d['quantite'])) error400('Produit et quantité requis');
     $pvId = $user['point_vente_id'];
 
+    // Idempotence hors-ligne : si cette vente (même client_ref) a déjà été enregistrée,
+    // on renvoie la facture existante sans rien recréer (évite un double encaissement lors
+    // d'une synchro rejouée après coupure réseau).
+    $clientRef = !empty($d['client_ref']) ? substr((string)$d['client_ref'], 0, 64) : null;
+    if ($clientRef) {
+        $dup = $db->prepare("SELECT id, numero, montant_ttc FROM factures WHERE client_ref=?");
+        $dup->execute([$clientRef]);
+        if ($existing = $dup->fetch()) {
+            respond(['ok' => true, 'numero' => $existing['numero'], 'montant_ttc' => $existing['montant_ttc'], 'deja_enregistre' => true]);
+        }
+    }
+
     $stmtP = $db->prepare("SELECT prix_vente FROM produits WHERE id=?");
     $stmtP->execute([$d['produit_id']]);
     $prix = $stmtP->fetchColumn();
@@ -1297,8 +1309,8 @@ if ($action === 'caisse_vente_save') {
             ->execute([$d['produit_id'], $d['quantite'], $pvId, 'Vente passager (caisse)']);
 
         $numero = nextDocNumero($db, 'factures', 'FAC');
-        $db->prepare("INSERT INTO factures (numero,point_vente_id,montant_ht,taux_tva,montant_ttc,mode_paiement,statut,date_emission) VALUES (?,?,?,?,?,'comptant','payee',CURDATE())")
-            ->execute([$numero, $pvId, $montant, $tva, $ttc]);
+        $db->prepare("INSERT INTO factures (numero,point_vente_id,montant_ht,taux_tva,montant_ttc,mode_paiement,statut,date_emission,client_ref) VALUES (?,?,?,?,?,'comptant','payee',CURDATE(),?)")
+            ->execute([$numero, $pvId, $montant, $tva, $ttc, $clientRef]);
         $factureId = $db->lastInsertId();
         $db->prepare("INSERT INTO paiements (facture_id,montant,date_paiement,mode) VALUES (?,?,CURDATE(),'especes')")->execute([$factureId, $ttc]);
 
@@ -1306,6 +1318,12 @@ if ($action === 'caisse_vente_save') {
         respond(['ok' => true, 'numero' => $numero, 'montant_ttc' => $ttc]);
     } catch (Exception $e) {
         $db->rollBack();
+        // Course entre deux synchros de la même vente : renvoie la facture déjà créée
+        if ($clientRef) {
+            $dup = $db->prepare("SELECT numero, montant_ttc FROM factures WHERE client_ref=?");
+            $dup->execute([$clientRef]);
+            if ($existing = $dup->fetch()) respond(['ok' => true, 'numero' => $existing['numero'], 'montant_ttc' => $existing['montant_ttc'], 'deja_enregistre' => true]);
+        }
         error400('Erreur: ' . $e->getMessage());
     }
 }

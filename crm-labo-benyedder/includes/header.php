@@ -8,7 +8,11 @@ $roleLabels = ['admin'=>'Administrateur','labo'=>'Laboratoire central','producti
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Ben Yedder CRM — <?= htmlspecialchars($pageTitle ?? 'Tableau de bord') ?></title>
 <link rel="stylesheet" href="/assets/style.css">
+<link rel="manifest" href="/manifest.webmanifest">
+<meta name="theme-color" content="#6B4A2F">
+<link rel="apple-touch-icon" href="/assets/icon.svg">
 <script src="/assets/app.js"></script>
+<script src="/assets/offline.js"></script>
 </head>
 <body>
 <nav class="sidebar" id="sidebar">
@@ -150,6 +154,21 @@ $roleLabels = ['admin'=>'Administrateur','labo'=>'Laboratoire central','producti
     <button class="menu-toggle" onclick="document.getElementById('sidebar').classList.toggle('open')">☰</button>
     <div class="topbar-title"><?= htmlspecialchars($pageTitle ?? 'Tableau de bord') ?></div>
     <div class="topbar-right">
+      <?php if ($role === 'point_vente'): ?>
+      <span id="net-status" class="alert-badge" style="background:#e8f5e9;color:#2e7d32;border-color:#c8e6c9">● En ligne</span>
+      <script>
+        (function(){
+          function upd(n, online){
+            var el = document.getElementById('net-status'); if(!el) return;
+            if(!online){ el.style.background='#fdecea'; el.style.color='#c62828'; el.style.borderColor='#f5c6cb'; el.textContent = '⚠ Hors-ligne' + (n?(' · '+n+' à synchro'):''); }
+            else if(n){ el.style.background='#fff8e1'; el.style.color='#f57f17'; el.style.borderColor='#ffe0b2'; el.textContent = '↻ Synchro… '+n; }
+            else { el.style.background='#e8f5e9'; el.style.color='#2e7d32'; el.style.borderColor='#c8e6c9'; el.textContent='● En ligne'; }
+          }
+          function bind(){ if(window.OfflineCaisse){ OfflineCaisse.onChange(upd); } else setTimeout(bind, 200); }
+          bind();
+        })();
+      </script>
+      <?php endif; ?>
       <?php if (in_array($role, ['admin','labo'], true)):
         try {
           $db = getDB();

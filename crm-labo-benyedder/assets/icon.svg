@@ -1,0 +1,7 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="512" height="512" viewBox="0 0 512 512">
+  <rect width="512" height="512" rx="96" fill="#6B4A2F"/>
+  <text x="50%" y="52%" font-family="Georgia, serif" font-size="230" font-weight="bold"
+        fill="#F6F3EC" text-anchor="middle" dominant-baseline="central">BY</text>
+  <text x="50%" y="84%" font-family="Arial, sans-serif" font-size="52"
+        fill="#BD6A1E" text-anchor="middle" dominant-baseline="central">LABO</text>
+</svg>
