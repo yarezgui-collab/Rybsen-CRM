@@ -30,8 +30,8 @@ require_once '../includes/header.php';
   </div>
   <div class="table-wrap">
     <table>
-      <thead><tr><th>#</th><th>Canal</th><th>Destination</th><th>Type</th><th>Date commande</th><th>Livraison prévue</th><th>Montant</th><th>Statut</th><th>Actions</th></tr></thead>
-      <tbody id="cmd-body"><tr><td colspan="9" style="text-align:center;padding:30px;color:var(--text-muted)">Chargement...</td></tr></tbody>
+      <thead><tr><th>#</th><th>Canal</th><th>Destination</th><th>Date commande</th><th>Livraison prévue</th><th>Montant</th><th>Statut</th><th>Actions</th></tr></thead>
+      <tbody id="cmd-body"><tr><td colspan="8" style="text-align:center;padding:30px;color:var(--text-muted)">Chargement...</td></tr></tbody>
     </table>
   </div>
 </div>
@@ -64,13 +64,7 @@ require_once '../includes/header.php';
             <option value="point_vente">Point de vente</option>
           </select>
         </div>
-        <div class="form-group"><label>Type</label>
-          <select id="cmd-type">
-            <option value="ponctuelle">Ponctuelle</option>
-            <option value="reguliere">Régulière</option>
-            <option value="evenementielle">Événementielle</option>
-          </select>
-        </div>
+        <input type="hidden" id="cmd-type" value="ponctuelle">
         <div class="form-group" id="wrap-client"><label>Client à terme *</label><select id="cmd-client"></select></div>
         <div class="form-group" id="wrap-franchise" style="display:none"><label>Franchise *</label><select id="cmd-franchise"></select></div>
         <div class="form-group" id="wrap-pv" style="display:none"><label>Point de vente *</label><select id="cmd-pv"></select></div>
@@ -137,7 +131,6 @@ function renderCmd(data) {
       <td>#${c.id}</td>
       <td><span class="badge ${canalBadge[c.canal]}">${canalLabels[c.canal]}</span></td>
       <td>${e(c.client_nom || c.point_vente_nom || '—')}</td>
-      <td>${e(c.type)}</td>
       <td>${LABO.formatDate(c.date_commande)}</td>
       <td>${LABO.formatDate(c.date_livraison_prevue)}</td>
       <td class="num">${LABO.formatCurrency(c.montant_total)}</td>
@@ -147,7 +140,7 @@ function renderCmd(data) {
         <button onclick="setStatut(${c.id},'confirmee')" class="btn btn-teal btn-sm">✓</button>
         <button onclick="delCmd(${c.id})" class="btn btn-danger btn-sm">🗑</button>` : ''}
       </td>
-    </tr>`).join('') : '<tr><td colspan="9" style="text-align:center;padding:30px;color:var(--text-muted)">Aucune commande</td></tr>';
+    </tr>`).join('') : '<tr><td colspan="8" style="text-align:center;padding:30px;color:var(--text-muted)">Aucune commande</td></tr>';
 }
 
 function onCanalChange() {
@@ -260,7 +253,6 @@ async function openDetail(id) {
       <div class="form-group"><label>Canal</label><div><span class="badge ${canalBadge[cmd.canal]}">${canalLabels[cmd.canal]}</span></div></div>
       <div class="form-group"><label>Destination</label><div>${e(cmd.destination) || '—'}</div></div>
       <div class="form-group"><label>Statut</label><div><span class="badge ${statutBadge[cmd.statut]}">${statutLabels[cmd.statut]}</span></div></div>
-      <div class="form-group"><label>Type</label><div>${e(cmd.type)}</div></div>
       <div class="form-group"><label>Date commande</label><div>${LABO.formatDate(cmd.date_commande)}</div></div>
       <div class="form-group"><label>Livraison prévue</label><div>${LABO.formatDate(cmd.date_livraison_prevue)}</div></div>
     </div>

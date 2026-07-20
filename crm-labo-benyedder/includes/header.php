@@ -1,4 +1,6 @@
-<?php requireLogin(); $user = currentUser(); $role = $user['role'] ?? 'client_terme'; ?>
+<?php requireLogin(); $user = currentUser(); $role = $user['role'] ?? 'client_terme';
+$roleLabels = ['admin'=>'Administrateur','labo'=>'Laboratoire central','production'=>'Production','franchise'=>'Franchise','point_vente'=>'Point de vente','client_terme'=>'Client à terme'];
+?>
 <!DOCTYPE html>
 <html lang="fr">
 <head>
@@ -52,6 +54,9 @@
   <a href="/modules/catalogue.php" class="nav-item <?= ($activePage??'')==='catalogue' ? 'active':'' ?>">
     <span class="nav-icon">📖</span><span class="nav-text">Produits &amp; Recettes</span>
   </a>
+  <a href="/modules/catalogue_comptes.php" class="nav-item <?= ($activePage??'')==='catalogue_comptes' ? 'active':'' ?>">
+    <span class="nav-icon">📋</span><span class="nav-text">Catalogue par compte</span>
+  </a>
   <?php elseif (in_array($role, ['franchise','client_terme','point_vente'], true)): ?>
   <div class="nav-section-label">CATALOGUE</div>
   <a href="/modules/mes_produits.php" class="nav-item <?= ($activePage??'')==='mes_produits' ? 'active':'' ?>">
@@ -62,12 +67,20 @@
   <?php if (in_array($role, ['admin','labo','production'], true)): ?>
   <div class="nav-section-label">PRODUCTION</div>
   <a href="/modules/production.php" class="nav-item <?= ($activePage??'')==='production' ? 'active':'' ?>">
-    <span class="nav-icon">⚙️</span><span class="nav-text">Ordres de fabrication</span>
+    <span class="nav-icon">⚙️</span><span class="nav-text"><?= $role==='production' ? 'Ma cuisine' : 'Ordres de fabrication' ?></span>
   </a>
+  <?php if (in_array($role, ['admin','labo'], true)): ?>
+  <a href="/modules/cuisines.php" class="nav-item <?= ($activePage??'')==='cuisines' ? 'active':'' ?>">
+    <span class="nav-icon">🍳</span><span class="nav-text">Cuisines de production</span>
+  </a>
+  <?php endif; ?>
   <?php endif; ?>
 
   <?php if (in_array($role, ['admin','labo'], true)): ?>
   <div class="nav-section-label">STOCK</div>
+  <a href="/modules/stock_central.php" class="nav-item <?= ($activePage??'')==='stock_central' ? 'active':'' ?>">
+    <span class="nav-icon">📡</span><span class="nav-text">Stock temps réel</span>
+  </a>
   <a href="/modules/stock.php" class="nav-item <?= ($activePage??'')==='stock' ? 'active':'' ?>">
     <span class="nav-icon">📊</span><span class="nav-text">Stock & matières</span>
   </a>
@@ -83,6 +96,13 @@
   </a>
   <a href="/modules/mon_stock.php" class="nav-item <?= ($activePage??'')==='mon_stock' ? 'active':'' ?>">
     <span class="nav-icon">📊</span><span class="nav-text">Mon stock vitrine</span>
+  </a>
+  <?php endif; ?>
+
+  <?php if (in_array($role, ['franchise','client_terme'], true)): ?>
+  <div class="nav-section-label">STOCK</div>
+  <a href="/modules/mon_stock_client.php" class="nav-item <?= ($activePage??'')==='mon_stock_client' ? 'active':'' ?>">
+    <span class="nav-icon">📊</span><span class="nav-text">Mon stock</span>
   </a>
   <?php endif; ?>
 
@@ -119,7 +139,7 @@
       <div class="user-avatar"><?= htmlspecialchars($user['avatar'] ?? 'BY') ?></div>
       <div class="user-info">
         <div class="user-name"><?= htmlspecialchars($user['nom'] ?? '') ?></div>
-        <div class="user-role"><?= htmlspecialchars($role) ?></div>
+        <div class="user-role"><?= htmlspecialchars($roleLabels[$role] ?? $role) ?></div>
       </div>
     </div>
     <a href="/logout.php" class="logout-btn">Déconnexion</a>

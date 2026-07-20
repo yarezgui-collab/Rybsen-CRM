@@ -21,6 +21,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 'role' => $user['role'],
                 'client_id' => $user['client_id'],
                 'point_vente_id' => $user['point_vente_id'],
+                'cuisine_id' => $user['cuisine_id'] ?? null,
                 'avatar' => $user['avatar']
             ];
             header('Location: index.php');

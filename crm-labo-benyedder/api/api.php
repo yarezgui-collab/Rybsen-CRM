@@ -85,7 +85,22 @@ if ($action === 'prod_list') {
     if (in_array($user['role'], ['admin','labo'], true)) {
         $rows = $db->query("SELECT * FROM produits ORDER BY categorie, nom")->fetchAll();
     } else {
-        $rows = $db->query("SELECT id,nom,categorie,prix_vente,unite FROM produits WHERE actif=1 ORDER BY categorie, nom")->fetchAll();
+        // Portails externes : catalogue restreint aux produits autorisés pour ce compte
+        // (règle : aucune ligne d'autorisation = catalogue complet ; ≥1 ligne = liste blanche).
+        $s = monScope($user);
+        $cibleType = $s['col'] === 'point_vente_id' ? 'point_vente' : 'client';
+        $cibleId = $s['val'];
+        $cnt = $db->prepare("SELECT COUNT(*) FROM catalogue_autorise WHERE cible_type=? AND cible_id=?");
+        $cnt->execute([$cibleType, $cibleId]);
+        if ((int)$cnt->fetchColumn() > 0) {
+            $stmt = $db->prepare("SELECT p.id,p.nom,p.categorie,p.prix_vente,p.unite FROM produits p
+                JOIN catalogue_autorise ca ON ca.produit_id=p.id AND ca.cible_type=? AND ca.cible_id=?
+                WHERE p.actif=1 ORDER BY p.categorie, p.nom");
+            $stmt->execute([$cibleType, $cibleId]);
+            $rows = $stmt->fetchAll();
+        } else {
+            $rows = $db->query("SELECT id,nom,categorie,prix_vente,unite FROM produits WHERE actif=1 ORDER BY categorie, nom")->fetchAll();
+        }
     }
     respond($rows);
 }
@@ -93,12 +108,18 @@ if ($action === 'prod_save') {
     apiRequireRole(['admin','labo']);
     $d = $body;
     if (empty($d['nom'])) error400('Nom requis');
+    $seuilMode = in_array($d['seuil_mode'] ?? '', ['quantite','pourcentage'], true) ? $d['seuil_mode'] : 'quantite';
+    $cat = $d['categorie'] ?? 'Viennoiserie';
     if (!empty($d['id'])) {
-        $stmt = $db->prepare("UPDATE produits SET nom=?,categorie=?,prix_vente=?,unite=?,actif=? WHERE id=?");
-        $stmt->execute([$d['nom'],$d['categorie']??'Viennoiserie',$d['prix_vente']??0,$d['unite']??'pièce',$d['actif']??1,$d['id']]);
+        $stmt = $db->prepare("UPDATE produits SET nom=?,categorie=?,prix_vente=?,unite=?,actif=?,seuil_mode=?,seuil_quantite=?,seuil_pourcentage=?,stock_reference=? WHERE id=?");
+        $stmt->execute([$d['nom'],$cat,$d['prix_vente']??0,$d['unite']??'pièce',$d['actif']??1,$seuilMode,$d['seuil_quantite']??0,$d['seuil_pourcentage']??0,$d['stock_reference']??0,$d['id']]);
     } else {
-        $stmt = $db->prepare("INSERT INTO produits (nom,categorie,prix_vente,unite,actif) VALUES (?,?,?,?,?)");
-        $stmt->execute([$d['nom'],$d['categorie']??'Viennoiserie',$d['prix_vente']??0,$d['unite']??'pièce',$d['actif']??1]);
+        $stmt = $db->prepare("INSERT INTO produits (nom,categorie,prix_vente,unite,actif,seuil_mode,seuil_quantite,seuil_pourcentage,stock_reference) VALUES (?,?,?,?,?,?,?,?,?)");
+        $stmt->execute([$d['nom'],$cat,$d['prix_vente']??0,$d['unite']??'pièce',$d['actif']??1,$seuilMode,$d['seuil_quantite']??0,$d['seuil_pourcentage']??0,$d['stock_reference']??0]);
+    }
+    // Crée la catégorie si elle n'existe pas encore (pour l'assignation à une cuisine)
+    if ($cat) {
+        $db->prepare("INSERT INTO categories (nom) SELECT ? FROM DUAL WHERE NOT EXISTS (SELECT 1 FROM categories WHERE nom=?)")->execute([$cat, $cat]);
     }
     respond(['ok' => true]);
 }
@@ -120,12 +141,15 @@ if ($action === 'mp_save') {
     apiRequireRole(['admin','labo']);
     $d = $body;
     if (empty($d['nom'])) error400('Nom requis');
+    $seuilMode = in_array($d['seuil_mode'] ?? '', ['quantite','pourcentage'], true) ? $d['seuil_mode'] : 'quantite';
+    $seuilPct = $d['seuil_pourcentage'] ?? 0;
+    $stockRef = $d['stock_reference'] ?? 0;
     if (!empty($d['id'])) {
-        $stmt = $db->prepare("UPDATE matieres_premieres SET nom=?,unite=?,stock_actuel=?,seuil_alerte=?,prix_unitaire=?,fournisseur_id=?,actif=? WHERE id=?");
-        $stmt->execute([$d['nom'],$d['unite']??'kg',$d['stock_actuel']??0,$d['seuil_alerte']??0,$d['prix_unitaire']??0,$d['fournisseur_id']?:null,$d['actif']??1,$d['id']]);
+        $stmt = $db->prepare("UPDATE matieres_premieres SET nom=?,unite=?,stock_actuel=?,seuil_alerte=?,seuil_mode=?,seuil_pourcentage=?,stock_reference=?,prix_unitaire=?,fournisseur_id=?,actif=? WHERE id=?");
+        $stmt->execute([$d['nom'],$d['unite']??'kg',$d['stock_actuel']??0,$d['seuil_alerte']??0,$seuilMode,$seuilPct,$stockRef,$d['prix_unitaire']??0,$d['fournisseur_id']?:null,$d['actif']??1,$d['id']]);
     } else {
-        $stmt = $db->prepare("INSERT INTO matieres_premieres (nom,unite,stock_actuel,seuil_alerte,prix_unitaire,fournisseur_id,actif) VALUES (?,?,?,?,?,?,?)");
-        $stmt->execute([$d['nom'],$d['unite']??'kg',$d['stock_actuel']??0,$d['seuil_alerte']??0,$d['prix_unitaire']??0,$d['fournisseur_id']?:null,$d['actif']??1]);
+        $stmt = $db->prepare("INSERT INTO matieres_premieres (nom,unite,stock_actuel,seuil_alerte,seuil_mode,seuil_pourcentage,stock_reference,prix_unitaire,fournisseur_id,actif) VALUES (?,?,?,?,?,?,?,?,?,?)");
+        $stmt->execute([$d['nom'],$d['unite']??'kg',$d['stock_actuel']??0,$d['seuil_alerte']??0,$seuilMode,$seuilPct,$stockRef,$d['prix_unitaire']??0,$d['fournisseur_id']?:null,$d['actif']??1]);
     }
     respond(['ok' => true]);
 }
@@ -354,15 +378,46 @@ if ($action === 'cmd_set_statut') {
 // ──────────────────────────────────────────
 if ($action === 'of_list') {
     apiRequireRole(['admin','labo','production']);
-    respond($db->query("SELECT * FROM ordres_fabrication ORDER BY id DESC")->fetchAll());
+    // Filtres avancés (point 7) : par cuisine, par catégorie, par client, par statut.
+    $where = [];
+    $params = [];
+    // Un utilisateur "production" ne voit que les OF de sa cuisine.
+    if ($user['role'] === 'production') {
+        if (empty($user['cuisine_id'])) error400('Ce compte production n\'est rattaché à aucune cuisine — contactez l\'administrateur');
+        $where[] = 'of2.cuisine_id = ?';
+        $params[] = $user['cuisine_id'];
+    } elseif (!empty($body['cuisine_id'])) {
+        $where[] = 'of2.cuisine_id = ?';
+        $params[] = $body['cuisine_id'];
+    }
+    if (!empty($body['statut'])) { $where[] = 'of2.statut = ?'; $params[] = $body['statut']; }
+    if (!empty($body['categorie'])) {
+        $where[] = 'EXISTS (SELECT 1 FROM lignes_ordre_fabrication lof JOIN produits p ON p.id=lof.produit_id WHERE lof.ordre_id=of2.id AND p.categorie = ?)';
+        $params[] = $body['categorie'];
+    }
+    if (!empty($body['client_id'])) {
+        $where[] = 'EXISTS (SELECT 1 FROM ordre_fabrication_commandes ofc JOIN commandes c ON c.id=ofc.commande_id WHERE ofc.ordre_id=of2.id AND c.client_id = ?)';
+        $params[] = $body['client_id'];
+    }
+    $sql = "SELECT of2.*, cu.nom AS cuisine_nom,
+                (SELECT COUNT(*) FROM lignes_ordre_fabrication WHERE ordre_id=of2.id) AS nb_lignes,
+                (SELECT COALESCE(SUM(quantite_totale),0) FROM lignes_ordre_fabrication WHERE ordre_id=of2.id) AS qte_totale
+            FROM ordres_fabrication of2
+            LEFT JOIN cuisines_production cu ON cu.id = of2.cuisine_id";
+    if ($where) $sql .= ' WHERE ' . implode(' AND ', $where);
+    $sql .= ' ORDER BY of2.id DESC';
+    $stmt = $db->prepare($sql);
+    $stmt->execute($params);
+    respond($stmt->fetchAll());
 }
 if ($action === 'of_get') {
     apiRequireRole(['admin','labo','production']);
-    $stmt = $db->prepare("SELECT * FROM ordres_fabrication WHERE id=?");
+    $stmt = $db->prepare("SELECT of2.*, cu.nom AS cuisine_nom FROM ordres_fabrication of2 LEFT JOIN cuisines_production cu ON cu.id=of2.cuisine_id WHERE of2.id=?");
     $stmt->execute([$body['id']]);
     $ordre = $stmt->fetch();
     if (!$ordre) error400('Ordre introuvable');
-    $l = $db->prepare("SELECT lof.*, p.nom as produit_nom, p.unite FROM lignes_ordre_fabrication lof JOIN produits p ON p.id=lof.produit_id WHERE lof.ordre_id=?");
+    if ($user['role'] === 'production' && (int)$ordre['cuisine_id'] !== (int)($user['cuisine_id'] ?? 0)) error400('Ordre introuvable');
+    $l = $db->prepare("SELECT lof.*, p.nom as produit_nom, p.unite, p.categorie FROM lignes_ordre_fabrication lof JOIN produits p ON p.id=lof.produit_id WHERE lof.ordre_id=?");
     $l->execute([$body['id']]);
     $ordre['lignes'] = $l->fetchAll();
     $c = $db->prepare("SELECT cmd.id, cmd.canal, cmd.statut FROM ordre_fabrication_commandes ofc JOIN commandes cmd ON cmd.id=ofc.commande_id WHERE ofc.ordre_id=?");
@@ -380,30 +435,81 @@ if ($action === 'of_generate') {
     $cmdIds = array_column($cmds, 'id');
     $in = implode(',', array_fill(0, count($cmdIds), '?'));
 
-    $agg = $db->prepare("SELECT produit_id, SUM(quantite) as total FROM lignes_commande WHERE commande_id IN ($in) GROUP BY produit_id");
+    // Agrège les quantités par produit ET par cuisine de production (déduite de la
+    // catégorie du produit). Un ordre de fabrication distinct est créé par cuisine,
+    // pour que chaque atelier ne voie que ce qui le concerne. Les produits dont la
+    // catégorie n'est rattachée à aucune cuisine tombent dans un OF "Laboratoire
+    // central" (cuisine_id = NULL) traité directement par le labo.
+    $agg = $db->prepare("SELECT lc.produit_id, SUM(lc.quantite) as total, cat.cuisine_id
+        FROM lignes_commande lc
+        JOIN produits p ON p.id = lc.produit_id
+        LEFT JOIN categories cat ON cat.nom = p.categorie
+        WHERE lc.commande_id IN ($in)
+        GROUP BY lc.produit_id, cat.cuisine_id");
     $agg->execute($cmdIds);
     $lignes = $agg->fetchAll();
 
+    // Regroupe les lignes par cuisine
+    $parCuisine = [];          // cuisineKey => [ [produit_id,total], ... ]
+    $produitCuisine = [];      // produit_id => cuisineKey (pour lier commande ↔ OF)
+    foreach ($lignes as $l) {
+        $key = $l['cuisine_id'] === null ? 'null' : (string)$l['cuisine_id'];
+        $parCuisine[$key][] = $l;
+        $produitCuisine[$l['produit_id']] = $key;
+    }
+
     $db->beginTransaction();
     try {
-        $db->prepare("INSERT INTO ordres_fabrication (date_ordre, statut) VALUES (CURDATE(), 'planifie')")->execute();
-        $ordreId = $db->lastInsertId();
-
+        $insOf = $db->prepare("INSERT INTO ordres_fabrication (date_ordre, statut, cuisine_id) VALUES (CURDATE(), 'en_cours', ?)");
         $stmtL = $db->prepare("INSERT INTO lignes_ordre_fabrication (ordre_id, produit_id, quantite_totale) VALUES (?,?,?)");
-        foreach ($lignes as $l) { $stmtL->execute([$ordreId, $l['produit_id'], $l['total']]); }
-
         $stmtC = $db->prepare("INSERT INTO ordre_fabrication_commandes (ordre_id, commande_id) VALUES (?,?)");
-        foreach ($cmdIds as $cid) { $stmtC->execute([$ordreId, $cid]); }
+
+        $ordreParCuisine = [];  // cuisineKey => ordre_id
+        foreach ($parCuisine as $key => $rows) {
+            $cuisineId = $key === 'null' ? null : (int)$key;
+            $insOf->execute([$cuisineId]);
+            $ordreId = $db->lastInsertId();
+            $ordreParCuisine[$key] = $ordreId;
+            foreach ($rows as $r) { $stmtL->execute([$ordreId, $r['produit_id'], $r['total']]); }
+        }
+
+        // Lie chaque commande à chacun des OF qui produisent au moins un de ses articles
+        $lignesCmdStmt = $db->prepare("SELECT DISTINCT produit_id FROM lignes_commande WHERE commande_id=?");
+        foreach ($cmdIds as $cid) {
+            $lignesCmdStmt->execute([$cid]);
+            $cuisinesDeLaCmd = [];
+            foreach ($lignesCmdStmt->fetchAll() as $lc) {
+                $k = $produitCuisine[$lc['produit_id']] ?? 'null';
+                $cuisinesDeLaCmd[$k] = true;
+            }
+            foreach (array_keys($cuisinesDeLaCmd) as $k) {
+                $stmtC->execute([$ordreParCuisine[$k], $cid]);
+            }
+        }
 
         $upd = $db->prepare("UPDATE commandes SET statut='en_production' WHERE id IN ($in)");
         $upd->execute($cmdIds);
 
         $db->commit();
-        respond(['ok' => true, 'id' => $ordreId]);
+        respond(['ok' => true, 'ordres' => array_values($ordreParCuisine), 'nb_cuisines' => count($ordreParCuisine)]);
     } catch (Exception $e) {
         $db->rollBack();
         error400('Erreur lors de la génération: ' . $e->getMessage());
     }
+}
+// Réaffectation exceptionnelle d'un OF à une autre cuisine (surcharge manuelle admin/labo)
+if ($action === 'of_set_cuisine') {
+    apiRequireRole(['admin','labo']);
+    $cuisineId = $body['cuisine_id'] ?: null;
+    if ($cuisineId !== null) {
+        $chk = $db->prepare("SELECT id FROM cuisines_production WHERE id=?");
+        $chk->execute([$cuisineId]);
+        if (!$chk->fetch()) error400('Cuisine introuvable');
+    }
+    $upd = $db->prepare("UPDATE ordres_fabrication SET cuisine_id=? WHERE id=? AND statut<>'termine'");
+    $upd->execute([$cuisineId, $body['id']]);
+    if ($upd->rowCount() === 0) error400('Ordre introuvable ou déjà terminé');
+    respond(['ok' => true]);
 }
 if ($action === 'of_marquer_en_cours') {
     apiRequireRole(['admin','labo','production']);
@@ -416,6 +522,7 @@ if ($action === 'of_terminer') {
     $stmt->execute([$body['id']]);
     $ordre = $stmt->fetch();
     if (!$ordre) error400('Ordre introuvable');
+    if ($user['role'] === 'production' && (int)$ordre['cuisine_id'] !== (int)($user['cuisine_id'] ?? 0)) error400('Ordre introuvable');
     if ($ordre['statut'] === 'termine') error400('Cet ordre est déjà terminé');
 
     $l = $db->prepare("SELECT * FROM lignes_ordre_fabrication WHERE ordre_id=?");
@@ -508,20 +615,35 @@ if ($action === 'perte_save') {
     apiRequireRole(['admin','labo','point_vente']);
     $d = $body;
     if (empty($d['produit_id']) || empty($d['quantite'])) error400('Produit et quantité requis');
+    // Un point de vente ne peut déclarer que pour son propre point de vente (portée session).
+    if ($user['role'] === 'point_vente') {
+        if (empty($user['point_vente_id'])) error400('Ce compte n\'est rattaché à aucun point de vente');
+        $pvId = $user['point_vente_id'];
+        $source = 'point_vente';
+    } else {
+        $pvId = $d['point_vente_id'] ?: null;
+        $source = $d['source'] ?? 'production';
+    }
+    $typePerte = in_array($d['type_perte'] ?? '', ['casse','perime','invendu'], true) ? $d['type_perte'] : 'casse';
+    // Casse / périmé = sortie réelle de stock. Invendu = produit conservé/stocké, on
+    // enregistre le comptage sans sortir la quantité du stock (elle reste disponible).
+    $sortStock = in_array($typePerte, ['casse','perime'], true);
     $db->beginTransaction();
     try {
-        $stmt = $db->prepare("INSERT INTO pertes (source,point_vente_id,produit_id,quantite,motif,date_perte) VALUES (?,?,?,?,?,?)");
-        $stmt->execute([$d['source'] ?? 'production', $d['point_vente_id'] ?: null, $d['produit_id'], $d['quantite'], $d['motif'], $d['date_perte'] ?? date('Y-m-d')]);
+        $stmt = $db->prepare("INSERT INTO pertes (source,point_vente_id,produit_id,quantite,motif,type_perte,date_perte) VALUES (?,?,?,?,?,?,?)");
+        $stmt->execute([$source, $pvId, $d['produit_id'], $d['quantite'], $d['motif'], $typePerte, $d['date_perte'] ?? date('Y-m-d')]);
         $perteId = $db->lastInsertId();
-        $db->prepare("INSERT INTO mouvements_stock_produits (produit_id,type_mouvement,quantite,origine,reference_id,notes) VALUES (?,'sortie',?,'perte',?,?)")
-            ->execute([$d['produit_id'], $d['quantite'], $perteId, $d['motif'] ?? 'Perte/invendu']);
-        if (!empty($d['point_vente_id'])) {
-            $db->prepare("INSERT INTO stocks_points_vente (point_vente_id,produit_id,quantite) VALUES (?,?,0)
-                ON DUPLICATE KEY UPDATE quantite = GREATEST(0, quantite - ?)")
-                ->execute([$d['point_vente_id'], $d['produit_id'], $d['quantite']]);
+        if ($sortStock) {
+            $db->prepare("INSERT INTO mouvements_stock_produits (produit_id,type_mouvement,quantite,origine,reference_id,notes) VALUES (?,'sortie',?,'perte',?,?)")
+                ->execute([$d['produit_id'], $d['quantite'], $perteId, $d['motif'] ?? ($typePerte === 'perime' ? 'Périmé' : 'Casse')]);
+            if ($pvId) {
+                $db->prepare("INSERT INTO stocks_points_vente (point_vente_id,produit_id,quantite) VALUES (?,?,0)
+                    ON DUPLICATE KEY UPDATE quantite = GREATEST(0, quantite - ?)")
+                    ->execute([$pvId, $d['produit_id'], $d['quantite']]);
+            }
         }
         $db->commit();
-        respond(['ok' => true]);
+        respond(['ok' => true, 'type_perte' => $typePerte, 'stock_impacte' => $sortStock]);
     } catch (Exception $e) {
         $db->rollBack();
         error400('Erreur: ' . $e->getMessage());
@@ -584,9 +706,12 @@ if ($action === 'liv_candidats') {
             FROM commandes cmd
             LEFT JOIN clients cl ON cl.id = cmd.client_id
             LEFT JOIN points_vente pv ON pv.id = cmd.point_vente_id
-            JOIN ordre_fabrication_commandes ofc ON ofc.commande_id = cmd.id
-            JOIN ordres_fabrication of2 ON of2.id = ofc.ordre_id
-            WHERE cmd.statut = 'en_production' AND of2.statut = 'termine'
+            WHERE cmd.statut = 'en_production'
+              AND EXISTS (SELECT 1 FROM ordre_fabrication_commandes ofc WHERE ofc.commande_id = cmd.id)
+              AND NOT EXISTS (
+                SELECT 1 FROM ordre_fabrication_commandes ofc
+                JOIN ordres_fabrication o ON o.id = ofc.ordre_id
+                WHERE ofc.commande_id = cmd.id AND o.statut <> 'termine')
             ORDER BY cmd.date_commande";
     respond($db->query($sql)->fetchAll());
 }
@@ -618,12 +743,17 @@ if ($action === 'liv_creer') {
     $stmt->execute([$body['commande_id']]);
     $cmd = $stmt->fetch();
     if (!$cmd) error400('Commande introuvable');
-    if ($cmd['statut'] !== 'en_production') error400('Cette commande n\'est pas prête à être livrée (doit être en production et son ordre de fabrication terminé)');
+    if ($cmd['statut'] !== 'en_production') error400('Cette commande n\'est pas prête à être livrée (doit être en production et tous ses ordres de fabrication terminés)');
 
-    $of = $db->prepare("SELECT of2.id, of2.statut FROM ordre_fabrication_commandes ofc JOIN ordres_fabrication of2 ON of2.id=ofc.ordre_id WHERE ofc.commande_id=? LIMIT 1");
-    $of->execute([$cmd['id']]);
-    $ordre = $of->fetch();
-    if (!$ordre || $ordre['statut'] !== 'termine') error400('L\'ordre de fabrication lié n\'est pas encore terminé');
+    // Une commande peut être répartie sur plusieurs cuisines : toutes doivent avoir terminé.
+    $ofs = $db->prepare("SELECT of2.id, of2.statut FROM ordre_fabrication_commandes ofc JOIN ordres_fabrication of2 ON of2.id=ofc.ordre_id WHERE ofc.commande_id=?");
+    $ofs->execute([$cmd['id']]);
+    $ordresLies = $ofs->fetchAll();
+    if (!$ordresLies) error400('Aucun ordre de fabrication lié à cette commande');
+    foreach ($ordresLies as $o) {
+        if ($o['statut'] !== 'termine') error400('Un ordre de fabrication lié n\'est pas encore terminé — toutes les cuisines doivent avoir terminé avant livraison');
+    }
+    $ordreRef = $ordresLies[0]['id'];
 
     $lignes = $db->prepare("SELECT * FROM lignes_commande WHERE commande_id=?");
     $lignes->execute([$cmd['id']]);
@@ -632,15 +762,16 @@ if ($action === 'liv_creer') {
     $db->beginTransaction();
     try {
         $stmtLiv = $db->prepare("INSERT INTO livraisons (ordre_id,canal,destination_client_id,destination_point_vente_id,date_livraison,statut) VALUES (?,?,?,?,CURDATE(),'preparee')");
-        $stmtLiv->execute([$ordre['id'], $cmd['canal'], $cmd['client_id'], $cmd['point_vente_id']]);
+        $stmtLiv->execute([$ordreRef, $cmd['canal'], $cmd['client_id'], $cmd['point_vente_id']]);
         $livId = $db->lastInsertId();
 
-        $getLot = $db->prepare("SELECT id FROM lots WHERE produit_id=? AND ordre_id=? LIMIT 1");
+        // Le lot d'un produit est recherché parmi tous les OF liés à cette commande
+        $getLot = $db->prepare("SELECT lo.id FROM lots lo JOIN ordre_fabrication_commandes ofc ON ofc.ordre_id=lo.ordre_id WHERE lo.produit_id=? AND ofc.commande_id=? LIMIT 1");
         $insLigne = $db->prepare("INSERT INTO lignes_livraison (livraison_id,commande_id,produit_id,quantite,lot_id) VALUES (?,?,?,?,?)");
         $insMvt = $db->prepare("INSERT INTO mouvements_stock_produits (produit_id,type_mouvement,quantite,origine,reference_id,notes) VALUES (?,'sortie',?,'dispatch',?,?)");
 
         foreach ($lignesCmd as $l) {
-            $getLot->execute([$l['produit_id'], $ordre['id']]);
+            $getLot->execute([$l['produit_id'], $cmd['id']]);
             $lotId = $getLot->fetchColumn() ?: null;
             $insLigne->execute([$livId, $cmd['id'], $l['produit_id'], $l['quantite'], $lotId]);
             $insMvt->execute([$l['produit_id'], $l['quantite'], $livId, 'Dispatch commande #' . $cmd['id']]);
@@ -649,6 +780,12 @@ if ($action === 'liv_creer') {
                     ->execute([$cmd['point_vente_id'], $l['produit_id']]);
                 $db->prepare("UPDATE stocks_points_vente SET quantite = quantite + ? WHERE point_vente_id=? AND produit_id=?")
                     ->execute([$l['quantite'], $cmd['point_vente_id'], $l['produit_id']]);
+            } elseif (in_array($cmd['canal'], ['terme','franchise'], true) && $cmd['client_id']) {
+                // Alimente le stock détenu par le client à terme / la franchise (visibilité admin)
+                $db->prepare("INSERT INTO stocks_clients (client_id,produit_id,quantite) VALUES (?,?,0) ON DUPLICATE KEY UPDATE quantite = quantite")
+                    ->execute([$cmd['client_id'], $l['produit_id']]);
+                $db->prepare("UPDATE stocks_clients SET quantite = quantite + ? WHERE client_id=? AND produit_id=?")
+                    ->execute([$l['quantite'], $cmd['client_id'], $l['produit_id']]);
             }
         }
         $db->prepare("UPDATE commandes SET statut='livree' WHERE id=?")->execute([$cmd['id']]);
@@ -842,11 +979,12 @@ if ($action === 'stats_produits_vendus') {
 // ──────────────────────────────────────────
 if ($action === 'user_list') {
     apiRequireRole(['admin']);
-    $rows = $db->query("SELECT u.id,u.nom,u.email,u.role,u.avatar,u.actif,u.client_id,u.point_vente_id,u.created_at,
-                cl.nom as client_nom, pv.nom as point_vente_nom
+    $rows = $db->query("SELECT u.id,u.nom,u.email,u.role,u.avatar,u.actif,u.client_id,u.point_vente_id,u.cuisine_id,u.created_at,
+                cl.nom as client_nom, pv.nom as point_vente_nom, cu.nom as cuisine_nom
             FROM users u
             LEFT JOIN clients cl ON cl.id = u.client_id
             LEFT JOIN points_vente pv ON pv.id = u.point_vente_id
+            LEFT JOIN cuisines_production cu ON cu.id = u.cuisine_id
             ORDER BY u.id")->fetchAll();
     respond($rows);
 }
@@ -859,8 +997,8 @@ if ($action === 'user_create') {
     if ($exists->fetch()) error400('Cet email existe déjà');
     $hash = password_hash($d['password'], PASSWORD_BCRYPT, ['cost' => 12]);
     $avatar = $d['avatar'] ?: strtoupper(substr($d['nom'],0,2));
-    $stmt = $db->prepare("INSERT INTO users (nom,email,password_hash,role,avatar,actif,client_id,point_vente_id) VALUES (?,?,?,?,?,?,?,?)");
-    $stmt->execute([$d['nom'],$d['email'],$hash,$d['role'] ?? 'client_terme',$avatar,$d['actif'] ?? 1,$d['client_id'] ?: null,$d['point_vente_id'] ?: null]);
+    $stmt = $db->prepare("INSERT INTO users (nom,email,password_hash,role,avatar,actif,client_id,point_vente_id,cuisine_id) VALUES (?,?,?,?,?,?,?,?,?)");
+    $stmt->execute([$d['nom'],$d['email'],$hash,$d['role'] ?? 'client_terme',$avatar,$d['actif'] ?? 1,$d['client_id'] ?: null,$d['point_vente_id'] ?: null,$d['cuisine_id'] ?: null]);
     respond(['ok' => true, 'id' => $db->lastInsertId()]);
 }
 if ($action === 'user_update') {
@@ -872,11 +1010,11 @@ if ($action === 'user_update') {
     if ($exists->fetch()) error400('Cet email est déjà utilisé par un autre compte');
     if (!empty($d['password'])) {
         $hash = password_hash($d['password'], PASSWORD_BCRYPT, ['cost' => 12]);
-        $stmt = $db->prepare("UPDATE users SET nom=?,email=?,role=?,avatar=?,actif=?,client_id=?,point_vente_id=?,password_hash=? WHERE id=?");
-        $stmt->execute([$d['nom'],$d['email'],$d['role'],$d['avatar'],$d['actif'] ?? 1,$d['client_id'] ?: null,$d['point_vente_id'] ?: null,$hash,$d['id']]);
+        $stmt = $db->prepare("UPDATE users SET nom=?,email=?,role=?,avatar=?,actif=?,client_id=?,point_vente_id=?,cuisine_id=?,password_hash=? WHERE id=?");
+        $stmt->execute([$d['nom'],$d['email'],$d['role'],$d['avatar'],$d['actif'] ?? 1,$d['client_id'] ?: null,$d['point_vente_id'] ?: null,$d['cuisine_id'] ?: null,$hash,$d['id']]);
     } else {
-        $stmt = $db->prepare("UPDATE users SET nom=?,email=?,role=?,avatar=?,actif=?,client_id=?,point_vente_id=? WHERE id=?");
-        $stmt->execute([$d['nom'],$d['email'],$d['role'],$d['avatar'],$d['actif'] ?? 1,$d['client_id'] ?: null,$d['point_vente_id'] ?: null,$d['id']]);
+        $stmt = $db->prepare("UPDATE users SET nom=?,email=?,role=?,avatar=?,actif=?,client_id=?,point_vente_id=?,cuisine_id=? WHERE id=?");
+        $stmt->execute([$d['nom'],$d['email'],$d['role'],$d['avatar'],$d['actif'] ?? 1,$d['client_id'] ?: null,$d['point_vente_id'] ?: null,$d['cuisine_id'] ?: null,$d['id']]);
     }
     if ($d['id'] == $_SESSION['user_id']) {
         $_SESSION['user']['nom'] = $d['nom'];
@@ -1171,6 +1309,16 @@ if ($action === 'caisse_vente_save') {
         error400('Erreur: ' . $e->getMessage());
     }
 }
+// Stock détenu par le client à terme / la franchise connecté (sa propre portée)
+if ($action === 'mon_stock_client_list') {
+    apiRequireRole(['franchise','client_terme']);
+    $s = monScope($user);
+    $stmt = $db->prepare("SELECT sc.produit_id, sc.quantite, p.nom AS produit_nom, p.unite
+        FROM stocks_clients sc JOIN produits p ON p.id=sc.produit_id
+        WHERE sc.client_id=? ORDER BY p.nom");
+    $stmt->execute([$s['val']]);
+    respond($stmt->fetchAll());
+}
 if ($action === 'mes_ventes_list') {
     apiRequireRole(['point_vente']);
     if (empty($user['point_vente_id'])) error400('Ce compte n\'est rattaché à aucun point de vente — contactez l\'administrateur');
@@ -1206,6 +1354,248 @@ if ($action === 'mes_dashboard_stats') {
         $stats['declarations_en_attente'] = $stmt3->fetchColumn();
     }
     respond($stats);
+}
+
+// ──────────────────────────────────────────
+// CUISINES DE PRODUCTION (point 9)
+// ──────────────────────────────────────────
+if ($action === 'cuisine_list') {
+    apiRequireRole(['admin','labo','production']);
+    $rows = $db->query("SELECT cu.*,
+            (SELECT COUNT(*) FROM categories WHERE cuisine_id=cu.id) AS nb_categories,
+            (SELECT COUNT(*) FROM users WHERE cuisine_id=cu.id) AS nb_comptes
+        FROM cuisines_production cu ORDER BY cu.nom")->fetchAll();
+    respond($rows);
+}
+if ($action === 'cuisine_save') {
+    apiRequireRole(['admin','labo']);
+    $d = $body;
+    if (empty($d['nom'])) error400('Nom requis');
+    if (!empty($d['id'])) {
+        $db->prepare("UPDATE cuisines_production SET nom=?,description=?,actif=? WHERE id=?")
+            ->execute([$d['nom'],$d['description'],$d['actif']??1,$d['id']]);
+    } else {
+        $db->prepare("INSERT INTO cuisines_production (nom,description,actif) VALUES (?,?,?)")
+            ->execute([$d['nom'],$d['description'],$d['actif']??1]);
+    }
+    respond(['ok' => true]);
+}
+if ($action === 'cuisine_delete') {
+    apiRequireRole(['admin','labo']);
+    // Les catégories/utilisateurs rattachés repassent à NULL (ON DELETE SET NULL)
+    $db->prepare("DELETE FROM cuisines_production WHERE id=?")->execute([$body['id']]);
+    respond(['ok' => true]);
+}
+
+// ──────────────────────────────────────────
+// CATÉGORIES ↔ CUISINE (point 9)
+// ──────────────────────────────────────────
+if ($action === 'cat_list') {
+    apiRequireRole(['admin','labo']);
+    $rows = $db->query("SELECT c.*, cu.nom AS cuisine_nom,
+            (SELECT COUNT(*) FROM produits p WHERE p.categorie=c.nom) AS nb_produits
+        FROM categories c LEFT JOIN cuisines_production cu ON cu.id=c.cuisine_id
+        ORDER BY c.nom")->fetchAll();
+    respond($rows);
+}
+if ($action === 'cat_save') {
+    apiRequireRole(['admin','labo']);
+    $d = $body;
+    if (empty($d['nom'])) error400('Nom requis');
+    if (!empty($d['id'])) {
+        $db->prepare("UPDATE categories SET nom=?, cuisine_id=? WHERE id=?")
+            ->execute([$d['nom'], $d['cuisine_id'] ?: null, $d['id']]);
+    } else {
+        $db->prepare("INSERT INTO categories (nom,cuisine_id) VALUES (?,?)
+            ON DUPLICATE KEY UPDATE cuisine_id=VALUES(cuisine_id)")
+            ->execute([$d['nom'], $d['cuisine_id'] ?: null]);
+    }
+    respond(['ok' => true]);
+}
+if ($action === 'cat_delete') {
+    apiRequireRole(['admin','labo']);
+    $db->prepare("DELETE FROM categories WHERE id=?")->execute([$body['id']]);
+    respond(['ok' => true]);
+}
+
+// ──────────────────────────────────────────
+// CATALOGUE AUTORISÉ PAR COMPTE (point 6)
+// ──────────────────────────────────────────
+// Liste des cibles externes (clients à terme, franchises, points de vente) pour l'admin
+if ($action === 'catalogue_cibles_list') {
+    apiRequireRole(['admin','labo']);
+    $clients = $db->query("SELECT id AS cible_id, nom, type_client AS sous_type, 'client' AS cible_type FROM clients WHERE actif=1 ORDER BY type_client, nom")->fetchAll();
+    $pvs = $db->query("SELECT id AS cible_id, nom, 'point_vente' AS sous_type, 'point_vente' AS cible_type FROM points_vente WHERE actif=1 ORDER BY nom")->fetchAll();
+    respond(array_merge($clients, $pvs));
+}
+// Produits autorisés pour une cible donnée (retourne aussi la liste complète pour l'UI)
+if ($action === 'catalogue_autorise_get') {
+    apiRequireRole(['admin','labo']);
+    $d = $body;
+    if (empty($d['cible_type']) || empty($d['cible_id'])) error400('Cible requise');
+    if (!in_array($d['cible_type'], ['client','point_vente'], true)) error400('Type de cible invalide');
+    $stmt = $db->prepare("SELECT produit_id FROM catalogue_autorise WHERE cible_type=? AND cible_id=?");
+    $stmt->execute([$d['cible_type'], $d['cible_id']]);
+    $autorises = array_map('intval', array_column($stmt->fetchAll(), 'produit_id'));
+    respond(['produit_ids' => $autorises, 'tous' => count($autorises) === 0]);
+}
+// Remplace l'ensemble des produits autorisés d'une cible (liste vide = catalogue complet)
+if ($action === 'catalogue_autorise_save') {
+    apiRequireRole(['admin','labo']);
+    $d = $body;
+    if (empty($d['cible_type']) || empty($d['cible_id'])) error400('Cible requise');
+    if (!in_array($d['cible_type'], ['client','point_vente'], true)) error400('Type de cible invalide');
+    $ids = array_values(array_unique(array_map('intval', $d['produit_ids'] ?? [])));
+    $db->beginTransaction();
+    try {
+        $db->prepare("DELETE FROM catalogue_autorise WHERE cible_type=? AND cible_id=?")->execute([$d['cible_type'], $d['cible_id']]);
+        if ($ids) {
+            $ins = $db->prepare("INSERT INTO catalogue_autorise (cible_type,cible_id,produit_id) VALUES (?,?,?)");
+            foreach ($ids as $pid) { if ($pid > 0) $ins->execute([$d['cible_type'], $d['cible_id'], $pid]); }
+        }
+        $db->commit();
+        respond(['ok' => true, 'nb' => count($ids)]);
+    } catch (Exception $e) {
+        $db->rollBack();
+        error400('Erreur: ' . $e->getMessage());
+    }
+}
+
+// ──────────────────────────────────────────
+// STOCK TEMPS RÉEL — DASHBOARD ADMIN (point 10)
+// ──────────────────────────────────────────
+// Stock produits finis du labo central, avec évaluation du seuil configurable
+if ($action === 'stock_produits_list') {
+    apiRequireRole(['admin','labo']);
+    $sql = "SELECT p.id, p.nom, p.categorie, p.unite, p.seuil_mode, p.seuil_quantite, p.seuil_pourcentage, p.stock_reference,
+                COALESCE(v.stock_actuel,0) AS stock_actuel,
+                CASE
+                  WHEN p.seuil_mode='pourcentage' AND p.stock_reference>0 THEN (COALESCE(v.stock_actuel,0) <= p.stock_reference*p.seuil_pourcentage/100)
+                  WHEN p.seuil_mode='quantite' AND p.seuil_quantite>0 THEN (COALESCE(v.stock_actuel,0) <= p.seuil_quantite)
+                  ELSE 0
+                END AS sous_seuil
+            FROM produits p
+            LEFT JOIN v_stock_produits v ON v.produit_id=p.id
+            WHERE p.actif=1 ORDER BY p.categorie, p.nom";
+    respond($db->query($sql)->fetchAll());
+}
+// Stock détenu par les clients à terme / franchises
+if ($action === 'stock_clients_list') {
+    apiRequireRole(['admin','labo']);
+    $rows = $db->query("SELECT sc.*, c.nom AS client_nom, c.type_client, p.nom AS produit_nom, p.unite
+        FROM stocks_clients sc
+        JOIN clients c ON c.id=sc.client_id
+        JOIN produits p ON p.id=sc.produit_id
+        ORDER BY c.nom, p.nom")->fetchAll();
+    respond($rows);
+}
+// Vue consolidée pour le tableau de bord stock
+if ($action === 'stock_dashboard') {
+    apiRequireRole(['admin','labo']);
+    $stats = [];
+    $stats['matieres_total'] = $db->query("SELECT COUNT(*) FROM matieres_premieres WHERE actif=1")->fetchColumn();
+    $stats['matieres_sous_seuil'] = $db->query("SELECT COUNT(*) FROM v_stock_bas")->fetchColumn();
+    $stats['produits_total'] = $db->query("SELECT COUNT(*) FROM produits WHERE actif=1")->fetchColumn();
+    $stats['pv_total'] = $db->query("SELECT COUNT(*) FROM points_vente WHERE actif=1")->fetchColumn();
+    $stats['pv_ruptures'] = $db->query("SELECT COUNT(*) FROM stocks_points_vente WHERE quantite <= 0")->fetchColumn();
+    $stats['valeur_stock_produits'] = $db->query("SELECT COALESCE(SUM(GREATEST(v.stock_actuel,0)*p.prix_vente),0) FROM v_stock_produits v JOIN produits p ON p.id=v.produit_id")->fetchColumn();
+    $stats['invendus_jour'] = $db->query("SELECT COALESCE(SUM(quantite),0) FROM pertes WHERE type_perte='invendu' AND date_perte=CURDATE()")->fetchColumn();
+    $stats['pertes_jour'] = $db->query("SELECT COALESCE(SUM(quantite),0) FROM pertes WHERE type_perte IN ('casse','perime') AND date_perte=CURDATE()")->fetchColumn();
+    respond($stats);
+}
+
+// ──────────────────────────────────────────
+// INVENTAIRE RAPIDE (point 10)
+// ──────────────────────────────────────────
+// Prépare les quantités théoriques pour un périmètre donné (avant comptage physique)
+if ($action === 'inventaire_theorique') {
+    apiRequireRole(['admin','labo','point_vente']);
+    $d = $body;
+    $perimetre = $d['perimetre'] ?? '';
+    if ($user['role'] === 'point_vente') { $perimetre = 'point_vente'; $pvId = $user['point_vente_id']; }
+    else { $pvId = $d['point_vente_id'] ?: null; }
+    $clientId = $d['client_id'] ?: null;
+    if ($perimetre === 'point_vente') {
+        if (empty($pvId)) error400('Point de vente requis');
+        $stmt = $db->prepare("SELECT spv.produit_id, p.nom AS produit_nom, p.unite, spv.quantite AS theorique
+            FROM stocks_points_vente spv JOIN produits p ON p.id=spv.produit_id
+            WHERE spv.point_vente_id=? ORDER BY p.nom");
+        $stmt->execute([$pvId]);
+    } elseif ($perimetre === 'client') {
+        if (empty($clientId)) error400('Client requis');
+        $stmt = $db->prepare("SELECT sc.produit_id, p.nom AS produit_nom, p.unite, sc.quantite AS theorique
+            FROM stocks_clients sc JOIN produits p ON p.id=sc.produit_id
+            WHERE sc.client_id=? ORDER BY p.nom");
+        $stmt->execute([$clientId]);
+    } elseif ($perimetre === 'labo') {
+        $stmt = $db->query("SELECT v.produit_id, p.nom AS produit_nom, p.unite, GREATEST(v.stock_actuel,0) AS theorique
+            FROM v_stock_produits v JOIN produits p ON p.id=v.produit_id WHERE p.actif=1 ORDER BY p.nom");
+    } else {
+        error400('Périmètre invalide');
+    }
+    respond($stmt->fetchAll());
+}
+// Enregistre un inventaire physique et applique l'ajustement de stock (écart théorique → physique)
+if ($action === 'inventaire_save') {
+    apiRequireRole(['admin','labo','point_vente']);
+    $d = $body;
+    $lignes = $d['lignes'] ?? [];
+    if (empty($lignes)) error400('Aucune ligne de comptage');
+    $perimetre = $d['perimetre'] ?? '';
+    if ($user['role'] === 'point_vente') { $perimetre = 'point_vente'; $pvId = $user['point_vente_id']; $clientId = null; }
+    else { $pvId = $d['point_vente_id'] ?: null; $clientId = $d['client_id'] ?: null; }
+    if (!in_array($perimetre, ['labo','point_vente','client'], true)) error400('Périmètre invalide');
+    if ($perimetre === 'point_vente' && empty($pvId)) error400('Point de vente requis');
+    if ($perimetre === 'client' && empty($clientId)) error400('Client requis');
+
+    $db->beginTransaction();
+    try {
+        $db->prepare("INSERT INTO inventaires (perimetre,point_vente_id,client_id,realise_par,notes) VALUES (?,?,?,?,?)")
+            ->execute([$perimetre, $pvId, $clientId, $user['id'], $d['notes'] ?? null]);
+        $invId = $db->lastInsertId();
+        $insL = $db->prepare("INSERT INTO inventaire_lignes (inventaire_id,produit_id,quantite_theorique,quantite_physique,ecart) VALUES (?,?,?,?,?)");
+        foreach ($lignes as $l) {
+            $pid = (int)$l['produit_id'];
+            if ($pid <= 0) continue;
+            $theo = (float)($l['quantite_theorique'] ?? 0);
+            $phys = (float)($l['quantite_physique'] ?? 0);
+            $ecart = round($phys - $theo, 3);
+            $insL->execute([$invId, $pid, $theo, $phys, $ecart]);
+            if (abs($ecart) < 0.0005) continue;
+            // Applique l'ajustement au stock de l'entité concernée + trace un mouvement
+            if ($perimetre === 'point_vente') {
+                $db->prepare("INSERT INTO stocks_points_vente (point_vente_id,produit_id,quantite) VALUES (?,?,?)
+                    ON DUPLICATE KEY UPDATE quantite = VALUES(quantite)")->execute([$pvId, $pid, $phys]);
+            } elseif ($perimetre === 'client') {
+                $db->prepare("INSERT INTO stocks_clients (client_id,produit_id,quantite) VALUES (?,?,?)
+                    ON DUPLICATE KEY UPDATE quantite = VALUES(quantite)")->execute([$clientId, $pid, $phys]);
+            } else { // labo : mouvement d'ajustement sur le grand livre produits finis
+                $type = $ecart > 0 ? 'entree' : 'sortie';
+                $db->prepare("INSERT INTO mouvements_stock_produits (produit_id,type_mouvement,quantite,origine,reference_id,notes) VALUES (?,?,?,'correction',?,?)")
+                    ->execute([$pid, $type, abs($ecart), $invId, 'Inventaire #' . $invId]);
+            }
+        }
+        $db->commit();
+        respond(['ok' => true, 'id' => $invId]);
+    } catch (Exception $e) {
+        $db->rollBack();
+        error400('Erreur: ' . $e->getMessage());
+    }
+}
+if ($action === 'inventaire_list') {
+    apiRequireRole(['admin','labo','point_vente']);
+    $where = ''; $params = [];
+    if ($user['role'] === 'point_vente') { $where = 'WHERE i.point_vente_id=?'; $params[] = $user['point_vente_id']; }
+    $sql = "SELECT i.*, pv.nom AS point_vente_nom, c.nom AS client_nom, u.nom AS realise_par_nom,
+                (SELECT COUNT(*) FROM inventaire_lignes WHERE inventaire_id=i.id) AS nb_lignes,
+                (SELECT COALESCE(SUM(ABS(ecart)),0) FROM inventaire_lignes WHERE inventaire_id=i.id) AS ecart_total
+            FROM inventaires i
+            LEFT JOIN points_vente pv ON pv.id=i.point_vente_id
+            LEFT JOIN clients c ON c.id=i.client_id
+            LEFT JOIN users u ON u.id=i.realise_par
+            $where ORDER BY i.id DESC LIMIT 100";
+    $stmt = $db->prepare($sql); $stmt->execute($params);
+    respond($stmt->fetchAll());
 }
 
 error400('Action inconnue: ' . $action);

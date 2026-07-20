@@ -362,6 +362,143 @@ CREATE TABLE IF NOT EXISTS parametres (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
 -- ============================================================
+-- ÉVOLUTION v2 — cuisines de production, catalogue par compte,
+-- seuils configurables, stock temps réel par entité, inventaires
+-- (idempotent : ce bloc peut être rejoué sans risque de doublon
+--  ni d'écrasement des données existantes)
+-- ============================================================
+
+-- Cuisines / ateliers de production (viennoiserie, libanais, glacier, …)
+CREATE TABLE IF NOT EXISTS cuisines_production (
+  id INT AUTO_INCREMENT PRIMARY KEY,
+  nom VARCHAR(120) NOT NULL,
+  description VARCHAR(255),
+  actif TINYINT(1) DEFAULT 1,
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+-- Catégories de produits — liste gérée par l'admin, assignée à une cuisine par défaut.
+-- (produits.categorie reste un libellé texte relié à categories.nom par convention.)
+CREATE TABLE IF NOT EXISTS categories (
+  id INT AUTO_INCREMENT PRIMARY KEY,
+  nom VARCHAR(80) NOT NULL UNIQUE,
+  cuisine_id INT NULL,
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  CONSTRAINT fk_cat_cuisine FOREIGN KEY (cuisine_id) REFERENCES cuisines_production(id) ON DELETE SET NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+-- Catalogue autorisé par compte externe. Règle : si une cible n'a AUCUNE ligne ici,
+-- elle voit le catalogue complet (comportement par défaut) ; dès qu'elle a ≥1 ligne,
+-- elle ne voit QUE les produits listés.
+CREATE TABLE IF NOT EXISTS catalogue_autorise (
+  id INT AUTO_INCREMENT PRIMARY KEY,
+  cible_type ENUM('client','point_vente') NOT NULL,
+  cible_id INT NOT NULL,
+  produit_id INT NOT NULL,
+  UNIQUE KEY uniq_catalogue (cible_type, cible_id, produit_id),
+  KEY idx_ca_cible (cible_type, cible_id),
+  CONSTRAINT fk_ca_produit FOREIGN KEY (produit_id) REFERENCES produits(id) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+-- Stock détenu par les clients à terme / franchises (livré − consommé/retour) pour visibilité admin.
+CREATE TABLE IF NOT EXISTS stocks_clients (
+  client_id INT NOT NULL,
+  produit_id INT NOT NULL,
+  quantite DECIMAL(10,3) NOT NULL DEFAULT 0,
+  PRIMARY KEY (client_id, produit_id),
+  CONSTRAINT fk_sc_client FOREIGN KEY (client_id) REFERENCES clients(id) ON DELETE CASCADE,
+  CONSTRAINT fk_sc_produit FOREIGN KEY (produit_id) REFERENCES produits(id) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+-- Inventaires physiques rapides (tous périmètres : labo, point de vente, client)
+CREATE TABLE IF NOT EXISTS inventaires (
+  id INT AUTO_INCREMENT PRIMARY KEY,
+  perimetre ENUM('labo','point_vente','client') NOT NULL,
+  point_vente_id INT NULL,
+  client_id INT NULL,
+  date_inventaire DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  realise_par INT NULL,
+  notes VARCHAR(255),
+  CONSTRAINT fk_inv_pv FOREIGN KEY (point_vente_id) REFERENCES points_vente(id) ON DELETE CASCADE,
+  CONSTRAINT fk_inv_client FOREIGN KEY (client_id) REFERENCES clients(id) ON DELETE CASCADE,
+  CONSTRAINT fk_inv_user FOREIGN KEY (realise_par) REFERENCES users(id) ON DELETE SET NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+CREATE TABLE IF NOT EXISTS inventaire_lignes (
+  id INT AUTO_INCREMENT PRIMARY KEY,
+  inventaire_id INT NOT NULL,
+  produit_id INT NOT NULL,
+  quantite_theorique DECIMAL(10,3) NOT NULL DEFAULT 0,
+  quantite_physique DECIMAL(10,3) NOT NULL DEFAULT 0,
+  ecart DECIMAL(10,3) NOT NULL DEFAULT 0,
+  KEY idx_invl_inv (inventaire_id),
+  CONSTRAINT fk_invl_inv FOREIGN KEY (inventaire_id) REFERENCES inventaires(id) ON DELETE CASCADE,
+  CONSTRAINT fk_invl_produit FOREIGN KEY (produit_id) REFERENCES produits(id) ON DELETE RESTRICT
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+-- Ajout conditionnel des nouvelles colonnes sur les tables existantes (idempotent)
+DROP PROCEDURE IF EXISTS upgrade_schema_v2;
+DELIMITER $$
+CREATE PROCEDURE upgrade_schema_v2()
+BEGIN
+  -- Seuils d'alerte configurables (quantité absolue OU % d'un stock de référence)
+  IF NOT EXISTS (SELECT 1 FROM information_schema.COLUMNS WHERE TABLE_SCHEMA=DATABASE() AND TABLE_NAME='matieres_premieres' AND COLUMN_NAME='seuil_mode') THEN
+    ALTER TABLE matieres_premieres
+      ADD COLUMN seuil_mode ENUM('quantite','pourcentage') NOT NULL DEFAULT 'quantite',
+      ADD COLUMN seuil_pourcentage DECIMAL(5,2) NOT NULL DEFAULT 0,
+      ADD COLUMN stock_reference DECIMAL(12,3) NOT NULL DEFAULT 0;
+  END IF;
+  IF NOT EXISTS (SELECT 1 FROM information_schema.COLUMNS WHERE TABLE_SCHEMA=DATABASE() AND TABLE_NAME='produits' AND COLUMN_NAME='seuil_mode') THEN
+    ALTER TABLE produits
+      ADD COLUMN seuil_mode ENUM('quantite','pourcentage') NOT NULL DEFAULT 'quantite',
+      ADD COLUMN seuil_quantite DECIMAL(10,3) NOT NULL DEFAULT 0,
+      ADD COLUMN seuil_pourcentage DECIMAL(5,2) NOT NULL DEFAULT 0,
+      ADD COLUMN stock_reference DECIMAL(10,3) NOT NULL DEFAULT 0;
+  END IF;
+  -- Rattachement d'un utilisateur "production" à une cuisine
+  IF NOT EXISTS (SELECT 1 FROM information_schema.COLUMNS WHERE TABLE_SCHEMA=DATABASE() AND TABLE_NAME='users' AND COLUMN_NAME='cuisine_id') THEN
+    ALTER TABLE users ADD COLUMN cuisine_id INT NULL;
+    ALTER TABLE users ADD CONSTRAINT fk_user_cuisine FOREIGN KEY (cuisine_id) REFERENCES cuisines_production(id) ON DELETE SET NULL;
+  END IF;
+  -- Cuisine attribuée à un ordre de fabrication (par défaut selon la catégorie, surchargeable)
+  IF NOT EXISTS (SELECT 1 FROM information_schema.COLUMNS WHERE TABLE_SCHEMA=DATABASE() AND TABLE_NAME='ordres_fabrication' AND COLUMN_NAME='cuisine_id') THEN
+    ALTER TABLE ordres_fabrication ADD COLUMN cuisine_id INT NULL;
+    ALTER TABLE ordres_fabrication ADD CONSTRAINT fk_of_cuisine FOREIGN KEY (cuisine_id) REFERENCES cuisines_production(id) ON DELETE SET NULL;
+  END IF;
+  -- Motif de perte : casse / périmé (sortie de stock) vs invendu (conservé/stocké)
+  IF NOT EXISTS (SELECT 1 FROM information_schema.COLUMNS WHERE TABLE_SCHEMA=DATABASE() AND TABLE_NAME='pertes' AND COLUMN_NAME='type_perte') THEN
+    ALTER TABLE pertes ADD COLUMN type_perte ENUM('casse','perime','invendu') NOT NULL DEFAULT 'casse';
+  END IF;
+END$$
+DELIMITER ;
+CALL upgrade_schema_v2();
+DROP PROCEDURE upgrade_schema_v2;
+
+-- Cuisines de départ (idempotent)
+INSERT INTO cuisines_production (nom, description)
+SELECT * FROM (SELECT 'Viennoiserie' nom, 'Croissants, pains au chocolat, feuilletés' description) v
+WHERE NOT EXISTS (SELECT 1 FROM cuisines_production WHERE nom = v.nom);
+INSERT INTO cuisines_production (nom, description)
+SELECT * FROM (SELECT 'Pâtisserie traditionnelle', 'Baklawa, kaak, cornes de gazelle') v
+WHERE NOT EXISTS (SELECT 1 FROM cuisines_production WHERE nom = 'Pâtisserie traditionnelle');
+INSERT INTO cuisines_production (nom, description)
+SELECT * FROM (SELECT 'Glacier', 'Glaces et desserts glacés') v
+WHERE NOT EXISTS (SELECT 1 FROM cuisines_production WHERE nom = 'Glacier');
+
+-- Catégories connues rattachées à leur cuisine (idempotent)
+INSERT INTO categories (nom, cuisine_id)
+SELECT v.nom, (SELECT id FROM cuisines_production WHERE nom = v.cuis)
+FROM (SELECT 'Viennoiserie' nom, 'Viennoiserie' cuis
+      UNION ALL SELECT 'Pâtisserie traditionnelle', 'Pâtisserie traditionnelle') v
+WHERE NOT EXISTS (SELECT 1 FROM categories WHERE nom = v.nom);
+
+-- Rattrape toute autre catégorie déjà présente dans le catalogue (cuisine non assignée)
+INSERT INTO categories (nom)
+SELECT DISTINCT p.categorie FROM produits p
+WHERE p.categorie IS NOT NULL AND p.categorie <> ''
+  AND NOT EXISTS (SELECT 1 FROM categories c WHERE c.nom = p.categorie);
+
+-- ============================================================
 -- VUES — statistiques & analyse
 -- ============================================================
 
@@ -378,9 +515,15 @@ LEFT JOIN recettes r ON r.produit_id = p.id
 LEFT JOIN matieres_premieres m ON m.id = r.matiere_id
 GROUP BY p.id, p.nom, p.prix_vente;
 
--- Matières premières sous leur seuil d'alerte
+-- Matières premières sous leur seuil d'alerte.
+-- Deux modes au choix par matière : seuil en quantité absolue (seuil_alerte),
+-- ou seuil en pourcentage d'un stock de référence (stock_reference * seuil_pourcentage%).
 CREATE OR REPLACE VIEW v_stock_bas AS
-SELECT * FROM matieres_premieres WHERE actif = 1 AND stock_actuel <= seuil_alerte;
+SELECT * FROM matieres_premieres
+WHERE actif = 1 AND (
+  (seuil_mode = 'quantite'   AND stock_actuel <= seuil_alerte)
+  OR (seuil_mode = 'pourcentage' AND stock_reference > 0 AND stock_actuel <= stock_reference * seuil_pourcentage / 100)
+);
 
 -- Stock produits finis (grand livre des mouvements, pas de colonne stock_actuel dédiée)
 CREATE OR REPLACE VIEW v_stock_produits AS

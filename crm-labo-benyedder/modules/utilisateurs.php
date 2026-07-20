@@ -32,7 +32,7 @@ require_once '../includes/header.php';
         <div class="form-group"><label>Rôle</label>
           <select id="user-role" onchange="onRoleChange()">
             <option value="admin">Admin</option>
-            <option value="labo">Labo</option>
+            <option value="labo">Laboratoire central</option>
             <option value="production">Production</option>
             <option value="franchise">Franchise</option>
             <option value="point_vente">Point de vente</option>
@@ -42,6 +42,7 @@ require_once '../includes/header.php';
         <div class="form-group"><label>Avatar (2 lettres)</label><input type="text" id="user-avatar" maxlength="2"></div>
         <div class="form-group" id="wrap-user-client" style="display:none"><label>Client rattaché</label><select id="user-client"></select></div>
         <div class="form-group" id="wrap-user-pv" style="display:none"><label>Point de vente rattaché</label><select id="user-pv"></select></div>
+        <div class="form-group" id="wrap-user-cuisine" style="display:none"><label>Cuisine rattachée</label><select id="user-cuisine"></select></div>
         <div class="form-group full"><label id="user-pwd-label">Mot de passe *</label><input type="password" id="user-password" placeholder="Laisser vide pour ne pas changer"></div>
       </div>
     </div>
@@ -68,17 +69,20 @@ require_once '../includes/header.php';
 
 <script>
 let allUsers = [], refClients = [], refPv = [];
-const roleLabels = { admin: 'Admin', labo: 'Labo', production: 'Production', franchise: 'Franchise', point_vente: 'Point de vente', client_terme: 'Client à terme' };
+let refCuisines = [];
+const roleLabels = { admin: 'Admin', labo: 'Laboratoire central', production: 'Production', franchise: 'Franchise', point_vente: 'Point de vente', client_terme: 'Client à terme' };
 
 async function loadRefs() {
-  [refClients, refPv] = await Promise.all([LABO.api('cli_list'), LABO.api('pv_list')]);
+  [refClients, refPv, refCuisines] = await Promise.all([LABO.api('cli_list'), LABO.api('pv_list'), LABO.api('cuisine_list')]);
   document.getElementById('user-client').innerHTML = '<option value="">—</option>' + refClients.map(c => `<option value="${c.id}">${LABO.escape(c.nom)}</option>`).join('');
   document.getElementById('user-pv').innerHTML = '<option value="">—</option>' + refPv.map(p => `<option value="${p.id}">${LABO.escape(p.nom)}</option>`).join('');
+  document.getElementById('user-cuisine').innerHTML = '<option value="">—</option>' + refCuisines.map(c => `<option value="${c.id}">${LABO.escape(c.nom)}</option>`).join('');
 }
 function onRoleChange() {
   const role = document.getElementById('user-role').value;
   document.getElementById('wrap-user-client').style.display = (role === 'client_terme' || role === 'franchise') ? '' : 'none';
   document.getElementById('wrap-user-pv').style.display = role === 'point_vente' ? '' : 'none';
+  document.getElementById('wrap-user-cuisine').style.display = role === 'production' ? '' : 'none';
 }
 
 async function loadUsers() {
@@ -108,6 +112,7 @@ function openAddUser() {
   document.getElementById('user-avatar').value = '';
   document.getElementById('user-client').value = '';
   document.getElementById('user-pv').value = '';
+  document.getElementById('user-cuisine').value = '';
   document.getElementById('user-password').value = '';
   document.getElementById('user-pwd-label').textContent = 'Mot de passe *';
   onRoleChange();
@@ -122,6 +127,7 @@ function editUser(u) {
   document.getElementById('user-avatar').value = u.avatar || '';
   document.getElementById('user-client').value = u.client_id || '';
   document.getElementById('user-pv').value = u.point_vente_id || '';
+  document.getElementById('user-cuisine').value = u.cuisine_id || '';
   document.getElementById('user-password').value = '';
   document.getElementById('user-pwd-label').textContent = 'Nouveau mot de passe (optionnel)';
   onRoleChange();
@@ -140,6 +146,7 @@ async function saveUser() {
     avatar: document.getElementById('user-avatar').value,
     client_id: document.getElementById('user-client').value || null,
     point_vente_id: document.getElementById('user-pv').value || null,
+    cuisine_id: document.getElementById('user-cuisine').value || null,
     actif: 1
   };
   if (password) payload.password = password;

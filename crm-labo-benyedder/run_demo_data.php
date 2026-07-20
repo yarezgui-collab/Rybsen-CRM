@@ -122,4 +122,24 @@ if ($pvid = $stmt->fetchColumn()) {
         ['Boutique El Menzah (démo)', 'demo.pointvente@benyedder.tn', $demoHash, $pvid], $log);
 }
 
+// ── Comptes "production" de démonstration, rattachés à une cuisine (mot de passe : Demo2026!) ──
+// Ne s'exécute que si la table cuisines_production existe (schéma v2 déjà appliqué).
+try {
+    $hasCuisines = $db->query("SHOW TABLES LIKE 'cuisines_production'")->fetchColumn();
+    if ($hasCuisines) {
+        foreach ([
+            ['Viennoiserie', 'demo.viennoiserie@benyedder.tn', 'Chef Viennoiserie (démo)', 'CV'],
+            ['Pâtisserie traditionnelle', 'demo.patisserie@benyedder.tn', 'Chef Pâtisserie (démo)', 'CP'],
+        ] as [$cuisineNom, $email, $nom, $avatar]) {
+            $s = $db->prepare("SELECT id FROM cuisines_production WHERE nom = ?");
+            $s->execute([$cuisineNom]);
+            if ($cuid = $s->fetchColumn()) {
+                insertIfMissing($db, 'users', 'email', $email,
+                    "INSERT INTO users (nom,email,password_hash,role,avatar,cuisine_id) VALUES (?,?,?,'production',?,?)",
+                    [$nom, $email, $demoHash, $avatar, $cuid], $log);
+            }
+        }
+    }
+} catch (Exception $e) { $log[] = 'cuisines demo skipped: ' . $e->getMessage(); }
+
 echo json_encode(['ok' => true, 'log' => $log], JSON_UNESCAPED_UNICODE);
