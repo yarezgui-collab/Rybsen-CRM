@@ -412,6 +412,36 @@ try {
             break;
         }
 
+        // Enregistrement groupé : plusieurs tarifs pour un même client en une transaction
+        case 'save_client_prices': {
+            $clientId = $input['clientId'] ?? '';
+            $items    = $input['items']    ?? [];
+            if ($clientId === '') err('Client requis');
+            if (!is_array($items)) err('Liste de tarifs invalide');
+
+            $pdo->beginTransaction();
+            try {
+                $del = $pdo->prepare("DELETE FROM prix_client WHERE client_id = ? AND produit_id = ?");
+                $ins = $pdo->prepare("
+                    INSERT INTO prix_client (client_id, produit_id, prix) VALUES (?,?,?)
+                    ON DUPLICATE KEY UPDATE prix = VALUES(prix)
+                ");
+                foreach ($items as $it) {
+                    $produitId = $it['produitId'] ?? '';
+                    if ($produitId === '') continue;
+                    $prix = (float)($it['prix'] ?? 0);
+                    if ($prix <= 0) $del->execute([$clientId, $produitId]);
+                    else            $ins->execute([$clientId, $produitId, $prix]);
+                }
+                $pdo->commit();
+            } catch (Exception $e) {
+                $pdo->rollBack();
+                throw $e;
+            }
+            out(['ok' => true]);
+            break;
+        }
+
         // ============================================================
         // PARAMÈTRES (nom établissement, monnaie, identifiants)
         // ============================================================
