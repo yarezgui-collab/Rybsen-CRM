@@ -29,7 +29,7 @@ $roleLabels = ['admin'=>'Administrateur','labo'=>'Laboratoire central','producti
   <?php if (in_array($role, ['admin','labo'], true)): ?>
   <div class="nav-section-label">CLIENTS & VENTE</div>
   <a href="/modules/clients.php" class="nav-item <?= ($activePage??'')==='clients' ? 'active':'' ?>">
-    <span class="nav-icon">🏪</span><span class="nav-text">Clients à terme</span>
+    <span class="nav-icon">🏪</span><span class="nav-text">Clients</span>
   </a>
   <a href="/modules/franchises.php" class="nav-item <?= ($activePage??'')==='franchises' ? 'active':'' ?>">
     <span class="nav-icon">🤝</span><span class="nav-text">Franchises</span>

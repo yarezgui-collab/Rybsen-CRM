@@ -1,7 +1,7 @@
 # Bloque l'accès HTTP direct aux fichiers sensibles.
 # install.sql est déployé (nécessaire à run_migration.php) mais ne doit pas être
 # téléchargeable publiquement ; config.php contient les identifiants.
-<FilesMatch "\.(sql|example\.php)$">
+<FilesMatch "\.(sql|csv|example\.php)$">
   Require all denied
 </FilesMatch>
 <Files "config.php">

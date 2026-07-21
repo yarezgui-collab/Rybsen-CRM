@@ -76,6 +76,121 @@ if ($action === 'cli_delete') {
 }
 
 // ──────────────────────────────────────────
+// GESTIONNAIRE DE CLIENTS (référentiel unique, multi-canal)
+// ──────────────────────────────────────────
+if ($action === 'client_list') {
+    apiRequireRole(['admin','labo']);
+    // Encours et présence d'un accès calculés en une seule passe (jointures), pas en
+    // sous-requête corrélée par client — indispensable à l'échelle (600+ clients).
+    $rows = $db->query("SELECT c.*,
+            (acc.client_id IS NOT NULL) AS a_un_acces,
+            COALESCE(e.encours, 0) AS encours
+        FROM clients c
+        LEFT JOIN (
+            SELECT client_id, COALESCE(SUM(f.montant_ttc - COALESCE(p.paye,0)),0) AS encours
+            FROM factures f
+            LEFT JOIN (SELECT facture_id, SUM(montant) AS paye FROM paiements GROUP BY facture_id) p ON p.facture_id = f.id
+            WHERE f.mode_paiement='terme' AND f.statut<>'brouillon' AND f.client_id IS NOT NULL
+            GROUP BY client_id
+        ) e ON e.client_id = c.id
+        LEFT JOIN (SELECT DISTINCT client_id FROM users WHERE role='client_terme' AND client_id IS NOT NULL) acc ON acc.client_id = c.id
+        ORDER BY c.nom")->fetchAll();
+    respond($rows);
+}
+if ($action === 'client_get') {
+    apiRequireRole(['admin','labo']);
+    $stmt = $db->prepare("SELECT * FROM clients WHERE id=?");
+    $stmt->execute([$body['id']]);
+    $c = $stmt->fetch();
+    if (!$c) error400('Client introuvable');
+    $u = $db->prepare("SELECT id,email,actif FROM users WHERE client_id=? AND role='client_terme' LIMIT 1");
+    $u->execute([$body['id']]);
+    $c['acces'] = $u->fetch() ?: null;
+    respond($c);
+}
+if ($action === 'client_save') {
+    apiRequireRole(['admin','labo']);
+    $d = $body;
+    if (empty($d['nom'])) error400('Nom requis');
+    $ct = !empty($d['canal_terme']) ? 1 : 0;
+    $cpv = !empty($d['canal_point_vente']) ? 1 : 0;
+    $cfr = !empty($d['canal_franchise']) ? 1 : 0;
+    if (!$ct && !$cpv && !$cfr) error400('Sélectionnez au moins une interface (terme, point de vente ou franchise)');
+    $mode = in_array($d['mode_paiement_defaut'] ?? '', ['comptant','terme'], true) ? $d['mode_paiement_defaut'] : 'comptant';
+    $delai = (int)($d['delai_paiement_jours'] ?? 30);
+    // type_client (héritage) : franchise si canal franchise seul, sinon terme
+    $typeClient = ($cfr && !$ct && !$cpv) ? 'franchise' : 'terme';
+    $code = trim((string)($d['code_externe'] ?? '')) ?: null;
+    // unicité du code_externe
+    if ($code) {
+        $chk = $db->prepare("SELECT id FROM clients WHERE code_externe=? AND id<>?");
+        $chk->execute([$code, $d['id'] ?? 0]);
+        if ($chk->fetch()) error400('Ce code client est déjà utilisé');
+    }
+    $cols = "code_externe=?,nom=?,type_client=?,canal_terme=?,canal_point_vente=?,canal_franchise=?,
+        mode_paiement_defaut=?,delai_paiement_jours=?,contact_nom=?,telephone=?,email=?,adresse=?,ville=?,
+        matricule_fiscal=?,rc=?,plafond_encours=?,remise_pct=?,actif=?,notes=?";
+    $vals = [$code,$d['nom'],$typeClient,$ct,$cpv,$cfr,$mode,$delai,$d['contact_nom']??null,$d['telephone']??null,
+        $d['email']??null,$d['adresse']??null,$d['ville']??null,$d['matricule_fiscal']??null,$d['rc']??null,
+        ($d['plafond_encours']!==''&&$d['plafond_encours']!==null?$d['plafond_encours']:null),$d['remise_pct']??0,$d['actif']??1,$d['notes']??null];
+    if (!empty($d['id'])) {
+        $stmt = $db->prepare("UPDATE clients SET $cols WHERE id=?");
+        $stmt->execute(array_merge($vals, [$d['id']]));
+        respond(['ok' => true, 'id' => $d['id']]);
+    } else {
+        $stmt = $db->prepare("INSERT INTO clients SET $cols");
+        $stmt->execute($vals);
+        respond(['ok' => true, 'id' => $db->lastInsertId()]);
+    }
+}
+if ($action === 'client_delete') {
+    apiRequireRole(['admin','labo']);
+    try {
+        $db->prepare("DELETE FROM clients WHERE id=?")->execute([$body['id']]);
+        respond(['ok' => true]);
+    } catch (Exception $e) {
+        error400('Impossible de supprimer : ce client a des commandes ou factures. Désactivez-le plutôt.');
+    }
+}
+if ($action === 'client_toggle_actif') {
+    apiRequireRole(['admin','labo']);
+    $db->prepare("UPDATE clients SET actif = NOT actif WHERE id=?")->execute([$body['id']]);
+    respond(['ok' => true]);
+}
+// Crée (ou réinitialise) un accès self-service pour un client — login qui commande depuis chez lui
+if ($action === 'client_creer_acces') {
+    apiRequireRole(['admin']);
+    $d = $body;
+    if (empty($d['client_id']) || empty($d['email']) || empty($d['password'])) error400('Client, email et mot de passe requis');
+    $c = $db->prepare("SELECT nom FROM clients WHERE id=?");
+    $c->execute([$d['client_id']]);
+    $nom = $c->fetchColumn();
+    if ($nom === false) error400('Client introuvable');
+    $hash = password_hash($d['password'], PASSWORD_BCRYPT, ['cost' => 12]);
+    // un accès existe déjà ? -> on met à jour email + mot de passe
+    $ex = $db->prepare("SELECT id FROM users WHERE client_id=? AND role='client_terme' LIMIT 1");
+    $ex->execute([$d['client_id']]);
+    $existing = $ex->fetchColumn();
+    $dupEmail = $db->prepare("SELECT id FROM users WHERE email=? AND id<>?");
+    $dupEmail->execute([$d['email'], $existing ?: 0]);
+    if ($dupEmail->fetch()) error400('Cet email est déjà utilisé par un autre compte');
+    if ($existing) {
+        $db->prepare("UPDATE users SET email=?,password_hash=?,actif=1 WHERE id=?")->execute([$d['email'],$hash,$existing]);
+    } else {
+        $db->prepare("INSERT INTO users (nom,email,password_hash,role,avatar,actif,client_id) VALUES (?,?,?,'client_terme',?,1,?)")
+            ->execute([$nom, $d['email'], $hash, strtoupper(substr($nom,0,2)), $d['client_id']]);
+    }
+    respond(['ok' => true]);
+}
+// Liste des clients sélectionnables à la caisse (canal point de vente, actifs)
+if ($action === 'clients_pv_list') {
+    apiRequireRole(['admin','labo','point_vente']);
+    $rows = $db->query("SELECT id, nom, mode_paiement_defaut, delai_paiement_jours, remise_pct
+        FROM clients WHERE canal_point_vente=1 AND actif=1 ORDER BY nom")->fetchAll();
+    respond($rows);
+}
+
+// ──────────────────────────────────────────
 // CATALOGUE — PRODUITS
 // ──────────────────────────────────────────
 if ($action === 'prod_list') {
@@ -834,7 +949,15 @@ if ($action === 'fact_creer') {
     $tva = floatval($tvaStmt->fetchColumn() ?: 19);
     $montantTtc = round($montantHt * (1 + $tva/100), 3);
 
-    $modePaiement = $body['mode_paiement'] ?? null;
+    // Mode & délai de paiement : priorité à la fiche client (choix admin), sinon règle par canal.
+    $delaiJours = 30;
+    $clientMode = null; $clientDelai = null;
+    if ($cmd['client_id']) {
+        $cm = $db->prepare("SELECT mode_paiement_defaut, delai_paiement_jours FROM clients WHERE id=?");
+        $cm->execute([$cmd['client_id']]);
+        if ($crow = $cm->fetch()) { $clientMode = $crow['mode_paiement_defaut']; $clientDelai = (int)$crow['delai_paiement_jours']; }
+    }
+    $modePaiement = $body['mode_paiement'] ?? $clientMode;
     if (!$modePaiement) {
         if ($cmd['canal'] === 'terme') $modePaiement = 'terme';
         elseif ($cmd['canal'] === 'point_vente') $modePaiement = 'comptant';
@@ -845,7 +968,8 @@ if ($action === 'fact_creer') {
             $modePaiement = ($fm === 'terme') ? 'terme' : 'comptant';
         }
     }
-    $dateEcheance = $modePaiement === 'terme' ? date('Y-m-d', strtotime('+30 days')) : null;
+    if ($clientDelai !== null) $delaiJours = $clientDelai;
+    $dateEcheance = $modePaiement === 'terme' ? date('Y-m-d', strtotime("+$delaiJours days")) : null;
 
     $db->beginTransaction();
     try {
@@ -1274,12 +1398,17 @@ if ($action === 'caisse_vente_save') {
     apiRequireRole(['point_vente']);
     if (empty($user['point_vente_id'])) error400('Ce compte n\'est rattaché à aucun point de vente — contactez l\'administrateur');
     $d = $body;
-    if (empty($d['produit_id']) || empty($d['quantite'])) error400('Produit et quantité requis');
     $pvId = $user['point_vente_id'];
 
-    // Idempotence hors-ligne : si cette vente (même client_ref) a déjà été enregistrée,
-    // on renvoie la facture existante sans rien recréer (évite un double encaissement lors
-    // d'une synchro rejouée après coupure réseau).
+    // Panier : soit une liste de lignes, soit un produit unique (compatibilité ascendante
+    // avec d'anciennes ventes hors-ligne encore en file).
+    $lignes = $d['lignes'] ?? null;
+    if (!$lignes && !empty($d['produit_id']) && !empty($d['quantite'])) {
+        $lignes = [['produit_id' => $d['produit_id'], 'quantite' => $d['quantite']]];
+    }
+    if (empty($lignes)) error400('Au moins un produit est requis');
+
+    // Idempotence hors-ligne : une vente déjà synchronisée (même client_ref) n'est jamais recréée.
     $clientRef = !empty($d['client_ref']) ? substr((string)$d['client_ref'], 0, 64) : null;
     if ($clientRef) {
         $dup = $db->prepare("SELECT id, numero, montant_ttc FROM factures WHERE client_ref=?");
@@ -1289,36 +1418,63 @@ if ($action === 'caisse_vente_save') {
         }
     }
 
-    $stmtP = $db->prepare("SELECT prix_vente FROM produits WHERE id=?");
-    $stmtP->execute([$d['produit_id']]);
-    $prix = $stmtP->fetchColumn();
-    if ($prix === false) error400('Produit introuvable');
-    $montant = $prix * $d['quantite'];
-    $tvaStmt = $db->prepare("SELECT valeur FROM parametres WHERE cle='tva_defaut'");
-    $tvaStmt->execute();
-    $tva = floatval($tvaStmt->fetchColumn() ?: 19);
-    $ttc = round($montant * (1 + $tva/100), 3);
+    // Client sélectionné (facultatif) : doit être autorisé au canal point de vente.
+    $clientId = null; $mode = 'comptant'; $delai = 0; $remise = 0.0;
+    if (!empty($d['client_id'])) {
+        $c = $db->prepare("SELECT id,mode_paiement_defaut,delai_paiement_jours,remise_pct FROM clients WHERE id=? AND canal_point_vente=1 AND actif=1");
+        $c->execute([$d['client_id']]);
+        $cl = $c->fetch();
+        if (!$cl) error400('Ce client n\'est pas autorisé à commander en point de vente');
+        $clientId = $cl['id']; $mode = $cl['mode_paiement_defaut'];
+        $delai = (int)$cl['delai_paiement_jours']; $remise = (float)$cl['remise_pct'];
+    }
+
+    $tva = floatval(($db->query("SELECT valeur FROM parametres WHERE cle='tva_defaut'")->fetchColumn()) ?: 19);
 
     $db->beginTransaction();
     try {
-        $db->prepare("INSERT INTO stocks_points_vente (point_vente_id,produit_id,quantite) VALUES (?,?,0)
-            ON DUPLICATE KEY UPDATE quantite = quantite")->execute([$pvId, $d['produit_id']]);
-        $db->prepare("UPDATE stocks_points_vente SET quantite = quantite - ? WHERE point_vente_id=? AND produit_id=?")
-            ->execute([$d['quantite'], $pvId, $d['produit_id']]);
-        $db->prepare("INSERT INTO mouvements_stock_produits (produit_id,type_mouvement,quantite,origine,reference_id,notes) VALUES (?,'sortie',?,'vente',?,?)")
-            ->execute([$d['produit_id'], $d['quantite'], $pvId, 'Vente passager (caisse)']);
+        // Commande de caisse (canal point de vente, déjà facturée : hors pipeline production)
+        $db->prepare("INSERT INTO commandes (canal,type,client_id,point_vente_id,statut,date_commande,created_by) VALUES ('point_vente','ponctuelle',?,?,'facturee',CURDATE(),?)")
+            ->execute([$clientId, $pvId, $user['id']]);
+        $cmdId = $db->lastInsertId();
+
+        $getPrix = $db->prepare("SELECT prix_vente FROM produits WHERE id=?");
+        $insLigne = $db->prepare("INSERT INTO lignes_commande (commande_id,produit_id,quantite,prix_unitaire) VALUES (?,?,?,?)");
+        $insMvt = $db->prepare("INSERT INTO mouvements_stock_produits (produit_id,type_mouvement,quantite,origine,reference_id,notes) VALUES (?,'sortie',?,'vente',?,?)");
+        $montantHt = 0.0;
+        foreach ($lignes as $l) {
+            $pid = (int)$l['produit_id']; $qte = (float)$l['quantite'];
+            if ($pid <= 0 || $qte <= 0) continue;
+            $getPrix->execute([$pid]); $prix = $getPrix->fetchColumn();
+            if ($prix === false) throw new Exception('Produit introuvable (#' . $pid . ')');
+            $montantHt += $prix * $qte;
+            $insLigne->execute([$cmdId, $pid, $qte, $prix]);
+            $db->prepare("INSERT INTO stocks_points_vente (point_vente_id,produit_id,quantite) VALUES (?,?,0) ON DUPLICATE KEY UPDATE quantite = quantite")->execute([$pvId, $pid]);
+            $db->prepare("UPDATE stocks_points_vente SET quantite = quantite - ? WHERE point_vente_id=? AND produit_id=?")->execute([$qte, $pvId, $pid]);
+            $insMvt->execute([$pid, $qte, $pvId, 'Vente caisse (commande #' . $cmdId . ')']);
+        }
+        if ($remise > 0) $montantHt = $montantHt * (1 - $remise / 100);
+        $montantHt = round($montantHt, 3);
+        $ttc = round($montantHt * (1 + $tva/100), 3);
+
+        // Mode de paiement selon la fiche client : terme = à crédit (échéance), sinon comptant payé.
+        $aCredit = ($clientId && $mode === 'terme');
+        $statutFact = $aCredit ? 'emise' : 'payee';
+        $modeFact = $aCredit ? 'terme' : 'comptant';
+        $echeance = $aCredit ? date('Y-m-d', strtotime("+$delai days")) : null;
 
         $numero = nextDocNumero($db, 'factures', 'FAC');
-        $db->prepare("INSERT INTO factures (numero,point_vente_id,montant_ht,taux_tva,montant_ttc,mode_paiement,statut,date_emission,client_ref) VALUES (?,?,?,?,?,'comptant','payee',CURDATE(),?)")
-            ->execute([$numero, $pvId, $montant, $tva, $ttc, $clientRef]);
+        $db->prepare("INSERT INTO factures (numero,client_id,point_vente_id,commande_id,montant_ht,taux_tva,montant_ttc,mode_paiement,statut,date_emission,date_echeance,client_ref) VALUES (?,?,?,?,?,?,?,?,?,CURDATE(),?,?)")
+            ->execute([$numero, $clientId, $pvId, $cmdId, $montantHt, $tva, $ttc, $modeFact, $statutFact, $echeance, $clientRef]);
         $factureId = $db->lastInsertId();
-        $db->prepare("INSERT INTO paiements (facture_id,montant,date_paiement,mode) VALUES (?,?,CURDATE(),'especes')")->execute([$factureId, $ttc]);
+        if (!$aCredit) {
+            $db->prepare("INSERT INTO paiements (facture_id,montant,date_paiement,mode) VALUES (?,?,CURDATE(),'especes')")->execute([$factureId, $ttc]);
+        }
 
         $db->commit();
-        respond(['ok' => true, 'numero' => $numero, 'montant_ttc' => $ttc]);
+        respond(['ok' => true, 'numero' => $numero, 'montant_ttc' => $ttc, 'a_credit' => $aCredit]);
     } catch (Exception $e) {
         $db->rollBack();
-        // Course entre deux synchros de la même vente : renvoie la facture déjà créée
         if ($clientRef) {
             $dup = $db->prepare("SELECT numero, montant_ttc FROM factures WHERE client_ref=?");
             $dup->execute([$clientRef]);

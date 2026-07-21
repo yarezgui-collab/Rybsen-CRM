@@ -475,6 +475,30 @@ BEGIN
     ALTER TABLE factures ADD COLUMN client_ref VARCHAR(64) NULL,
       ADD UNIQUE KEY uniq_facture_client_ref (client_ref);
   END IF;
+  -- Référentiel clients enrichi : clé d'import, canaux multiples (non exclusifs),
+  -- mode/délai de paiement par client, coordonnées et informations commerciales.
+  -- Le bloc s'exécute une seule fois (à l'ajout de code_externe), avec report initial
+  -- des canaux depuis l'ancien type_client — sans écraser les modifications ultérieures.
+  IF NOT EXISTS (SELECT 1 FROM information_schema.COLUMNS WHERE TABLE_SCHEMA=DATABASE() AND TABLE_NAME='clients' AND COLUMN_NAME='code_externe') THEN
+    ALTER TABLE clients
+      ADD COLUMN code_externe VARCHAR(40) NULL,
+      ADD COLUMN canal_terme TINYINT(1) NOT NULL DEFAULT 0,
+      ADD COLUMN canal_point_vente TINYINT(1) NOT NULL DEFAULT 0,
+      ADD COLUMN canal_franchise TINYINT(1) NOT NULL DEFAULT 0,
+      ADD COLUMN mode_paiement_defaut ENUM('comptant','terme') NOT NULL DEFAULT 'comptant',
+      ADD COLUMN delai_paiement_jours INT NOT NULL DEFAULT 30,
+      ADD COLUMN ville VARCHAR(120) NULL,
+      ADD COLUMN matricule_fiscal VARCHAR(60) NULL,
+      ADD COLUMN rc VARCHAR(60) NULL,
+      ADD COLUMN plafond_encours DECIMAL(10,3) NULL,
+      ADD COLUMN remise_pct DECIMAL(5,2) NOT NULL DEFAULT 0,
+      ADD COLUMN notes TEXT NULL,
+      ADD UNIQUE KEY uniq_client_code (code_externe);
+    -- Report initial (une seule fois) : les clients à terme existants gardent leur canal,
+    -- les franchises le leur ; le mode de paiement des clients à terme passe à 'terme'.
+    UPDATE clients SET canal_terme = 1, mode_paiement_defaut = 'terme' WHERE type_client = 'terme';
+    UPDATE clients SET canal_franchise = 1 WHERE type_client = 'franchise';
+  END IF;
 END$$
 DELIMITER ;
 CALL upgrade_schema_v2();
