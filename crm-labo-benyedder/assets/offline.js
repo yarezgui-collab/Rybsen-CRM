@@ -36,10 +36,13 @@
         const item = q[0];
         let res;
         try {
+          var payload = { action: 'caisse_vente_save', client_ref: item.client_ref };
+          if (item.lignes) { payload.lignes = item.lignes; payload.client_id = item.client_id || null; }
+          else { payload.produit_id = item.produit_id; payload.quantite = item.quantite; } // compat ancienne file
           res = await fetch('/api/api.php', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json', 'X-Requested-With': 'XMLHttpRequest' },
-            body: JSON.stringify({ action: 'caisse_vente_save', produit_id: item.produit_id, quantite: item.quantite, client_ref: item.client_ref })
+            body: JSON.stringify(payload)
           });
         } catch (netErr) { break; } // réseau retombé : on garde la file pour plus tard
         let data = null; try { data = await res.json(); } catch (e) {}

@@ -165,3 +165,24 @@ jobs:
             echo "::error::Échec du chargement des données de démonstration (HTTP $http_code)"
             exit 1
           fi
+
+      - name: Importer le référentiel clients (idempotent, insert-if-missing)
+        env:
+          MIGRATION_TOKEN: ${{ secrets.BENYEDDER_MIGRATION_TOKEN }}
+        run: |
+          # Insère les clients de clients_seed.csv absents (clé = code_externe) sans jamais
+          # écraser une fiche déjà présente. Sûr à rejouer à chaque déploiement.
+          response=$(curl -sS -X POST "https://tby.rybsen.fr/run_import_clients.php" \
+            -H "X-Migration-Token: $MIGRATION_TOKEN" \
+            -w "\n%{http_code}")
+          http_code=$(echo "$response" | tail -n1)
+          body=$(echo "$response" | sed '$d')
+          echo "$body"
+          if [ "$http_code" != "200" ]; then
+            echo "::error::Échec de l'import des clients (HTTP $http_code)"
+            exit 1
+          fi
+          if echo "$body" | grep -q '"ok":false'; then
+            echo "::error::L'import des clients a échoué — voir la sortie ci-dessus"
+            exit 1
+          fi

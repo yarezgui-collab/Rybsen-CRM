@@ -142,4 +142,15 @@ try {
     }
 } catch (Exception $e) { $log[] = 'cuisines demo skipped: ' . $e->getMessage(); }
 
+// ── Canaux des clients de démo (idempotent, ne touche que les fiches non configurées) ──
+try {
+    if ($db->query("SHOW COLUMNS FROM clients LIKE 'canal_terme'")->fetchColumn()) {
+        $db->exec("UPDATE clients SET canal_terme=1, mode_paiement_defaut='terme'
+            WHERE type_client='terme' AND canal_terme=0 AND canal_point_vente=0 AND canal_franchise=0");
+        $db->exec("UPDATE clients SET canal_franchise=1
+            WHERE type_client='franchise' AND canal_terme=0 AND canal_point_vente=0 AND canal_franchise=0");
+        $log[] = 'canaux clients démo appliqués';
+    }
+} catch (Exception $e) { $log[] = 'canaux clients skipped: ' . $e->getMessage(); }
+
 echo json_encode(['ok' => true, 'log' => $log], JSON_UNESCAPED_UNICODE);

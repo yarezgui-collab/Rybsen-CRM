@@ -88,6 +88,12 @@ SELECT 'Chef Pâtisserie (démo)', 'demo.patisserie@benyedder.tn', '$2y$12$OCO2J
 FROM cuisines_production WHERE nom = 'Pâtisserie traditionnelle'
 AND NOT EXISTS (SELECT 1 FROM users WHERE email = 'demo.patisserie@benyedder.tn');
 
+-- Canaux des clients de démo (idempotent : ne touche que les fiches non encore configurées).
+UPDATE clients SET canal_terme = 1, mode_paiement_defaut = 'terme'
+  WHERE type_client = 'terme' AND canal_terme = 0 AND canal_point_vente = 0 AND canal_franchise = 0;
+UPDATE clients SET canal_franchise = 1
+  WHERE type_client = 'franchise' AND canal_terme = 0 AND canal_point_vente = 0 AND canal_franchise = 0;
+
 -- ============================================================
 -- Pour retirer uniquement ces données de démo plus tard :
 -- ============================================================
