@@ -94,8 +94,12 @@ franchises et points de vente. Voir `crm-labo-benyedder/README.md` pour le conte
 - Chemin distant : domains/rybsen.fr/public_html/tby (même compte SFTP que crm-patisserie)
 - config.php n'est jamais commité : généré à chaque run depuis des secrets GitHub, puis déployé
   par SFTP avec le reste (DB_HOST fixé à 'localhost' dans le workflow)
-- Après le SFTP, le workflow appelle run_demo_data.php (protégé par jeton) pour charger les
-  données de démonstration — idempotent, sans risque à chaque déploiement
+- Après le SFTP, le workflow applique le schéma (run_migration.php) puis importe le référentiel
+  clients réel (run_import_clients.php, insert-if-missing sur code_externe). Les données de
+  démonstration NE sont plus chargées automatiquement (demo_data.sql / run_demo_data.php supprimés
+  pour la livraison). Un workflow manuel « Purge données de démo » (purge-demo-benyedder.yml →
+  run_purge_demo.php) supprime en une fois la démo + l'historique de test tout en conservant
+  admin, paramètres, cuisines/catégories et clients réels.
 - Secrets GitHub requis :
   - Réutilisés (déjà existants) : PATISSERIE_SFTP_HOST / PATISSERIE_SFTP_PORT / PATISSERIE_SFTP_USER / PATISSERIE_SFTP_PASSWORD
   - Propres à ce projet (créés) : BENYEDDER_DB_NAME (= nom base = nom utilisateur MySQL, u293743867_Tby) / BENYEDDER_DB_PASSWORD
@@ -106,7 +110,7 @@ franchises et points de vente. Voir `crm-labo-benyedder/README.md` pour le conte
   DELIMITER (procédures stockées). Idempotent — CREATE TABLE IF NOT EXISTS, procédures
   conditionnelles (information_schema) pour les colonnes, CREATE OR REPLACE pour les vues ; ne
   crée que ce qui manque, n'écrase jamais les données existantes. Le workflow bloque le déploiement
-  si une requête échoue ("ok":false). run_migration.php est appelé AVANT run_demo_data.php.
+  si une requête échoue ("ok":false). run_migration.php est appelé AVANT run_import_clients.php.
 - *.sql (dont install.sql) n'est pas déployé par SFTP : run_migration.php lit install.sql… donc
   install.sql DOIT être déployé. Il est inclus dans le SFTP (l'exclusion *.sql concerne les autres
   dumps) — vérifier que install.sql est bien présent sur le serveur pour que la migration fonctionne.

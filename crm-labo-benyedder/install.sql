@@ -601,50 +601,6 @@ INSERT INTO parametres (cle, valeur) VALUES
 ('feature_evenementiel', '1')
 ON DUPLICATE KEY UPDATE valeur = valeur;
 
--- Note: nom n'est pas une clé UNIQUE sur ces tables, donc chaque ligne est
--- insérée uniquement si elle n'existe pas déjà (évite les doublons si ce
--- script est exécuté plusieurs fois).
-INSERT INTO matieres_premieres (nom, unite, stock_actuel, seuil_alerte, prix_unitaire)
-SELECT * FROM (SELECT 'Farine' nom, 'kg' unite, 200.000 stock_actuel, 30.000 seuil_alerte, 1.200 prix_unitaire) v
-WHERE NOT EXISTS (SELECT 1 FROM matieres_premieres WHERE nom = v.nom);
-INSERT INTO matieres_premieres (nom, unite, stock_actuel, seuil_alerte, prix_unitaire)
-SELECT * FROM (SELECT 'Beurre', 'kg', 80.000, 15.000, 14.500) v
-WHERE NOT EXISTS (SELECT 1 FROM matieres_premieres WHERE nom = 'Beurre');
-INSERT INTO matieres_premieres (nom, unite, stock_actuel, seuil_alerte, prix_unitaire)
-SELECT * FROM (SELECT 'Sucre', 'kg', 100.000, 20.000, 2.100) v
-WHERE NOT EXISTS (SELECT 1 FROM matieres_premieres WHERE nom = 'Sucre');
-INSERT INTO matieres_premieres (nom, unite, stock_actuel, seuil_alerte, prix_unitaire)
-SELECT * FROM (SELECT 'Œufs', 'unité', 500.000, 100.000, 0.350) v
-WHERE NOT EXISTS (SELECT 1 FROM matieres_premieres WHERE nom = 'Œufs');
-INSERT INTO matieres_premieres (nom, unite, stock_actuel, seuil_alerte, prix_unitaire)
-SELECT * FROM (SELECT 'Amandes', 'kg', 40.000, 8.000, 22.000) v
-WHERE NOT EXISTS (SELECT 1 FROM matieres_premieres WHERE nom = 'Amandes');
-INSERT INTO matieres_premieres (nom, unite, stock_actuel, seuil_alerte, prix_unitaire)
-SELECT * FROM (SELECT 'Miel', 'kg', 25.000, 5.000, 18.000) v
-WHERE NOT EXISTS (SELECT 1 FROM matieres_premieres WHERE nom = 'Miel');
-
-INSERT INTO produits (nom, categorie, prix_vente, unite)
-SELECT * FROM (SELECT 'Croissant' nom, 'Viennoiserie' categorie, 0.900 prix_vente, 'pièce' unite) v
-WHERE NOT EXISTS (SELECT 1 FROM produits WHERE nom = 'Croissant');
-INSERT INTO produits (nom, categorie, prix_vente, unite)
-SELECT * FROM (SELECT 'Pain au chocolat', 'Viennoiserie', 1.000, 'pièce') v
-WHERE NOT EXISTS (SELECT 1 FROM produits WHERE nom = 'Pain au chocolat');
-INSERT INTO produits (nom, categorie, prix_vente, unite)
-SELECT * FROM (SELECT 'Baklawa', 'Pâtisserie traditionnelle', 1.500, 'pièce') v
-WHERE NOT EXISTS (SELECT 1 FROM produits WHERE nom = 'Baklawa');
-INSERT INTO produits (nom, categorie, prix_vente, unite)
-SELECT * FROM (SELECT 'Kaak Warka', 'Pâtisserie traditionnelle', 1.200, 'pièce') v
-WHERE NOT EXISTS (SELECT 1 FROM produits WHERE nom = 'Kaak Warka');
-
-INSERT INTO recettes (produit_id, matiere_id, quantite_necessaire)
-SELECT p.id, m.id, v.qte FROM (
-  SELECT 'Croissant' pnom, 'Farine' mnom, 0.0500 qte
-  UNION ALL SELECT 'Croissant', 'Beurre', 0.0250
-  UNION ALL SELECT 'Croissant', 'Sucre', 0.0050
-  UNION ALL SELECT 'Baklawa', 'Amandes', 0.0300
-  UNION ALL SELECT 'Baklawa', 'Miel', 0.0200
-  UNION ALL SELECT 'Baklawa', 'Farine', 0.0200
-) v
-JOIN produits p ON p.nom = v.pnom
-JOIN matieres_premieres m ON m.nom = v.mnom
-ON DUPLICATE KEY UPDATE quantite_necessaire = VALUES(quantite_necessaire);
+-- Catalogue : aucun produit/matière d'exemple n'est semé ici. Le catalogue réel
+-- (produits, prix, catégories) est importé séparément à partir du fichier client.
+-- Les cuisines et catégories ci-dessus restent le socle de production.

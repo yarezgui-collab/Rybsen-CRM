@@ -1,0 +1,45 @@
+name: Purge données de démo — Labo Ben Yedder
+
+# Déclenchement MANUEL uniquement (Actions → « Purge données de démo » → Run workflow).
+# Supprime les données de démonstration et l'historique transactionnel de test sur la prod,
+# en conservant l'admin, les paramètres, les cuisines/catégories et les clients réels importés.
+# À lancer UNE FOIS avant la livraison. Ne s'exécute jamais automatiquement.
+on:
+  workflow_dispatch:
+    inputs:
+      confirmer:
+        description: 'Taper SUPPRIMER pour confirmer la purge de la prod'
+        required: true
+        default: ''
+
+jobs:
+  purge:
+    name: Purge demo (prod)
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Vérifier la confirmation
+        run: |
+          if [ "${{ github.event.inputs.confirmer }}" != "SUPPRIMER" ]; then
+            echo "::error::Confirmation absente — tapez SUPPRIMER pour lancer la purge"
+            exit 1
+          fi
+
+      - name: Purger les données de démonstration
+        env:
+          MIGRATION_TOKEN: ${{ secrets.BENYEDDER_MIGRATION_TOKEN }}
+        run: |
+          response=$(curl -sS -X POST "https://tby.rybsen.fr/run_purge_demo.php" \
+            -H "X-Migration-Token: $MIGRATION_TOKEN" \
+            -w "\n%{http_code}")
+          http_code=$(echo "$response" | tail -n1)
+          body=$(echo "$response" | sed '$d')
+          echo "$body"
+          if [ "$http_code" != "200" ]; then
+            echo "::error::Échec de la purge (HTTP $http_code)"
+            exit 1
+          fi
+          if echo "$body" | grep -q '"ok":false'; then
+            echo "::error::La purge a échoué — voir la sortie ci-dessus"
+            exit 1
+          fi
