@@ -2,7 +2,7 @@
 // Objectif : permettre l'ouverture de l'application et de la caisse même sans réseau
 // (coupures internet fréquentes). Les ventes encaissées hors-ligne sont mises en file
 // d'attente côté page (assets/offline.js) puis synchronisées au retour du réseau.
-const CACHE = 'benyedder-v1';
+const CACHE = 'benyedder-v2';
 const SHELL = [
   '/assets/style.css',
   '/assets/app.js',
@@ -32,30 +32,17 @@ self.addEventListener('fetch', (e) => {
   const url = new URL(req.url);
   if (url.origin !== self.location.origin) return;
 
-  const isApi = url.pathname.endsWith('/api/api.php');
-  if (isApi) {
-    // API en lecture : réseau d'abord, cache en secours (permet de charger le catalogue hors-ligne)
-    e.respondWith(
-      fetch(req).then((res) => {
+  // RÉSEAU D'ABORD partout (pages, assets, API en lecture) : l'utilisateur en ligne voit
+  // toujours la dernière version. Le cache ne sert QUE de secours en cas de coupure réseau
+  // (l'application et la caisse restent alors utilisables). On met à jour le cache à chaque
+  // réponse réussie pour garder une copie hors-ligne fraîche.
+  e.respondWith(
+    fetch(req).then((res) => {
+      if (res && res.status === 200) {
         const copy = res.clone();
         caches.open(CACHE).then((c) => c.put(req, copy));
-        return res;
-      }).catch(() => caches.match(req))
-    );
-    return;
-  }
-
-  // Pages & assets : cache d'abord, réseau en secours, et on rafraîchit le cache en tâche de fond
-  e.respondWith(
-    caches.match(req).then((cached) => {
-      const network = fetch(req).then((res) => {
-        if (res && res.status === 200) {
-          const copy = res.clone();
-          caches.open(CACHE).then((c) => c.put(req, copy));
-        }
-        return res;
-      }).catch(() => cached);
-      return cached || network;
-    })
+      }
+      return res;
+    }).catch(() => caches.match(req))
   );
 });
