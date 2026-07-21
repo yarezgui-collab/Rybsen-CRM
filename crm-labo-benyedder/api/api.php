@@ -80,10 +80,21 @@ if ($action === 'cli_delete') {
 // ──────────────────────────────────────────
 if ($action === 'client_list') {
     apiRequireRole(['admin','labo']);
+    // Encours et présence d'un accès calculés en une seule passe (jointures), pas en
+    // sous-requête corrélée par client — indispensable à l'échelle (600+ clients).
     $rows = $db->query("SELECT c.*,
-            EXISTS(SELECT 1 FROM users u WHERE u.client_id=c.id AND u.role='client_terme') AS a_un_acces,
-            COALESCE((SELECT encours FROM v_encours_clients WHERE client_id=c.id),0) AS encours
-        FROM clients c ORDER BY c.nom")->fetchAll();
+            (acc.client_id IS NOT NULL) AS a_un_acces,
+            COALESCE(e.encours, 0) AS encours
+        FROM clients c
+        LEFT JOIN (
+            SELECT client_id, COALESCE(SUM(f.montant_ttc - COALESCE(p.paye,0)),0) AS encours
+            FROM factures f
+            LEFT JOIN (SELECT facture_id, SUM(montant) AS paye FROM paiements GROUP BY facture_id) p ON p.facture_id = f.id
+            WHERE f.mode_paiement='terme' AND f.statut<>'brouillon' AND f.client_id IS NOT NULL
+            GROUP BY client_id
+        ) e ON e.client_id = c.id
+        LEFT JOIN (SELECT DISTINCT client_id FROM users WHERE role='client_terme' AND client_id IS NOT NULL) acc ON acc.client_id = c.id
+        ORDER BY c.nom")->fetchAll();
     respond($rows);
 }
 if ($action === 'client_get') {
