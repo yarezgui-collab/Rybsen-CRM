@@ -395,6 +395,16 @@ try {
         // ============================================================
         // TARIFS SPÉCIAUX PAR CLIENT
         // ============================================================
+
+        // Lecture seule et légère : permet aux autres appareils (ex: poste Labo resté
+        // ouvert) de rafraîchir les tarifs sans recharger toute l'application.
+        case 'get_client_prices': {
+            $rows = $pdo->query("SELECT client_id, produit_id, prix FROM prix_client")->fetchAll();
+            foreach ($rows as &$r) { $r['prix'] = (float)$r['prix']; }
+            out(['ok' => true, 'prix_client' => $rows]);
+            break;
+        }
+
         case 'save_client_price': {
             $clientId  = $input['clientId']  ?? '';
             $produitId = $input['produitId'] ?? '';

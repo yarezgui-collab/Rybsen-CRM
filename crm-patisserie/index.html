@@ -355,7 +355,7 @@ img{max-width:100%}
 const { useState, useEffect, useMemo, useRef } = React;
 // Marqueur de build affiché dans le pied de page — permet de vérifier d'un coup d'œil
 // que le navigateur charge bien la dernière version (et non un ancien fichier en cache).
-const APP_VERSION = "2026.07.22-tarifs-multi";
+const APP_VERSION = "2026.07.22-tarifs-sync";
 const mkIcon = (g) => ({ size = 16, color }) =>
   React.createElement("span", { style: { fontSize: size, lineHeight: 1, color, display: "inline-block" } }, g);
 const ChefHat = mkIcon("👨‍🍳");
@@ -890,7 +890,7 @@ function ProductPicker({ products, currency, value, onChange, getPrice }) {
 }
 
 
-function Labo({ products, clients, drivers, deliveries, returns, currency, settings, onAddMany, onDelete, onUpdate, onAddReturn, onDeleteReturn, clientPrices }) {
+function Labo({ products, clients, drivers, deliveries, returns, currency, settings, onAddMany, onDelete, onUpdate, onAddReturn, onDeleteReturn, clientPrices, onRefreshPrices }) {
   const [date,      setDate]      = useState(today());
   const [clientId,  setClientId]  = useState("");
   const [productId, setProductId] = useState("");
@@ -1290,7 +1290,8 @@ function Labo({ products, clients, drivers, deliveries, returns, currency, setti
           </div>
           <div style={{gridColumn:"1 / -1"}}>
             <label style={label}>Client (pâtisserie)</label>
-            <select style={input} value={clientId} onChange={e=>setClientId(e.target.value)}>
+            <select style={input} value={clientId}
+              onChange={e=>{ setClientId(e.target.value); if(e.target.value && onRefreshPrices) onRefreshPrices(); }}>
               <option value="">— Choisir —</option>
               {clients.map(c=><option key={c.id} value={c.id}>{c.name} · {driverLabel(c.driver,drivers)}</option>)}
             </select>
@@ -1773,26 +1774,37 @@ function Owner({ deliveries, payments, products, clients, drivers, settings, rep
   // Prix décimal tolérant : accepte la virgule ou le point (ex: "2,5" ou "2.5")
   const parsePrice = (s) => { const n = parseFloat(String(s).replace(",", ".")); return isFinite(n) ? n : 0; };
 
-  // (Re)charge le brouillon quand on change de client ou après un enregistrement réussi
+  // (Re)charge le brouillon quand on change de client ou après un enregistrement réussi.
+  // Si une saisie est en cours (pricesDirty), on ne touche à RIEN : la synchronisation
+  // automatique des tarifs (multi-appareils) ne doit jamais écraser un brouillon.
   useEffect(() => {
-    if (!selectedPriceClient) { setPriceDrafts({}); setPricesDirty(false); return; }
+    if (pricesDirty) return;
+    if (!selectedPriceClient) { setPriceDrafts({}); return; }
     const drafts = {};
     (clientPrices||[]).filter(pc => pc.clientId===selectedPriceClient)
       .forEach(pc => { drafts[pc.productId] = String(pc.prix); });
     setPriceDrafts(drafts);
-    setPricesDirty(false);
-  }, [selectedPriceClient, clientPrices]);
+  }, [selectedPriceClient, clientPrices, pricesDirty]);
 
-  // Enregistre TOUS les tarifs modifiés du client en une seule fois
+  // Changer de client abandonne le brouillon en cours (comportement volontaire).
+  useEffect(() => { setPricesDirty(false); }, [selectedPriceClient]);
+
+  // Enregistre TOUS les tarifs modifiés du client en une seule fois.
+  // En cas d'échec réseau/serveur, l'indicateur « non enregistrées » reste affiché.
   const handleSaveAllPrices = async () => {
     if (!selectedPriceClient || savingPrices) return;
     const prevPids = (clientPrices||[]).filter(pc => pc.clientId===selectedPriceClient).map(pc => pc.productId);
     const pids = new Set([...Object.keys(priceDrafts), ...prevPids]);
     const items = [...pids].map(pid => ({ productId: pid, prix: parsePrice(priceDrafts[pid]) }));
     setSavingPrices(true);
-    await saveClientPricesBatch(selectedPriceClient, items);
-    setSavingPrices(false);
-    setPricesDirty(false);
+    try {
+      await saveClientPricesBatch(selectedPriceClient, items);
+      setPricesDirty(false);
+    } catch(e) {
+      // échec : on garde le brouillon et l'indicateur rouge, l'utilisateur peut réessayer
+    } finally {
+      setSavingPrices(false);
+    }
   };
   const [editingId,            setEditingId]            = useState(null);
   const [editDraft,   setEditDraft]   = useState(null);
@@ -2895,22 +2907,53 @@ function App() {
     showToast(prix > 0 ? "Tarif spécial sauvegardé ✓" : "Tarif supprimé ✓");
   };
 
+  // Recharge UNIQUEMENT les tarifs spéciaux depuis le serveur (léger).
+  // Utilisé après chaque enregistrement (source de vérité) et pour synchroniser
+  // les autres appareils : un poste Labo resté ouvert récupère ainsi les tarifs
+  // modifiés depuis le téléphone du propriétaire sans recharger la page.
+  const refreshClientPrices = async () => {
+    try {
+      const r = await apiCall("get_client_prices");
+      setClientPricesS((r.prix_client||[]).map(fromSqlClientPrice));
+      return true;
+    } catch(e) { return false; }
+  };
+
   // Enregistrement groupé de plusieurs tarifs pour un même client.
   // items : [{ productId, prix }] — prix <= 0 supprime le tarif spécial (retour au catalogue).
+  // L'état affiché après enregistrement vient TOUJOURS du serveur (pas d'optimisme
+  // silencieux) : si le POST échoue, l'utilisateur voit une erreur, jamais un faux succès.
   const saveClientPricesBatch = async (clientId, items) => {
-    setClientPricesS(prev => {
-      const changed = new Set(items.map(it => it.productId));
-      const kept    = prev.filter(pc => !(pc.clientId===clientId && changed.has(pc.productId)));
-      const added   = items.filter(it => it.prix > 0).map(it => ({ clientId, productId: it.productId, prix: it.prix }));
-      return [...kept, ...added];
-    });
-    await apiCall("save_client_prices", {
-      clientId,
-      items: items.map(it => ({ produitId: it.productId, prix: it.prix })),
-    }).catch(()=>{});
+    try {
+      await apiCall("save_client_prices", {
+        clientId,
+        items: items.map(it => ({ produitId: it.productId, prix: it.prix })),
+      });
+    } catch(e) {
+      await refreshClientPrices();
+      showToast("⚠️ Échec de l'enregistrement — vérifiez la connexion et réessayez");
+      throw e;
+    }
+    await refreshClientPrices();
     const n = items.filter(it => it.prix > 0).length;
     showToast(`${n} tarif${n>1?"s":""} enregistré${n>1?"s":""} ✓`);
   };
+
+  // Synchronisation multi-appareils : quand l'app redevient visible (retour sur
+  // l'onglet, réveil de la tablette du labo…), on resynchronise les tarifs.
+  useEffect(() => {
+    const onWake = () => { if (!document.hidden) refreshClientPrices(); };
+    document.addEventListener("visibilitychange", onWake);
+    window.addEventListener("focus", onWake);
+    return () => {
+      document.removeEventListener("visibilitychange", onWake);
+      window.removeEventListener("focus", onWake);
+    };
+  }, []);
+
+  // « Je repasse en Labo » sur le même appareil : changer d'onglet de rôle
+  // resynchronise aussi les tarifs.
+  useEffect(() => { if (session) refreshClientPrices(); }, [role]);
 
   // ---- Rapports journaliers ----
   const saveReport = async (snapshot) => {
@@ -3037,7 +3080,7 @@ function App() {
       <main style={{maxWidth:768,margin:"0 auto",padding:"16px 16px 90px"}}><style>{`@media(min-width:640px){main{padding:20px 20px 40px!important}}`}</style>
         {role==="labo" ? (
           <Labo products={products} clients={clients} drivers={drivers} deliveries={deliveries} returns={returns} currency={currency} settings={settings}
-            clientPrices={clientPrices}
+            clientPrices={clientPrices} onRefreshPrices={refreshClientPrices}
             onAddMany={rows=>setDeliveries([...deliveries,...rows.map(r=>({...r,id:r.id||(Date.now()+Math.random()).toString(36)}))])}
             onDelete={id=>setDeliveries(deliveries.filter(x=>x.id!==id))}
             onUpdate={(id, patch)=>setDeliveries(deliveries.map(x=>x.id===id?{...x,...patch}:x))}
