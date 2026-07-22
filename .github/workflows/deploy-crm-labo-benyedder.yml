@@ -171,3 +171,24 @@ jobs:
             echo "::error::L'import des clients a échoué — voir la sortie ci-dessus"
             exit 1
           fi
+
+      - name: Importer le catalogue produits (idempotent, insert-if-missing)
+        env:
+          MIGRATION_TOKEN: ${{ secrets.BENYEDDER_MIGRATION_TOKEN }}
+        run: |
+          # Insère les produits de products_seed.csv absents (clé = code_externe) et crée
+          # les catégories manquantes. Ne modifie jamais un produit déjà présent.
+          response=$(curl -sS -X POST "https://tby.rybsen.fr/run_import_produits.php" \
+            -H "X-Migration-Token: $MIGRATION_TOKEN" \
+            -w "\n%{http_code}")
+          http_code=$(echo "$response" | tail -n1)
+          body=$(echo "$response" | sed '$d')
+          echo "$body"
+          if [ "$http_code" != "200" ]; then
+            echo "::error::Échec de l'import du catalogue (HTTP $http_code)"
+            exit 1
+          fi
+          if echo "$body" | grep -q '"ok":false'; then
+            echo "::error::L'import du catalogue a échoué — voir la sortie ci-dessus"
+            exit 1
+          fi

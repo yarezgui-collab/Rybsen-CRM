@@ -499,30 +499,48 @@ BEGIN
     UPDATE clients SET canal_terme = 1, mode_paiement_defaut = 'terme' WHERE type_client = 'terme';
     UPDATE clients SET canal_franchise = 1 WHERE type_client = 'franchise';
   END IF;
+  -- Produits : clé d'import (référence article), origine (fabriqué/acheté), taux de TVA propre.
+  IF NOT EXISTS (SELECT 1 FROM information_schema.COLUMNS WHERE TABLE_SCHEMA=DATABASE() AND TABLE_NAME='produits' AND COLUMN_NAME='code_externe') THEN
+    ALTER TABLE produits
+      ADD COLUMN code_externe VARCHAR(40) NULL,
+      ADD COLUMN origine ENUM('fabrique','achete') NOT NULL DEFAULT 'fabrique',
+      ADD COLUMN taux_tva DECIMAL(5,2) NOT NULL DEFAULT 19,
+      ADD UNIQUE KEY uniq_produit_code (code_externe);
+  END IF;
 END$$
 DELIMITER ;
 CALL upgrade_schema_v2();
 DROP PROCEDURE upgrade_schema_v2;
 
--- Cuisines de départ (idempotent)
-INSERT INTO cuisines_production (nom, description)
-SELECT * FROM (SELECT 'Viennoiserie' nom, 'Croissants, pains au chocolat, feuilletés' description) v
-WHERE NOT EXISTS (SELECT 1 FROM cuisines_production WHERE nom = v.nom);
-INSERT INTO cuisines_production (nom, description)
-SELECT * FROM (SELECT 'Pâtisserie traditionnelle', 'Baklawa, kaak, cornes de gazelle') v
-WHERE NOT EXISTS (SELECT 1 FROM cuisines_production WHERE nom = 'Pâtisserie traditionnelle');
-INSERT INTO cuisines_production (nom, description)
-SELECT * FROM (SELECT 'Glacier', 'Glaces et desserts glacés') v
-WHERE NOT EXISTS (SELECT 1 FROM cuisines_production WHERE nom = 'Glacier');
+-- Cuisines de production réelles (postes de production Ben Yedder), idempotent.
+INSERT INTO cuisines_production (nom)
+SELECT v.nom FROM (
+  SELECT 'BOULANGERIE' nom UNION ALL SELECT 'CHOCOLATERIE' UNION ALL SELECT 'CUISINE'
+  UNION ALL SELECT 'FEUILLETAGE' UNION ALL SELECT 'GLACE' UNION ALL SELECT 'GATEAUX TUNISIEN'
+  UNION ALL SELECT 'GATEAUX TUNISIEN SPECIAL' UNION ALL SELECT 'LIBANAIS'
+  UNION ALL SELECT 'PATISSERIE EUROPEENNE' UNION ALL SELECT 'SALE' UNION ALL SELECT 'VIENNOISERIE'
+) v
+WHERE NOT EXISTS (SELECT 1 FROM cuisines_production c WHERE c.nom = v.nom);
 
--- Catégories connues rattachées à leur cuisine (idempotent)
-INSERT INTO categories (nom, cuisine_id)
-SELECT v.nom, (SELECT id FROM cuisines_production WHERE nom = v.cuis)
-FROM (SELECT 'Viennoiserie' nom, 'Viennoiserie' cuis
-      UNION ALL SELECT 'Pâtisserie traditionnelle', 'Pâtisserie traditionnelle') v
-WHERE NOT EXISTS (SELECT 1 FROM categories WHERE nom = v.nom);
+-- Aligne le nommage de la cuisine provisoire « Viennoiserie » sur la liste client (majuscules)
+UPDATE cuisines_production SET nom = 'VIENNOISERIE' WHERE nom = 'Viennoiserie';
 
--- Rattrape toute autre catégorie déjà présente dans le catalogue (cuisine non assignée)
+-- Retire les catégories provisoires (démo) non référencées par le catalogue réel
+DELETE FROM categories
+WHERE nom IN ('Viennoiserie', 'Pâtisserie traditionnelle')
+  AND NOT EXISTS (SELECT 1 FROM produits p WHERE p.categorie = categories.nom);
+
+-- Retire les cuisines provisoires (démo) si elles ne sont plus utilisées (aucune catégorie,
+-- aucun compte, aucun ordre rattaché) — sécurisé et idempotent.
+DELETE FROM cuisines_production
+WHERE nom IN ('Pâtisserie traditionnelle', 'Glacier')
+  AND NOT EXISTS (SELECT 1 FROM categories WHERE cuisine_id = cuisines_production.id)
+  AND NOT EXISTS (SELECT 1 FROM users WHERE cuisine_id = cuisines_production.id)
+  AND NOT EXISTS (SELECT 1 FROM ordres_fabrication WHERE cuisine_id = cuisines_production.id);
+
+-- Les catégories sont créées à l'import du catalogue (une par famille de produits) puis
+-- rattachées à leur cuisine dans « Gestion de production ». Aucune catégorie d'exemple semée ici.
+-- Rattrape toute catégorie déjà présente dans le catalogue mais absente de la table categories.
 INSERT INTO categories (nom)
 SELECT DISTINCT p.categorie FROM produits p
 WHERE p.categorie IS NOT NULL AND p.categorie <> ''

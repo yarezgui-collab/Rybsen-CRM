@@ -75,7 +75,7 @@ $roleLabels = ['admin'=>'Administrateur','labo'=>'Laboratoire central','producti
   </a>
   <?php if (in_array($role, ['admin','labo'], true)): ?>
   <a href="/modules/cuisines.php" class="nav-item <?= ($activePage??'')==='cuisines' ? 'active':'' ?>">
-    <span class="nav-icon">🍳</span><span class="nav-text">Cuisines de production</span>
+    <span class="nav-icon">🍳</span><span class="nav-text">Gestion de production</span>
   </a>
   <?php endif; ?>
   <?php endif; ?>
