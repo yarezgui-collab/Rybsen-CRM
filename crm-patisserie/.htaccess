@@ -26,3 +26,12 @@ DirectoryIndex index.html index.php
         Header set Cache-Control "no-store"
     </FilesMatch>
 </IfModule>
+
+# Cache serveur LiteSpeed (Hostinger) : désactivé pour ce dossier, sinon une
+# ancienne version de index.html peut continuer à être servie APRÈS déploiement,
+# malgré les en-têtes ci-dessus. C'est la cause typique d'un correctif « invisible ».
+<IfModule LiteSpeed>
+    CacheDisable public /
+    RewriteEngine On
+    RewriteRule .* - [E=Cache-Control:no-cache]
+</IfModule>
