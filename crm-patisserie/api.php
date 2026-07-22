@@ -400,13 +400,13 @@ try {
             $produitId = $input['produitId'] ?? '';
             $prix      = (float)($input['prix'] ?? 0);
             if ($clientId === '' || $produitId === '') err('Client et produit requis');
-            if ($prix <= 0) {
-                $pdo->prepare("DELETE FROM prix_client WHERE client_id = ? AND produit_id = ?")->execute([$clientId, $produitId]);
-            } else {
-                $pdo->prepare("
-                    INSERT INTO prix_client (client_id, produit_id, prix) VALUES (?,?,?)
-                    ON DUPLICATE KEY UPDATE prix = VALUES(prix)
-                ")->execute([$clientId, $produitId, $prix]);
+            // DELETE puis INSERT (au lieu de INSERT ... ON DUPLICATE KEY UPDATE) :
+            // robuste même si la table prix_client n'a pas de clé primaire composite
+            // (ancienne base) — évite l'accumulation de doublons où l'ancien prix l'emporte.
+            $pdo->prepare("DELETE FROM prix_client WHERE client_id = ? AND produit_id = ?")->execute([$clientId, $produitId]);
+            if ($prix > 0) {
+                $pdo->prepare("INSERT INTO prix_client (client_id, produit_id, prix) VALUES (?,?,?)")
+                    ->execute([$clientId, $produitId, $prix]);
             }
             out(['ok' => true]);
             break;
@@ -421,17 +421,17 @@ try {
 
             $pdo->beginTransaction();
             try {
+                // Toujours supprimer d'abord la (les) ligne(s) existante(s) pour ce couple
+                // client/produit, puis réinsérer si prix > 0. Indépendant de la présence
+                // d'une clé primaire : purge les éventuels doublons hérités d'une ancienne base.
                 $del = $pdo->prepare("DELETE FROM prix_client WHERE client_id = ? AND produit_id = ?");
-                $ins = $pdo->prepare("
-                    INSERT INTO prix_client (client_id, produit_id, prix) VALUES (?,?,?)
-                    ON DUPLICATE KEY UPDATE prix = VALUES(prix)
-                ");
+                $ins = $pdo->prepare("INSERT INTO prix_client (client_id, produit_id, prix) VALUES (?,?,?)");
                 foreach ($items as $it) {
                     $produitId = $it['produitId'] ?? '';
                     if ($produitId === '') continue;
                     $prix = (float)($it['prix'] ?? 0);
-                    if ($prix <= 0) $del->execute([$clientId, $produitId]);
-                    else            $ins->execute([$clientId, $produitId, $prix]);
+                    $del->execute([$clientId, $produitId]);
+                    if ($prix > 0) $ins->execute([$clientId, $produitId, $prix]);
                 }
                 $pdo->commit();
             } catch (Exception $e) {
