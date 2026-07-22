@@ -26,20 +26,40 @@ jobs:
           SFTP_USER: ${{ secrets.PATISSERIE_SFTP_USER }}
           SFTP_PASS: ${{ secrets.PATISSERIE_SFTP_PASSWORD }}
         run: |
-          cat > /tmp/sftp_batch.txt << 'BATCH'
-          cd domains/rybsen.fr/public_html/pby
-          put crm-patisserie/index.html index.html
-          put crm-patisserie/api.php api.php
-          put crm-patisserie/default.php default.php
-          BATCH
+          # Déploie vers TOUS les emplacements possibles du site pby.
+          # Un sous-domaine Hostinger (pby.rybsen.fr) sert en général depuis son
+          # propre dossier (domains/pby.rybsen.fr/public_html) et NON depuis
+          # rybsen.fr/pby. On cible donc les deux : celui qui existe reçoit les
+          # fichiers, l'autre est ignoré sans faire échouer le déploiement.
+          # (Un « cd » vers un dossier inexistant interrompt le batch sftp
+          #  AVANT tout put, donc aucun fichier n'est déposé au mauvais endroit.)
+          deploy_to() {
+            local TARGET="$1"
+            {
+              echo "cd $TARGET"
+              echo "put crm-patisserie/index.html index.html"
+              echo "put crm-patisserie/api.php api.php"
+              echo "put crm-patisserie/default.php default.php"
+              [ -f crm-patisserie/.htaccess ] && echo "put crm-patisserie/.htaccess .htaccess"
+              echo "bye"
+            } > /tmp/sftp_batch.txt
+            echo "──────────────────────────────────────────────"
+            echo "Déploiement vers : $TARGET"
+            if sshpass -p "$SFTP_PASS" sftp \
+                 -oBatchMode=no \
+                 -oStrictHostKeyChecking=no \
+                 -oPasswordAuthentication=yes \
+                 -P "$SFTP_PORT" \
+                 -b /tmp/sftp_batch.txt \
+                 "$SFTP_USER@$SFTP_HOST"; then
+              echo "✅ OK : $TARGET"
+            else
+              echo "⏭️  Ignoré (dossier absent ou inaccessible) : $TARGET"
+            fi
+          }
 
-          [ -f crm-patisserie/.htaccess ] && echo "put crm-patisserie/.htaccess .htaccess" >> /tmp/sftp_batch.txt
-          echo "bye" >> /tmp/sftp_batch.txt
+          deploy_to "domains/rybsen.fr/public_html/pby"
+          deploy_to "domains/pby.rybsen.fr/public_html"
 
-          sshpass -p "$SFTP_PASS" sftp \
-            -oBatchMode=no \
-            -oStrictHostKeyChecking=no \
-            -oPasswordAuthentication=yes \
-            -P "$SFTP_PORT" \
-            -b /tmp/sftp_batch.txt \
-            "$SFTP_USER@$SFTP_HOST"
+          echo "──────────────────────────────────────────────"
+          echo "Déploiement terminé (les cibles existantes ont reçu les fichiers)."
