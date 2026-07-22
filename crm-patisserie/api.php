@@ -48,6 +48,15 @@ try {
     switch ($action) {
 
         // ============================================================
+        // VERSION — diagnostic : ouvrir api.php?action=version dans le
+        // navigateur confirme quel code est réellement servi à cette URL.
+        // ============================================================
+        case 'version': {
+            out(['ok' => true, 'version' => 'API-2026.07.22-deploy-dual', 'time' => date('c')]);
+            break;
+        }
+
+        // ============================================================
         // CHARGEMENT GLOBAL — tout ce dont l'app a besoin en un appel
         // ============================================================
         case 'load_all': {
