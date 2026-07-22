@@ -224,13 +224,17 @@ if ($action === 'prod_save') {
     $d = $body;
     if (empty($d['nom'])) error400('Nom requis');
     $seuilMode = in_array($d['seuil_mode'] ?? '', ['quantite','pourcentage'], true) ? $d['seuil_mode'] : 'quantite';
-    $cat = $d['categorie'] ?? 'Viennoiserie';
+    $cat = trim($d['categorie'] ?? '') ?: 'Non classé';
+    // TVA : accepte n'importe quel taux, 19 % par défaut si vide/non numérique.
+    $tva = is_numeric($d['taux_tva'] ?? '') ? (float)$d['taux_tva'] : 19;
     if (!empty($d['id'])) {
-        $stmt = $db->prepare("UPDATE produits SET nom=?,categorie=?,prix_vente=?,unite=?,actif=?,seuil_mode=?,seuil_quantite=?,seuil_pourcentage=?,stock_reference=? WHERE id=?");
-        $stmt->execute([$d['nom'],$cat,$d['prix_vente']??0,$d['unite']??'pièce',$d['actif']??1,$seuilMode,$d['seuil_quantite']??0,$d['seuil_pourcentage']??0,$d['stock_reference']??0,$d['id']]);
+        // Édition : on ne touche jamais code_externe ni origine (préservés depuis l'import).
+        $stmt = $db->prepare("UPDATE produits SET nom=?,categorie=?,prix_vente=?,unite=?,taux_tva=?,actif=?,seuil_mode=?,seuil_quantite=?,seuil_pourcentage=?,stock_reference=? WHERE id=?");
+        $stmt->execute([$d['nom'],$cat,$d['prix_vente']??0,$d['unite']??'pièce',$tva,$d['actif']??1,$seuilMode,$d['seuil_quantite']??0,$d['seuil_pourcentage']??0,$d['stock_reference']??0,$d['id']]);
     } else {
-        $stmt = $db->prepare("INSERT INTO produits (nom,categorie,prix_vente,unite,actif,seuil_mode,seuil_quantite,seuil_pourcentage,stock_reference) VALUES (?,?,?,?,?,?,?,?,?)");
-        $stmt->execute([$d['nom'],$cat,$d['prix_vente']??0,$d['unite']??'pièce',$d['actif']??1,$seuilMode,$d['seuil_quantite']??0,$d['seuil_pourcentage']??0,$d['stock_reference']??0]);
+        $origine = (($d['origine'] ?? '') === 'achete') ? 'achete' : 'fabrique';
+        $stmt = $db->prepare("INSERT INTO produits (nom,categorie,prix_vente,unite,taux_tva,origine,actif,seuil_mode,seuil_quantite,seuil_pourcentage,stock_reference) VALUES (?,?,?,?,?,?,?,?,?,?,?)");
+        $stmt->execute([$d['nom'],$cat,$d['prix_vente']??0,$d['unite']??'pièce',$tva,$origine,$d['actif']??1,$seuilMode,$d['seuil_quantite']??0,$d['seuil_pourcentage']??0,$d['stock_reference']??0]);
     }
     // Crée la catégorie si elle n'existe pas encore (pour l'assignation à une cuisine)
     if ($cat) {

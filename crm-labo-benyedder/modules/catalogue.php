@@ -18,10 +18,15 @@ require_once '../includes/header.php';
       <div class="section-title">Catalogue produits</div>
       <div class="section-actions"><button class="btn btn-primary" onclick="openAddProd()">+ Produit</button></div>
     </div>
+    <div class="filters-bar">
+      <input type="text" id="prod-search" placeholder="🔎 Rechercher un produit (nom, catégorie, référence)…" oninput="renderProd()" style="min-width:340px">
+      <select id="prod-filter-cat" onchange="renderProd()"><option value="">Toutes les catégories</option></select>
+      <span id="prod-count" class="badge badge-grey" style="align-self:center"></span>
+    </div>
     <div class="table-wrap">
       <table>
-        <thead><tr><th>Nom</th><th>Catégorie</th><th>Prix de vente</th><th>Unité</th><th>Statut</th><th>Actions</th></tr></thead>
-        <tbody id="prod-body"><tr><td colspan="6" style="text-align:center;padding:30px;color:var(--text-muted)">Chargement...</td></tr></tbody>
+        <thead><tr><th>Réf</th><th>Nom</th><th>Catégorie</th><th>Prix HT</th><th>TVA</th><th>Unité</th><th>Statut</th><th>Actions</th></tr></thead>
+        <tbody id="prod-body"><tr><td colspan="8" style="text-align:center;padding:30px;color:var(--text-muted)">Chargement...</td></tr></tbody>
       </table>
     </div>
   </div>
@@ -85,18 +90,14 @@ require_once '../includes/header.php';
       <div class="form-grid">
         <div class="form-group full"><label>Nom *</label><input type="text" id="prod-nom"></div>
         <div class="form-group"><label>Catégorie</label>
-          <select id="prod-categorie">
-            <option>Viennoiserie</option>
-            <option>Pâtisserie traditionnelle</option>
-            <option>Salé</option>
-            <option>Chocolat</option>
-            <option>Traiteur / Événementiel</option>
-            <option>Autre</option>
-          </select>
+          <input type="text" id="prod-categorie" list="prod-cat-list" placeholder="Choisir ou saisir…">
+          <datalist id="prod-cat-list"></datalist>
         </div>
         <div class="form-group"><label>Unité</label><input type="text" id="prod-unite" value="pièce"></div>
-        <div class="form-group"><label>Prix de vente (DT)</label><input type="number" step="0.001" id="prod-prix"></div>
+        <div class="form-group"><label>Prix de vente HT (DT)</label><input type="number" step="0.001" id="prod-prix"></div>
+        <div class="form-group"><label>TVA (%)</label><input type="number" step="0.01" id="prod-tva" value="19" placeholder="19"></div>
       </div>
+      <div class="alert-box info" style="margin-top:6px">Le prix peut rester vide (le client saisira ses tarifs). TVA par défaut 19 % — modifiable (7 %, 6 %, 0 %, ou tout autre taux).</div>
     </div>
     <div class="modal-footer">
       <button class="btn btn-outline" onclick="LABO.closeModal('modal-prod')">Annuler</button>
@@ -143,32 +144,56 @@ let allProd = [], allMp = [];
 
 async function loadProd() {
   allProd = await LABO.api('prod_list');
+  fillCategorieControls();
   renderProd();
   fillRecetteProduitSelect();
 }
+function fillCategorieControls() {
+  // Catégories réelles dérivées du catalogue (datalist du formulaire + filtre de la liste)
+  const cats = [...new Set(allProd.map(p => p.categorie).filter(Boolean))].sort((a,b) => a.localeCompare(b,'fr'));
+  const e = LABO.escape;
+  document.getElementById('prod-cat-list').innerHTML = cats.map(c => `<option value="${e(c)}">`).join('');
+  const filt = document.getElementById('prod-filter-cat');
+  const cur = filt.value;
+  filt.innerHTML = '<option value="">Toutes les catégories</option>' + cats.map(c => `<option value="${e(c)}">${e(c)}</option>`).join('');
+  filt.value = cur;
+}
 function renderProd() {
   const e = LABO.escape;
-  document.getElementById('prod-body').innerHTML = allProd.length ? allProd.map(p => `
+  const q = (document.getElementById('prod-search').value || '').trim().toLowerCase();
+  const fcat = document.getElementById('prod-filter-cat').value;
+  const list = allProd.filter(p => {
+    if (fcat && p.categorie !== fcat) return false;
+    if (!q) return true;
+    return (p.nom||'').toLowerCase().includes(q)
+        || (p.categorie||'').toLowerCase().includes(q)
+        || (p.code_externe||'').toLowerCase().includes(q);
+  });
+  document.getElementById('prod-count').textContent = list.length + ' / ' + allProd.length + ' produit' + (allProd.length>1?'s':'');
+  document.getElementById('prod-body').innerHTML = list.length ? list.map(p => `
     <tr>
+      <td><span class="badge badge-grey">${e(p.code_externe) || '—'}</span></td>
       <td><strong>${e(p.nom)}</strong></td>
       <td><span class="badge badge-grey">${e(p.categorie)}</span></td>
-      <td class="num">${LABO.formatCurrency(p.prix_vente)}</td>
+      <td class="num">${p.prix_vente > 0 ? LABO.formatCurrency(p.prix_vente) : '<span style="color:var(--text-muted)">à saisir</span>'}</td>
+      <td class="num">${parseFloat(p.taux_tva ?? 19).toFixed(2).replace(/\.?0+$/,'')} %</td>
       <td>${e(p.unite)}</td>
       <td><span class="badge ${p.actif == 1 ? 'badge-green' : 'badge-grey'}">${p.actif == 1 ? 'Actif' : 'Inactif'}</span></td>
       <td>
         <button onclick="editProdById(${p.id})" class="btn btn-outline btn-sm">✏️</button>
         <button onclick="delProd(${p.id})" class="btn btn-danger btn-sm">🗑</button>
       </td>
-    </tr>`).join('') : '<tr><td colspan="6" style="text-align:center;padding:30px;color:var(--text-muted)">Aucun produit</td></tr>';
+    </tr>`).join('') : '<tr><td colspan="8" style="text-align:center;padding:30px;color:var(--text-muted)">Aucun produit</td></tr>';
 }
 function editProdById(id) { const p = allProd.find(x => x.id === id); if (p) editProd(p); }
 function openAddProd() {
   document.getElementById('modal-prod-title').textContent = 'Ajouter un produit';
   document.getElementById('prod-id').value = '';
   document.getElementById('prod-nom').value = '';
-  document.getElementById('prod-categorie').value = 'Viennoiserie';
+  document.getElementById('prod-categorie').value = '';
   document.getElementById('prod-unite').value = 'pièce';
   document.getElementById('prod-prix').value = '';
+  document.getElementById('prod-tva').value = '19';
   LABO.openModal('modal-prod');
 }
 function editProd(p) {
@@ -177,18 +202,21 @@ function editProd(p) {
   document.getElementById('prod-nom').value = p.nom;
   document.getElementById('prod-categorie').value = p.categorie;
   document.getElementById('prod-unite').value = p.unite;
-  document.getElementById('prod-prix').value = p.prix_vente;
+  document.getElementById('prod-prix').value = p.prix_vente > 0 ? p.prix_vente : '';
+  document.getElementById('prod-tva').value = (p.taux_tva ?? 19);
   LABO.openModal('modal-prod');
 }
 async function saveProd() {
   const nom = document.getElementById('prod-nom').value.trim();
   if (!nom) { LABO.toast('Nom requis', 'error'); return; }
+  const tvaRaw = document.getElementById('prod-tva').value;
   const r = await LABO.api('prod_save', {
     id: document.getElementById('prod-id').value,
     nom,
-    categorie: document.getElementById('prod-categorie').value,
+    categorie: document.getElementById('prod-categorie').value.trim(),
     unite: document.getElementById('prod-unite').value,
     prix_vente: document.getElementById('prod-prix').value || 0,
+    taux_tva: tvaRaw === '' ? 19 : tvaRaw,
     actif: 1
   });
   if (r.ok) { LABO.closeModal('modal-prod'); LABO.toast('Enregistré ✓'); loadProd(); }
