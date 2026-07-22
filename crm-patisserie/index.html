@@ -355,7 +355,7 @@ img{max-width:100%}
 const { useState, useEffect, useMemo, useRef } = React;
 // Marqueur de build affiché dans le pied de page — permet de vérifier d'un coup d'œil
 // que le navigateur charge bien la dernière version (et non un ancien fichier en cache).
-const APP_VERSION = "2026.07.22-tarifs-sync";
+const APP_VERSION = "2026.07.22-tarifs-manager";
 const mkIcon = (g) => ({ size = 16, color }) =>
   React.createElement("span", { style: { fontSize: size, lineHeight: 1, color, display: "inline-block" } }, g);
 const ChefHat = mkIcon("👨‍🍳");
@@ -1721,7 +1721,7 @@ function Chauffeur({ driver, drivers, deliveries, payments, settings, currency, 
 }
 
 /* ===================== PROPRIÉTAIRE ===================== */
-function Owner({ deliveries, payments, products, clients, drivers, settings, reports, setProducts, setClients, setDrivers, setSettings, currency, onRestore, setDeliveries, returns, onAddReturn, onDeleteReturn, clientPrices, setClientPrices, saveClientPricesBatch }) {
+function Owner({ deliveries, payments, products, clients, drivers, settings, reports, setProducts, setClients, setDrivers, setSettings, currency, onRestore, setDeliveries, returns, onAddReturn, onDeleteReturn, clientPrices, setClientPrices, saveClientPricesBatch, onRepairPrices }) {
   const [tab,    setTab]    = useState("dash");
   const [filter, setFilter] = useState("all");
 
@@ -2255,9 +2255,16 @@ function Owner({ deliveries, payments, products, clients, drivers, settings, rep
 
           {/* ---- Tarifs spéciaux par client ---- */}
           <Section title="Tarifs spéciaux par client" icon={<Users size={18}/>}>
-            <p style={{fontSize:13,color:"var(--muted)",margin:"0 0 16px"}}>
+            <p style={{fontSize:13,color:"var(--muted)",margin:"0 0 12px"}}>
               Laissez vide (ou 0) pour utiliser le prix catalogue. Les livraisons déjà enregistrées conservent leur prix d'origine.
             </p>
+            <div style={{display:"flex",justifyContent:"flex-end",marginBottom:12}}>
+              <button onClick={onRepairPrices}
+                style={{fontSize:11,padding:"5px 12px",borderRadius:20,border:"1px solid var(--line)",background:"var(--surface)",color:"var(--muted)",cursor:"pointer",fontWeight:600}}
+                title="Supprime d'éventuels doublons hérités et garantit la cohérence des tarifs">
+                🔧 Nettoyer / vérifier les tarifs
+              </button>
+            </div>
 
             {/* Sélecteur client */}
             <div style={{display:"flex",alignItems:"center",gap:10,marginBottom:16}}>
@@ -2736,6 +2743,10 @@ function App() {
     (async()=>{
       try {
         await reloadAll();
+        // Auto-guérison des tarifs spéciaux : déduplique la table et garantit la clé
+        // primaire (cause racine historique des « anciens prix qui reviennent »).
+        // Idempotent et invisible : ne fait rien si la base est déjà propre.
+        try { await apiCall("repair_prix_client"); await refreshClientPrices(); } catch(e){}
       } catch(e) {
         setLoadError(e.message || "Connexion à la base de données impossible.");
       }
@@ -2896,6 +2907,17 @@ function App() {
     if (next.drivers && next.drivers !== drivers) await setDrivers(next.drivers);
   };
 
+  /* ═══════════════════════════════════════════════════════════════════════════
+     GESTIONNAIRE DES TARIFS SPÉCIAUX PAR CLIENT (source unique de vérité)
+     ─────────────────────────────────────────────────────────────────────────
+     Toute la logique des prix spéciaux passe par ici :
+       • getUnitPrice(...)            → LE seul résolveur de prix de l'app (défini en tête)
+       • refreshClientPrices()        → recharge depuis le serveur (source de vérité)
+       • saveClientPricesBatch(...)   → seul point d'écriture (échec = erreur, pas de faux succès)
+       • repairPrices()               → dédoublonne la base + garantit la clé primaire
+     La base MySQL est l'unique source de vérité ; l'UI ne fait que la refléter.
+     ═══════════════════════════════════════════════════════════════════════════ */
+
   // ---- Tarifs spéciaux par client ----
   const setClientPrices = async (clientId, productId, priceStr) => {
     const prix = parseFloat(priceStr) || 0;
@@ -2937,6 +2959,20 @@ function App() {
     await refreshClientPrices();
     const n = items.filter(it => it.prix > 0).length;
     showToast(`${n} tarif${n>1?"s":""} enregistré${n>1?"s":""} ✓`);
+  };
+
+  // Nettoyage manuel : déclenche l'auto-réparation de la base (dédoublonnage + clé
+  // primaire) puis resynchronise. Exposé via un bouton pour le propriétaire.
+  const repairPrices = async () => {
+    try {
+      const r = await apiCall("repair_prix_client");
+      await refreshClientPrices();
+      showToast(r.repaired ? "Tarifs nettoyés (doublons supprimés) ✓" : "Tarifs déjà propres ✓");
+      return true;
+    } catch(e) {
+      showToast("⚠️ Nettoyage impossible — vérifiez la connexion");
+      return false;
+    }
   };
 
   // Synchronisation multi-appareils : quand l'app redevient visible (retour sur
@@ -3102,7 +3138,7 @@ function App() {
             onAddReturn={addReturn} onDeleteReturn={deleteReturn}
             drivers={drivers} settings={settings} currency={currency}
             setProducts={setProducts} setClients={setClients} setDrivers={setDrivers} setSettings={setSettings}
-            clientPrices={clientPrices} setClientPrices={setClientPrices} saveClientPricesBatch={saveClientPricesBatch}/>
+            clientPrices={clientPrices} setClientPrices={setClientPrices} saveClientPricesBatch={saveClientPricesBatch} onRepairPrices={repairPrices}/>
         ) : (
           <DailyReport deliveries={deliveries} payments={payments} reports={reports} returns={returns}
             drivers={drivers} settings={settings} currency={currency}

@@ -405,6 +405,89 @@ try {
             break;
         }
 
+        // Auto-réparation idempotente de la table prix_client.
+        // Cause racine historique : sur une base créée par une ancienne version, la table
+        // pouvait ne pas avoir de PRIMARY KEY (client_id, produit_id). Des doublons
+        // s'accumulaient alors et l'ANCIEN prix (première ligne trouvée) l'emportait.
+        // Cet endpoint déduplique et garantit la clé primaire. No-op si déjà propre.
+        case 'repair_prix_client': {
+            // Sérialise d'éventuelles réparations concurrentes (deux appareils au démarrage)
+            $pdo->query("SELECT GET_LOCK('repair_prix_client', 5)");
+            try {
+                $hasPk = (int)$pdo->query("
+                    SELECT COUNT(*) FROM information_schema.STATISTICS
+                    WHERE TABLE_SCHEMA = DATABASE()
+                      AND TABLE_NAME   = 'prix_client'
+                      AND INDEX_NAME   = 'PRIMARY'
+                ")->fetchColumn() > 0;
+
+                $hasDupes = (int)$pdo->query("
+                    SELECT COUNT(*) FROM (
+                        SELECT 1 FROM prix_client
+                        GROUP BY client_id, produit_id HAVING COUNT(*) > 1
+                    ) t
+                ")->fetchColumn() > 0;
+
+                $repaired = false;
+                if (!$hasPk || $hasDupes) {
+                    // Reconstruction propre. On CONSERVE la DERNIÈRE valeur saisie pour
+                    // chaque couple (client, produit) : les anciens doublons venaient de
+                    // l'ancien code qui AJOUTAIT une ligne à chaque enregistrement, donc
+                    // la dernière ligne insérée = le prix voulu par l'utilisateur.
+
+                    // 1) Copie dans une table à _seq auto-incrémenté = ordre d'insertion.
+                    $pdo->exec("DROP TABLE IF EXISTS prix_client_seq");
+                    $pdo->exec("
+                        CREATE TABLE prix_client_seq (
+                          _seq       BIGINT        NOT NULL AUTO_INCREMENT PRIMARY KEY,
+                          client_id  VARCHAR(40)   NOT NULL,
+                          produit_id VARCHAR(40)   NOT NULL,
+                          prix       DECIMAL(10,3) NOT NULL
+                        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
+                    ");
+                    $pdo->exec("
+                        INSERT INTO prix_client_seq (client_id, produit_id, prix)
+                        SELECT client_id, produit_id, prix FROM prix_client
+                    ");
+
+                    // 2) Table finale propre avec clé primaire.
+                    $pdo->exec("DROP TABLE IF EXISTS prix_client_clean");
+                    $pdo->exec("
+                        CREATE TABLE prix_client_clean (
+                          client_id  VARCHAR(40)   NOT NULL,
+                          produit_id VARCHAR(40)   NOT NULL,
+                          prix       DECIMAL(10,3) NOT NULL,
+                          PRIMARY KEY (client_id, produit_id),
+                          KEY idx_pcc_client  (client_id),
+                          KEY idx_pcc_produit (produit_id)
+                        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
+                    ");
+                    // 3) Ne garder que la ligne au _seq maximal (la plus récente) par couple.
+                    $pdo->exec("
+                        INSERT INTO prix_client_clean (client_id, produit_id, prix)
+                        SELECT s.client_id, s.produit_id, s.prix
+                        FROM prix_client_seq s
+                        JOIN (
+                            SELECT client_id, produit_id, MAX(_seq) AS mx
+                            FROM prix_client_seq GROUP BY client_id, produit_id
+                        ) m ON m.client_id = s.client_id AND m.produit_id = s.produit_id AND m.mx = s._seq
+                    ");
+
+                    // 4) Échange atomique + nettoyage.
+                    $pdo->exec("RENAME TABLE prix_client TO prix_client_old, prix_client_clean TO prix_client");
+                    $pdo->exec("DROP TABLE prix_client_old");
+                    $pdo->exec("DROP TABLE IF EXISTS prix_client_seq");
+                    $repaired = true;
+                }
+                $pdo->query("SELECT RELEASE_LOCK('repair_prix_client')");
+                out(['ok' => true, 'repaired' => $repaired]);
+            } catch (Exception $e) {
+                $pdo->query("SELECT RELEASE_LOCK('repair_prix_client')");
+                throw $e;
+            }
+            break;
+        }
+
         case 'save_client_price': {
             $clientId  = $input['clientId']  ?? '';
             $produitId = $input['produitId'] ?? '';
