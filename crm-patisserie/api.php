@@ -52,7 +52,7 @@ try {
         // navigateur confirme quel code est réellement servi à cette URL.
         // ============================================================
         case 'version': {
-            out(['ok' => true, 'version' => 'API-2026.07.22-deploy-dual', 'time' => date('c')]);
+            out(['ok' => true, 'version' => 'API-2026.07.22-litespeed', 'time' => date('c')]);
             break;
         }
 
