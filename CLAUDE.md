@@ -95,7 +95,10 @@ franchises et points de vente. Voir `crm-labo-benyedder/README.md` pour le conte
 - config.php n'est jamais commité : généré à chaque run depuis des secrets GitHub, puis déployé
   par SFTP avec le reste (DB_HOST fixé à 'localhost' dans le workflow)
 - Après le SFTP, le workflow applique le schéma (run_migration.php) puis importe le référentiel
-  clients réel (run_import_clients.php, insert-if-missing sur code_externe). Les données de
+  clients (run_import_clients.php) et le catalogue produits (run_import_produits.php), tous deux
+  insert-if-missing sur code_externe (clients_seed.csv / products_seed.csv). L'import produits crée
+  aussi les catégories manquantes. Les 11 cuisines de production réelles sont semées dans install.sql
+  et affectées aux catégories via « Gestion de production ». Les données de
   démonstration NE sont plus chargées automatiquement (demo_data.sql / run_demo_data.php supprimés
   pour la livraison). Un workflow manuel « Purge données de démo » (purge-demo-benyedder.yml →
   run_purge_demo.php) supprime en une fois la démo + l'historique de test tout en conservant

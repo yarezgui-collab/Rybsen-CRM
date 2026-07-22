@@ -1,14 +1,14 @@
 <?php
 require_once '../config.php';
 requireRole(['admin','labo']);
-$pageTitle = 'Cuisines de production';
+$pageTitle = 'Gestion de production';
 $activePage = 'cuisines';
 require_once '../includes/header.php';
 ?>
 <div class="section-card">
   <div class="tabs">
-    <button class="tab-btn active" data-tab="tab-cuisines">Cuisines</button>
-    <button class="tab-btn" data-tab="tab-categories">Catégories → cuisine</button>
+    <button class="tab-btn active" data-tab="tab-cuisines">Cuisines de production</button>
+    <button class="tab-btn" data-tab="tab-categories">Affectation des catégories</button>
   </div>
 
   <!-- CUISINES -->
