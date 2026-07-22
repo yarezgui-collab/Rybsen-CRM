@@ -12,3 +12,17 @@ Options -Indexes
 
 # Page d'entrée par défaut
 DirectoryIndex index.html index.php
+
+# Anti-cache : garantit que chaque déploiement est pris en compte immédiatement
+# (évite qu'un navigateur/CDN serve un ancien index.html — cause de bugs "déjà corrigés"
+#  qui semblent persister côté utilisateur).
+<IfModule mod_headers.c>
+    # La page principale : toujours revalider auprès du serveur avant réutilisation
+    <FilesMatch "\.html$">
+        Header set Cache-Control "no-cache, must-revalidate"
+    </FilesMatch>
+    # L'API : jamais mise en cache (réponses toujours fraîches)
+    <FilesMatch "\.php$">
+        Header set Cache-Control "no-store"
+    </FilesMatch>
+</IfModule>
