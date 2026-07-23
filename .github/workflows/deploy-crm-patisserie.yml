@@ -26,6 +26,19 @@ jobs:
           SFTP_USER: ${{ secrets.PATISSERIE_SFTP_USER }}
           SFTP_PASS: ${{ secrets.PATISSERIE_SFTP_PASSWORD }}
         run: |
+          # ── Cache-busting OPcache (Hostinger/LiteSpeed) ─────────────────────
+          # Le serveur peut continuer à exécuter une ANCIENNE version compilée en
+          # cache de api.php après déploiement, même si le fichier sur le disque
+          # est à jour — ce qui rend les correctifs invisibles. Parade fiable :
+          # déployer l'API sous un nom de fichier UNIQUE par commit et réécrire
+          # index.html pour l'appeler. Un nom de fichier jamais vu par l'OPcache
+          # = compilation fraîche garantie à chaque déploiement.
+          TAG="${GITHUB_SHA::8}"
+          cp crm-patisserie/api.php "crm-patisserie/api.$TAG.php"
+          sed "s|const API_URL = \"api.php\";|const API_URL = \"api.$TAG.php\";|" \
+            crm-patisserie/index.html > crm-patisserie/index.deploy.html
+          echo "API déployée sous : api.$TAG.php (référencée par index.html)"
+
           # Déploie vers TOUS les emplacements possibles du site pby.
           # Un sous-domaine Hostinger (pby.rybsen.fr) sert en général depuis son
           # propre dossier (domains/pby.rybsen.fr/public_html) et NON depuis
@@ -37,10 +50,12 @@ jobs:
             local TARGET="$1"
             {
               echo "cd $TARGET"
-              echo "put crm-patisserie/index.html index.html"
+              echo "put crm-patisserie/index.deploy.html index.html"
+              echo "put crm-patisserie/api.$TAG.php api.$TAG.php"
               echo "put crm-patisserie/api.php api.php"
               echo "put crm-patisserie/default.php default.php"
               [ -f crm-patisserie/.htaccess ] && echo "put crm-patisserie/.htaccess .htaccess"
+              [ -f crm-patisserie/.user.ini ] && echo "put crm-patisserie/.user.ini .user.ini"
               echo "bye"
             } > /tmp/sftp_batch.txt
             echo "──────────────────────────────────────────────"
