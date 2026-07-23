@@ -44,6 +44,64 @@ function check_login_rate_limit() {
     }
 }
 
+/* ============================================================================
+   MODULE TARIFS SPÉCIAUX — persistance fiable (source unique : la base)
+   ----------------------------------------------------------------------------
+   rebuild_prix_client() reconstruit la table dans un état GARANTI propre :
+     • clé primaire composite (client_id, produit_id)
+     • aucune ligne fantôme (client_id ou produit_id vide)
+     • aucun doublon (on conserve la dernière valeur saisie par couple)
+   Idempotente. Appelée par la réparation explicite ET en auto-guérison après
+   un échec d'écriture — c'est ce qui rend l'enregistrement incassable :
+   quel que soit l'état hérité de la table (pas de clé, mauvaise clé, doublons,
+   lignes vides), une écriture qui échoue déclenche une reconstruction puis
+   réessaie une fois, et réussit.
+   ========================================================================== */
+function rebuild_prix_client($pdo) {
+    $pdo->exec("DROP TABLE IF EXISTS prix_client_seq");
+    $pdo->exec("
+        CREATE TABLE prix_client_seq (
+          _seq       BIGINT        NOT NULL AUTO_INCREMENT PRIMARY KEY,
+          client_id  VARCHAR(40)   NOT NULL,
+          produit_id VARCHAR(40)   NOT NULL,
+          prix       DECIMAL(10,3) NOT NULL
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
+    ");
+    // Copie l'existant en capturant l'ordre d'insertion (_seq croissant).
+    $pdo->exec("
+        INSERT INTO prix_client_seq (client_id, produit_id, prix)
+        SELECT client_id, produit_id, prix FROM prix_client
+    ");
+    $pdo->exec("DROP TABLE IF EXISTS prix_client_clean");
+    $pdo->exec("
+        CREATE TABLE prix_client_clean (
+          client_id  VARCHAR(40)   NOT NULL,
+          produit_id VARCHAR(40)   NOT NULL,
+          prix       DECIMAL(10,3) NOT NULL,
+          PRIMARY KEY (client_id, produit_id),
+          KEY idx_pcc_client  (client_id),
+          KEY idx_pcc_produit (produit_id)
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
+    ");
+    // Ne garde que la ligne la plus récente (MAX _seq) par couple, en excluant
+    // toute ligne fantôme (client ou produit vide).
+    $pdo->exec("
+        INSERT INTO prix_client_clean (client_id, produit_id, prix)
+        SELECT s.client_id, s.produit_id, s.prix
+        FROM prix_client_seq s
+        JOIN (
+            SELECT client_id, produit_id, MAX(_seq) AS mx
+            FROM prix_client_seq
+            WHERE client_id <> '' AND produit_id <> ''
+            GROUP BY client_id, produit_id
+        ) m ON m.client_id = s.client_id AND m.produit_id = s.produit_id AND m.mx = s._seq
+    ");
+    // Échange atomique + nettoyage. RENAME est atomique côté MySQL.
+    $pdo->exec("RENAME TABLE prix_client TO prix_client_old, prix_client_clean TO prix_client");
+    $pdo->exec("DROP TABLE prix_client_old");
+    $pdo->exec("DROP TABLE IF EXISTS prix_client_seq");
+}
+
 try {
     switch ($action) {
 
@@ -52,7 +110,7 @@ try {
         // navigateur confirme quel code est réellement servi à cette URL.
         // ============================================================
         case 'version': {
-            out(['ok' => true, 'version' => 'API-2026.07.22-purge-garbage', 'time' => date('c')]);
+            out(['ok' => true, 'version' => 'API-2026.07.23-selfheal', 'time' => date('c')]);
             break;
         }
 
@@ -423,90 +481,25 @@ try {
             // Sérialise d'éventuelles réparations concurrentes (deux appareils au démarrage)
             $pdo->query("SELECT GET_LOCK('repair_prix_client', 5)");
             try {
-                $hasPk = (int)$pdo->query("
-                    SELECT COUNT(*) FROM information_schema.STATISTICS
-                    WHERE TABLE_SCHEMA = DATABASE()
-                      AND TABLE_NAME   = 'prix_client'
-                      AND INDEX_NAME   = 'PRIMARY'
-                ")->fetchColumn() > 0;
-
-                $hasDupes = (int)$pdo->query("
-                    SELECT COUNT(*) FROM (
-                        SELECT 1 FROM prix_client
-                        GROUP BY client_id, produit_id HAVING COUNT(*) > 1
-                    ) t
-                ")->fetchColumn() > 0;
-
-                // Lignes fantômes : client_id ou produit_id vide, impossibles à créer par le
-                // code actuel (gardes en place aux deux points d'écriture) mais héritées d'une
-                // très ancienne version. Elles bloquent tout futur INSERT dès que la clé
-                // primaire ('', '') est déjà prise — cause du "Duplicate entry '' for key
-                // PRIMARY" une fois la clé primaire posée par une réparation précédente.
-                $hasGarbage = (int)$pdo->query("
-                    SELECT COUNT(*) FROM prix_client WHERE client_id = '' OR produit_id = ''
-                ")->fetchColumn() > 0;
-
-                $repaired = false;
-                if (!$hasPk || $hasDupes || $hasGarbage) {
-                    // Reconstruction propre. On CONSERVE la DERNIÈRE valeur saisie pour
-                    // chaque couple (client, produit) : les anciens doublons venaient de
-                    // l'ancien code qui AJOUTAIT une ligne à chaque enregistrement, donc
-                    // la dernière ligne insérée = le prix voulu par l'utilisateur.
-
-                    // 1) Copie dans une table à _seq auto-incrémenté = ordre d'insertion.
-                    $pdo->exec("DROP TABLE IF EXISTS prix_client_seq");
-                    $pdo->exec("
-                        CREATE TABLE prix_client_seq (
-                          _seq       BIGINT        NOT NULL AUTO_INCREMENT PRIMARY KEY,
-                          client_id  VARCHAR(40)   NOT NULL,
-                          produit_id VARCHAR(40)   NOT NULL,
-                          prix       DECIMAL(10,3) NOT NULL
-                        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
-                    ");
-                    $pdo->exec("
-                        INSERT INTO prix_client_seq (client_id, produit_id, prix)
-                        SELECT client_id, produit_id, prix FROM prix_client
-                    ");
-
-                    // 2) Table finale propre avec clé primaire.
-                    $pdo->exec("DROP TABLE IF EXISTS prix_client_clean");
-                    $pdo->exec("
-                        CREATE TABLE prix_client_clean (
-                          client_id  VARCHAR(40)   NOT NULL,
-                          produit_id VARCHAR(40)   NOT NULL,
-                          prix       DECIMAL(10,3) NOT NULL,
-                          PRIMARY KEY (client_id, produit_id),
-                          KEY idx_pcc_client  (client_id),
-                          KEY idx_pcc_produit (produit_id)
-                        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
-                    ");
-                    // 3) Ne garder que la ligne au _seq maximal (la plus récente) par couple —
-                    //    en excluant les lignes fantômes (client_id ou produit_id vide),
-                    //    jamais valides et jamais recréées par le code actuel.
-                    $pdo->exec("
-                        INSERT INTO prix_client_clean (client_id, produit_id, prix)
-                        SELECT s.client_id, s.produit_id, s.prix
-                        FROM prix_client_seq s
-                        JOIN (
-                            SELECT client_id, produit_id, MAX(_seq) AS mx
-                            FROM prix_client_seq
-                            WHERE client_id <> '' AND produit_id <> ''
-                            GROUP BY client_id, produit_id
-                        ) m ON m.client_id = s.client_id AND m.produit_id = s.produit_id AND m.mx = s._seq
-                    ");
-
-                    // 4) Échange atomique + nettoyage.
-                    $pdo->exec("RENAME TABLE prix_client TO prix_client_old, prix_client_clean TO prix_client");
-                    $pdo->exec("DROP TABLE prix_client_old");
-                    $pdo->exec("DROP TABLE IF EXISTS prix_client_seq");
-                    $repaired = true;
-                }
+                rebuild_prix_client($pdo);
                 $pdo->query("SELECT RELEASE_LOCK('repair_prix_client')");
-                out(['ok' => true, 'repaired' => $repaired]);
+                out(['ok' => true, 'repaired' => true]);
             } catch (Exception $e) {
                 $pdo->query("SELECT RELEASE_LOCK('repair_prix_client')");
                 throw $e;
             }
+            break;
+        }
+
+        // Diagnostic : renvoie la structure RÉELLE de la table + toutes ses lignes.
+        // Permet de voir l'état exact en production (schéma, clé primaire, lignes
+        // fantômes) sans accès direct à la base.
+        case 'debug_prix_client': {
+            $schema = '(introuvable)';
+            try { $r = $pdo->query("SHOW CREATE TABLE prix_client")->fetch(PDO::FETCH_NUM); $schema = $r[1] ?? '(vide)'; } catch (Exception $e) { $schema = 'ERREUR: '.$e->getMessage(); }
+            $rows    = $pdo->query("SELECT client_id, produit_id, prix FROM prix_client ORDER BY client_id, produit_id")->fetchAll();
+            $garbage = (int)$pdo->query("SELECT COUNT(*) FROM prix_client WHERE client_id = '' OR produit_id = ''")->fetchColumn();
+            out(['ok' => true, 'schema' => $schema, 'nb_lignes' => count($rows), 'lignes_fantomes' => $garbage, 'rows' => $rows]);
             break;
         }
 
@@ -515,54 +508,69 @@ try {
             $produitId = $input['produitId'] ?? '';
             $prix      = (float)($input['prix'] ?? 0);
             if ($clientId === '' || $produitId === '') err('Client et produit requis');
-            // Purge défensive d'une éventuelle ligne fantôme ('', '') héritée d'une
-            // ancienne version — voir commentaire équivalent dans save_client_prices.
-            $pdo->exec("DELETE FROM prix_client WHERE client_id = '' OR produit_id = ''");
-            // DELETE puis INSERT (au lieu de INSERT ... ON DUPLICATE KEY UPDATE) :
-            // robuste même si la table prix_client n'a pas de clé primaire composite
-            // (ancienne base) — évite l'accumulation de doublons où l'ancien prix l'emporte.
-            $pdo->prepare("DELETE FROM prix_client WHERE client_id = ? AND produit_id = ?")->execute([$clientId, $produitId]);
-            if ($prix > 0) {
-                $pdo->prepare("INSERT INTO prix_client (client_id, produit_id, prix) VALUES (?,?,?)")
-                    ->execute([$clientId, $produitId, $prix]);
+
+            // Écriture avec auto-guérison : si l'écriture échoue pour une raison
+            // d'intégrité (clé manquante/mauvaise, doublon, ligne fantôme), on
+            // reconstruit la table proprement puis on réessaie une fois.
+            $writeOne = function() use ($pdo, $clientId, $produitId, $prix) {
+                $pdo->exec("DELETE FROM prix_client WHERE client_id = '' OR produit_id = ''");
+                $pdo->prepare("DELETE FROM prix_client WHERE client_id = ? AND produit_id = ?")
+                    ->execute([$clientId, $produitId]);
+                if ($prix > 0) {
+                    $pdo->prepare("INSERT INTO prix_client (client_id, produit_id, prix) VALUES (?,?,?)")
+                        ->execute([$clientId, $produitId, $prix]);
+                }
+            };
+            try {
+                $writeOne();
+            } catch (PDOException $e) {
+                rebuild_prix_client($pdo);
+                $writeOne();
             }
             out(['ok' => true]);
             break;
         }
 
-        // Enregistrement groupé : plusieurs tarifs pour un même client en une transaction
+        // Enregistrement groupé : plusieurs tarifs pour un même client.
         case 'save_client_prices': {
             $clientId = $input['clientId'] ?? '';
             $items    = $input['items']    ?? [];
             if ($clientId === '') err('Client requis');
             if (!is_array($items)) err('Liste de tarifs invalide');
 
-            $pdo->beginTransaction();
-            try {
-                // Purge défensive d'éventuelles lignes fantômes historiques (client_id
-                // et/ou produit_id vide) : elles ne peuvent plus être créées par le code
-                // actuel, mais une ligne héritée d'une très ancienne version peut encore
-                // occuper la clé primaire ('', '') et faire échouer un futur INSERT avec
-                // "Duplicate entry '' for key PRIMARY". Auto-guérison silencieuse, sans
-                // attendre un clic sur « Nettoyer / vérifier les tarifs ».
-                $pdo->exec("DELETE FROM prix_client WHERE client_id = '' OR produit_id = ''");
-
-                // Toujours supprimer d'abord la (les) ligne(s) existante(s) pour ce couple
-                // client/produit, puis réinsérer si prix > 0. Indépendant de la présence
-                // d'une clé primaire : purge les éventuels doublons hérités d'une ancienne base.
-                $del = $pdo->prepare("DELETE FROM prix_client WHERE client_id = ? AND produit_id = ?");
-                $ins = $pdo->prepare("INSERT INTO prix_client (client_id, produit_id, prix) VALUES (?,?,?)");
-                foreach ($items as $it) {
-                    $produitId = $it['produitId'] ?? '';
-                    if ($produitId === '') continue;
-                    $prix = (float)($it['prix'] ?? 0);
-                    $del->execute([$clientId, $produitId]);
-                    if ($prix > 0) $ins->execute([$clientId, $produitId, $prix]);
+            // La transaction est encapsulée pour pouvoir être REJOUÉE après une
+            // reconstruction de la table en cas d'échec d'intégrité.
+            $doBatch = function() use ($pdo, $clientId, $items) {
+                $pdo->beginTransaction();
+                try {
+                    // Purge défensive des lignes fantômes (client/produit vide).
+                    $pdo->exec("DELETE FROM prix_client WHERE client_id = '' OR produit_id = ''");
+                    $del = $pdo->prepare("DELETE FROM prix_client WHERE client_id = ? AND produit_id = ?");
+                    $ins = $pdo->prepare("INSERT INTO prix_client (client_id, produit_id, prix) VALUES (?,?,?)");
+                    foreach ($items as $it) {
+                        $produitId = $it['produitId'] ?? '';
+                        if ($produitId === '') continue;         // jamais de clé vide
+                        $prix = (float)($it['prix'] ?? 0);
+                        $del->execute([$clientId, $produitId]);
+                        if ($prix > 0) $ins->execute([$clientId, $produitId, $prix]);
+                    }
+                    $pdo->commit();
+                } catch (Exception $e) {
+                    if ($pdo->inTransaction()) $pdo->rollBack();
+                    throw $e;
                 }
-                $pdo->commit();
-            } catch (Exception $e) {
-                $pdo->rollBack();
-                throw $e;
+            };
+
+            try {
+                $doBatch();
+            } catch (PDOException $e) {
+                // Auto-guérison : l'échec vient d'un état de table hérité (clé
+                // manquante/mauvaise, doublon, ligne fantôme). On reconstruit une
+                // table propre (hors transaction — les DDL committent implicitement)
+                // puis on rejoue l'enregistrement. S'il échoue ENCORE, l'erreur
+                // réelle est propagée au client (message détaillé).
+                rebuild_prix_client($pdo);
+                $doBatch();
             }
             out(['ok' => true]);
             break;

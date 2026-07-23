@@ -7,3 +7,7 @@ config.php
 # Fichiers temporaires macOS
 .DS_Store
 __MACOSX/
+
+# Artefacts de build générés par le workflow de déploiement (cache-busting)
+index.deploy.html
+api.*.php
