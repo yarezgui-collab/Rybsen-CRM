@@ -52,7 +52,7 @@ try {
         // navigateur confirme quel code est réellement servi à cette URL.
         // ============================================================
         case 'version': {
-            out(['ok' => true, 'version' => 'API-2026.07.22-litespeed', 'time' => date('c')]);
+            out(['ok' => true, 'version' => 'API-2026.07.22-purge-garbage', 'time' => date('c')]);
             break;
         }
 
@@ -437,8 +437,17 @@ try {
                     ) t
                 ")->fetchColumn() > 0;
 
+                // Lignes fantômes : client_id ou produit_id vide, impossibles à créer par le
+                // code actuel (gardes en place aux deux points d'écriture) mais héritées d'une
+                // très ancienne version. Elles bloquent tout futur INSERT dès que la clé
+                // primaire ('', '') est déjà prise — cause du "Duplicate entry '' for key
+                // PRIMARY" une fois la clé primaire posée par une réparation précédente.
+                $hasGarbage = (int)$pdo->query("
+                    SELECT COUNT(*) FROM prix_client WHERE client_id = '' OR produit_id = ''
+                ")->fetchColumn() > 0;
+
                 $repaired = false;
-                if (!$hasPk || $hasDupes) {
+                if (!$hasPk || $hasDupes || $hasGarbage) {
                     // Reconstruction propre. On CONSERVE la DERNIÈRE valeur saisie pour
                     // chaque couple (client, produit) : les anciens doublons venaient de
                     // l'ancien code qui AJOUTAIT une ligne à chaque enregistrement, donc
@@ -471,14 +480,18 @@ try {
                           KEY idx_pcc_produit (produit_id)
                         ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
                     ");
-                    // 3) Ne garder que la ligne au _seq maximal (la plus récente) par couple.
+                    // 3) Ne garder que la ligne au _seq maximal (la plus récente) par couple —
+                    //    en excluant les lignes fantômes (client_id ou produit_id vide),
+                    //    jamais valides et jamais recréées par le code actuel.
                     $pdo->exec("
                         INSERT INTO prix_client_clean (client_id, produit_id, prix)
                         SELECT s.client_id, s.produit_id, s.prix
                         FROM prix_client_seq s
                         JOIN (
                             SELECT client_id, produit_id, MAX(_seq) AS mx
-                            FROM prix_client_seq GROUP BY client_id, produit_id
+                            FROM prix_client_seq
+                            WHERE client_id <> '' AND produit_id <> ''
+                            GROUP BY client_id, produit_id
                         ) m ON m.client_id = s.client_id AND m.produit_id = s.produit_id AND m.mx = s._seq
                     ");
 
@@ -502,6 +515,9 @@ try {
             $produitId = $input['produitId'] ?? '';
             $prix      = (float)($input['prix'] ?? 0);
             if ($clientId === '' || $produitId === '') err('Client et produit requis');
+            // Purge défensive d'une éventuelle ligne fantôme ('', '') héritée d'une
+            // ancienne version — voir commentaire équivalent dans save_client_prices.
+            $pdo->exec("DELETE FROM prix_client WHERE client_id = '' OR produit_id = ''");
             // DELETE puis INSERT (au lieu de INSERT ... ON DUPLICATE KEY UPDATE) :
             // robuste même si la table prix_client n'a pas de clé primaire composite
             // (ancienne base) — évite l'accumulation de doublons où l'ancien prix l'emporte.
@@ -523,6 +539,14 @@ try {
 
             $pdo->beginTransaction();
             try {
+                // Purge défensive d'éventuelles lignes fantômes historiques (client_id
+                // et/ou produit_id vide) : elles ne peuvent plus être créées par le code
+                // actuel, mais une ligne héritée d'une très ancienne version peut encore
+                // occuper la clé primaire ('', '') et faire échouer un futur INSERT avec
+                // "Duplicate entry '' for key PRIMARY". Auto-guérison silencieuse, sans
+                // attendre un clic sur « Nettoyer / vérifier les tarifs ».
+                $pdo->exec("DELETE FROM prix_client WHERE client_id = '' OR produit_id = ''");
+
                 // Toujours supprimer d'abord la (les) ligne(s) existante(s) pour ce couple
                 // client/produit, puis réinsérer si prix > 0. Indépendant de la présence
                 // d'une clé primaire : purge les éventuels doublons hérités d'une ancienne base.
