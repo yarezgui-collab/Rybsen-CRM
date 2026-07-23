@@ -47,17 +47,57 @@ function check_login_rate_limit() {
 /* ============================================================================
    MODULE TARIFS SPÉCIAUX — persistance fiable (source unique : la base)
    ----------------------------------------------------------------------------
-   rebuild_prix_client() reconstruit la table dans un état GARANTI propre :
-     • clé primaire composite (client_id, produit_id)
-     • aucune ligne fantôme (client_id ou produit_id vide)
-     • aucun doublon (on conserve la dernière valeur saisie par couple)
-   Idempotente. Appelée par la réparation explicite ET en auto-guérison après
-   un échec d'écriture — c'est ce qui rend l'enregistrement incassable :
-   quel que soit l'état hérité de la table (pas de clé, mauvaise clé, doublons,
-   lignes vides), une écriture qui échoue déclenche une reconstruction puis
-   réessaie une fois, et réussit.
-   ========================================================================== */
+   IMPORTANT : le schéma RÉEL de prix_client varie selon l'historique de la base.
+   Deux formes existent en production :
+     • Forme A (schema.sql du dépôt) : PRIMARY KEY (client_id, produit_id),
+       pas de colonne `id`.
+     • Forme B (base réelle pby)      : colonne `id` VARCHAR(40) en PRIMARY KEY,
+       + UNIQUE KEY (client_id, produit_id) + clés étrangères + `cree_le`.
+   Le code s'ADAPTE au schéma présent au lieu de le supposer : sur la forme B,
+   il faut fournir explicitement `id` (NOT NULL, sans défaut) — sinon toutes les
+   insertions utilisent id='' et la 2e provoque « Duplicate entry '' for key
+   PRIMARY ». C'était la cause du bug « un seul tarif s'enregistre ».
+   ============================================================================ */
+
+// La table possède-t-elle une colonne `id` (forme B) ?
+function prix_client_has_id($pdo) {
+    return (int)$pdo->query("
+        SELECT COUNT(*) FROM information_schema.COLUMNS
+        WHERE TABLE_SCHEMA = DATABASE()
+          AND TABLE_NAME   = 'prix_client'
+          AND COLUMN_NAME  = 'id'
+    ")->fetchColumn() > 0;
+}
+
+// Écrit UN tarif : supprime la ligne existante du couple (client, produit) —
+// quel que soit son id — puis insère si prix > 0, en fournissant un `id`
+// déterministe quand la colonne existe. Compatible formes A et B.
+function prix_client_write($pdo, $hasId, $clientId, $produitId, $prix) {
+    $pdo->prepare("DELETE FROM prix_client WHERE client_id = ? AND produit_id = ?")
+        ->execute([$clientId, $produitId]);
+    if ($prix <= 0) return;
+    if ($hasId) {
+        $id = md5($clientId . '|' . $produitId); // 32 caractères, ≤ VARCHAR(40), unique par couple
+        $pdo->prepare("INSERT INTO prix_client (id, client_id, produit_id, prix) VALUES (?,?,?,?)")
+            ->execute([$id, $clientId, $produitId, $prix]);
+    } else {
+        $pdo->prepare("INSERT INTO prix_client (client_id, produit_id, prix) VALUES (?,?,?)")
+            ->execute([$clientId, $produitId, $prix]);
+    }
+}
+
+/* rebuild_prix_client() — réservé à la FORME A (héritée, sans colonne `id`) :
+   reconstruit une table propre (PK composite, sans doublon ni ligne fantôme).
+   NE touche PAS à la forme B (schéma riche avec id/clés étrangères) : sur cette
+   forme, prix_client_write() suffit et l'auto-guérison ne déclenche pas de
+   reconstruction destructrice. */
 function rebuild_prix_client($pdo) {
+    if (prix_client_has_id($pdo)) {
+        // Forme B : schéma déjà cohérent (id PK + UNIQUE (client,produit)).
+        // On se contente d'enlever d'éventuelles lignes fantômes.
+        $pdo->exec("DELETE FROM prix_client WHERE client_id = '' OR produit_id = ''");
+        return;
+    }
     $pdo->exec("DROP TABLE IF EXISTS prix_client_seq");
     $pdo->exec("
         CREATE TABLE prix_client_seq (
@@ -110,7 +150,7 @@ try {
         // navigateur confirme quel code est réellement servi à cette URL.
         // ============================================================
         case 'version': {
-            out(['ok' => true, 'version' => 'API-2026.07.23-selfheal', 'time' => date('c')]);
+            out(['ok' => true, 'version' => 'API-2026.07.23-schema-id', 'time' => date('c')]);
             break;
         }
 
@@ -509,21 +549,15 @@ try {
             $prix      = (float)($input['prix'] ?? 0);
             if ($clientId === '' || $produitId === '') err('Client et produit requis');
 
-            // Écriture avec auto-guérison : si l'écriture échoue pour une raison
-            // d'intégrité (clé manquante/mauvaise, doublon, ligne fantôme), on
-            // reconstruit la table proprement puis on réessaie une fois.
-            $writeOne = function() use ($pdo, $clientId, $produitId, $prix) {
+            $hasId = prix_client_has_id($pdo);
+            $writeOne = function() use ($pdo, $hasId, $clientId, $produitId, $prix) {
                 $pdo->exec("DELETE FROM prix_client WHERE client_id = '' OR produit_id = ''");
-                $pdo->prepare("DELETE FROM prix_client WHERE client_id = ? AND produit_id = ?")
-                    ->execute([$clientId, $produitId]);
-                if ($prix > 0) {
-                    $pdo->prepare("INSERT INTO prix_client (client_id, produit_id, prix) VALUES (?,?,?)")
-                        ->execute([$clientId, $produitId, $prix]);
-                }
+                prix_client_write($pdo, $hasId, $clientId, $produitId, $prix);
             };
             try {
                 $writeOne();
             } catch (PDOException $e) {
+                // Auto-guérison (utile surtout pour la forme A héritée).
                 rebuild_prix_client($pdo);
                 $writeOne();
             }
@@ -538,21 +572,20 @@ try {
             if ($clientId === '') err('Client requis');
             if (!is_array($items)) err('Liste de tarifs invalide');
 
+            $hasId = prix_client_has_id($pdo);
+
             // La transaction est encapsulée pour pouvoir être REJOUÉE après une
             // reconstruction de la table en cas d'échec d'intégrité.
-            $doBatch = function() use ($pdo, $clientId, $items) {
+            $doBatch = function() use ($pdo, $hasId, $clientId, $items) {
                 $pdo->beginTransaction();
                 try {
                     // Purge défensive des lignes fantômes (client/produit vide).
                     $pdo->exec("DELETE FROM prix_client WHERE client_id = '' OR produit_id = ''");
-                    $del = $pdo->prepare("DELETE FROM prix_client WHERE client_id = ? AND produit_id = ?");
-                    $ins = $pdo->prepare("INSERT INTO prix_client (client_id, produit_id, prix) VALUES (?,?,?)");
                     foreach ($items as $it) {
                         $produitId = $it['produitId'] ?? '';
                         if ($produitId === '') continue;         // jamais de clé vide
                         $prix = (float)($it['prix'] ?? 0);
-                        $del->execute([$clientId, $produitId]);
-                        if ($prix > 0) $ins->execute([$clientId, $produitId, $prix]);
+                        prix_client_write($pdo, $hasId, $clientId, $produitId, $prix);
                     }
                     $pdo->commit();
                 } catch (Exception $e) {
@@ -564,11 +597,10 @@ try {
             try {
                 $doBatch();
             } catch (PDOException $e) {
-                // Auto-guérison : l'échec vient d'un état de table hérité (clé
-                // manquante/mauvaise, doublon, ligne fantôme). On reconstruit une
-                // table propre (hors transaction — les DDL committent implicitement)
-                // puis on rejoue l'enregistrement. S'il échoue ENCORE, l'erreur
-                // réelle est propagée au client (message détaillé).
+                // Auto-guérison : l'échec vient d'un état de table hérité (forme A
+                // sans clé, doublon, ligne fantôme). On répare hors transaction
+                // (les DDL committent implicitement) puis on rejoue. 2e échec →
+                // l'erreur réelle est propagée au client (message détaillé).
                 rebuild_prix_client($pdo);
                 $doBatch();
             }
@@ -627,8 +659,13 @@ try {
                 $stmtR = $pdo->prepare("INSERT INTO rapports_jour (jour,rempli,recupere,ecart,detail_json) VALUES (?,?,?,?,?)");
                 foreach ($data['reports'] ?? [] as $r) $stmtR->execute([$r['date'],(float)$r['rempli'],(float)$r['rec'],(float)$r['ecart'],json_encode($r['rows'] ?? [], JSON_UNESCAPED_UNICODE)]);
 
-                $stmtPC = $pdo->prepare("INSERT INTO prix_client (client_id, produit_id, prix) VALUES (?,?,?)");
-                foreach ($data['clientPrices'] ?? [] as $pc) $stmtPC->execute([$pc['clientId'], $pc['productId'], (float)$pc['prix']]);
+                // Insère les tarifs spéciaux en s'adaptant au schéma (colonne `id` ou non).
+                $pcHasId = prix_client_has_id($pdo);
+                foreach ($data['clientPrices'] ?? [] as $pc) {
+                    $pcId = (string)($pc['clientId'] ?? ''); $pcProd = (string)($pc['productId'] ?? '');
+                    if ($pcId === '' || $pcProd === '') continue;
+                    prix_client_write($pdo, $pcHasId, $pcId, $pcProd, (float)($pc['prix'] ?? 0));
+                }
 
                 $settings = $data['settings'] ?? [];
                 $stmtS = $pdo->prepare("INSERT INTO parametres (cle,valeur) VALUES (?,?) ON DUPLICATE KEY UPDATE valeur=VALUES(valeur)");
