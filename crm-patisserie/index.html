@@ -355,7 +355,7 @@ img{max-width:100%}
 const { useState, useEffect, useMemo, useRef } = React;
 // Marqueur de build affiché dans le pied de page — permet de vérifier d'un coup d'œil
 // que le navigateur charge bien la dernière version (et non un ancien fichier en cache).
-const APP_VERSION = "2026.07.22-litespeed";
+const APP_VERSION = "2026.07.22-no-auto-repair";
 const mkIcon = (g) => ({ size = 16, color }) =>
   React.createElement("span", { style: { fontSize: size, lineHeight: 1, color, display: "inline-block" } }, g);
 const ChefHat = mkIcon("👨‍🍳");
@@ -2705,7 +2705,9 @@ function App() {
   const showToast = (msg) => {
     if (toastTimer.current) clearTimeout(toastTimer.current);
     setToast(msg);
-    toastTimer.current = setTimeout(()=>setToast(null), 2500);
+    // Les messages d'erreur (préfixés ⚠️) restent affichés plus longtemps —
+    // le temps de les lire/photographier — les confirmations restent brèves.
+    toastTimer.current = setTimeout(()=>setToast(null), msg && msg.startsWith("⚠️") ? 7000 : 2500);
   };
 
   useEffect(()=>{
@@ -2743,10 +2745,14 @@ function App() {
     (async()=>{
       try {
         await reloadAll();
-        // Auto-guérison des tarifs spéciaux : déduplique la table et garantit la clé
-        // primaire (cause racine historique des « anciens prix qui reviennent »).
-        // Idempotent et invisible : ne fait rien si la base est déjà propre.
-        try { await apiCall("repair_prix_client"); await refreshClientPrices(); } catch(e){}
+        // NOTE : la réparation de prix_client (dédoublonnage + clé primaire) n'est
+        // PLUS automatique au démarrage. Avec plusieurs appareils ouverts en même
+        // temps (Labo, chauffeurs, Propriétaire), des CREATE/DROP/RENAME TABLE
+        // concurrents à chaque chargement de page pouvaient se bloquer mutuellement
+        // et faire échouer une sauvegarde de tarifs en cours au même moment.
+        // La réparation reste disponible en un clic via le bouton
+        // « 🔧 Nettoyer / vérifier les tarifs » (Propriétaire → Tarifs spéciaux),
+        // déclenchée une seule fois, à la demande — jamais en arrière-plan.
       } catch(e) {
         setLoadError(e.message || "Connexion à la base de données impossible.");
       }
@@ -2953,7 +2959,10 @@ function App() {
       });
     } catch(e) {
       await refreshClientPrices();
-      showToast("⚠️ Échec de l'enregistrement — vérifiez la connexion et réessayez");
+      // Affiche le VRAI message d'erreur (renvoyé par le serveur ou par le
+      // navigateur) au lieu d'un message générique — indispensable pour
+      // diagnostiquer une panne réelle plutôt que de deviner.
+      showToast(`⚠️ Échec : ${e.message || "erreur inconnue"}`);
       throw e;
     }
     await refreshClientPrices();
