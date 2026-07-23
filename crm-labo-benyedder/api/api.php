@@ -53,7 +53,9 @@ if ($action === 'dashboard_stats') {
 // ──────────────────────────────────────────
 if ($action === 'cli_list') {
     apiRequireRole(['admin','labo']);
-    $rows = $db->query("SELECT * FROM clients WHERE type_client='terme' ORDER BY nom")->fetchAll();
+    // canal_terme est la source de vérité multi-canal (type_client est un champ hérité
+    // qui ne distingue que « franchise » vs le reste, il ne doit plus servir de filtre ici).
+    $rows = $db->query("SELECT * FROM clients WHERE canal_terme=1 ORDER BY nom")->fetchAll();
     respond($rows);
 }
 if ($action === 'cli_save') {
@@ -200,22 +202,8 @@ if ($action === 'prod_list') {
     if (in_array($user['role'], ['admin','labo'], true)) {
         $rows = $db->query("SELECT * FROM produits ORDER BY categorie, nom")->fetchAll();
     } else {
-        // Portails externes : catalogue restreint aux produits autorisés pour ce compte
-        // (règle : aucune ligne d'autorisation = catalogue complet ; ≥1 ligne = liste blanche).
-        $s = monScope($user);
-        $cibleType = $s['col'] === 'point_vente_id' ? 'point_vente' : 'client';
-        $cibleId = $s['val'];
-        $cnt = $db->prepare("SELECT COUNT(*) FROM catalogue_autorise WHERE cible_type=? AND cible_id=?");
-        $cnt->execute([$cibleType, $cibleId]);
-        if ((int)$cnt->fetchColumn() > 0) {
-            $stmt = $db->prepare("SELECT p.id,p.nom,p.categorie,p.prix_vente,p.unite FROM produits p
-                JOIN catalogue_autorise ca ON ca.produit_id=p.id AND ca.cible_type=? AND ca.cible_id=?
-                WHERE p.actif=1 ORDER BY p.categorie, p.nom");
-            $stmt->execute([$cibleType, $cibleId]);
-            $rows = $stmt->fetchAll();
-        } else {
-            $rows = $db->query("SELECT id,nom,categorie,prix_vente,unite FROM produits WHERE actif=1 ORDER BY categorie, nom")->fetchAll();
-        }
+        // Portails externes : catalogue complet des produits actifs (commandables).
+        $rows = $db->query("SELECT id,nom,categorie,prix_vente,unite FROM produits WHERE actif=1 ORDER BY categorie, nom")->fetchAll();
     }
     respond($rows);
 }
@@ -1594,49 +1582,6 @@ if ($action === 'cat_delete') {
     apiRequireRole(['admin','labo']);
     $db->prepare("DELETE FROM categories WHERE id=?")->execute([$body['id']]);
     respond(['ok' => true]);
-}
-
-// ──────────────────────────────────────────
-// CATALOGUE AUTORISÉ PAR COMPTE (point 6)
-// ──────────────────────────────────────────
-// Liste des cibles externes (clients à terme, franchises, points de vente) pour l'admin
-if ($action === 'catalogue_cibles_list') {
-    apiRequireRole(['admin','labo']);
-    $clients = $db->query("SELECT id AS cible_id, nom, type_client AS sous_type, 'client' AS cible_type FROM clients WHERE actif=1 ORDER BY type_client, nom")->fetchAll();
-    $pvs = $db->query("SELECT id AS cible_id, nom, 'point_vente' AS sous_type, 'point_vente' AS cible_type FROM points_vente WHERE actif=1 ORDER BY nom")->fetchAll();
-    respond(array_merge($clients, $pvs));
-}
-// Produits autorisés pour une cible donnée (retourne aussi la liste complète pour l'UI)
-if ($action === 'catalogue_autorise_get') {
-    apiRequireRole(['admin','labo']);
-    $d = $body;
-    if (empty($d['cible_type']) || empty($d['cible_id'])) error400('Cible requise');
-    if (!in_array($d['cible_type'], ['client','point_vente'], true)) error400('Type de cible invalide');
-    $stmt = $db->prepare("SELECT produit_id FROM catalogue_autorise WHERE cible_type=? AND cible_id=?");
-    $stmt->execute([$d['cible_type'], $d['cible_id']]);
-    $autorises = array_map('intval', array_column($stmt->fetchAll(), 'produit_id'));
-    respond(['produit_ids' => $autorises, 'tous' => count($autorises) === 0]);
-}
-// Remplace l'ensemble des produits autorisés d'une cible (liste vide = catalogue complet)
-if ($action === 'catalogue_autorise_save') {
-    apiRequireRole(['admin','labo']);
-    $d = $body;
-    if (empty($d['cible_type']) || empty($d['cible_id'])) error400('Cible requise');
-    if (!in_array($d['cible_type'], ['client','point_vente'], true)) error400('Type de cible invalide');
-    $ids = array_values(array_unique(array_map('intval', $d['produit_ids'] ?? [])));
-    $db->beginTransaction();
-    try {
-        $db->prepare("DELETE FROM catalogue_autorise WHERE cible_type=? AND cible_id=?")->execute([$d['cible_type'], $d['cible_id']]);
-        if ($ids) {
-            $ins = $db->prepare("INSERT INTO catalogue_autorise (cible_type,cible_id,produit_id) VALUES (?,?,?)");
-            foreach ($ids as $pid) { if ($pid > 0) $ins->execute([$d['cible_type'], $d['cible_id'], $pid]); }
-        }
-        $db->commit();
-        respond(['ok' => true, 'nb' => count($ids)]);
-    } catch (Exception $e) {
-        $db->rollBack();
-        error400('Erreur: ' . $e->getMessage());
-    }
 }
 
 // ──────────────────────────────────────────
