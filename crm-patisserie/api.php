@@ -624,9 +624,12 @@ try {
 } catch (PDOException $e) {
     if ($pdo->inTransaction()) $pdo->rollBack();
     error_log('Erreur base de données [' . $action . '] : ' . $e->getMessage());
-    err('Erreur base de données. Veuillez réessayer.', 500);
+    // Le message réel est renvoyé au client (pas seulement dans le log serveur) :
+    // sans ça, toute panne future reste invisible et impossible à diagnostiquer
+    // à distance — exactement ce qui a empêché de trancher le cas précédent.
+    err('Erreur base de données [' . $action . '] : ' . $e->getMessage(), 500);
 } catch (Throwable $e) {
     if ($pdo->inTransaction()) $pdo->rollBack();
     error_log('Erreur serveur [' . $action . '] : ' . $e->getMessage());
-    err('Erreur serveur. Veuillez réessayer.', 500);
+    err('Erreur serveur [' . $action . '] : ' . $e->getMessage(), 500);
 }
