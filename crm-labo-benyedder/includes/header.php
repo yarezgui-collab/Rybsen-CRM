@@ -58,9 +58,6 @@ $roleLabels = ['admin'=>'Administrateur','labo'=>'Laboratoire central','producti
   <a href="/modules/catalogue.php" class="nav-item <?= ($activePage??'')==='catalogue' ? 'active':'' ?>">
     <span class="nav-icon">📖</span><span class="nav-text">Produits &amp; Recettes</span>
   </a>
-  <a href="/modules/catalogue_comptes.php" class="nav-item <?= ($activePage??'')==='catalogue_comptes' ? 'active':'' ?>">
-    <span class="nav-icon">📋</span><span class="nav-text">Catalogue par compte</span>
-  </a>
   <?php elseif (in_array($role, ['franchise','client_terme','point_vente'], true)): ?>
   <div class="nav-section-label">CATALOGUE</div>
   <a href="/modules/mes_produits.php" class="nav-item <?= ($activePage??'')==='mes_produits' ? 'active':'' ?>">
@@ -76,6 +73,9 @@ $roleLabels = ['admin'=>'Administrateur','labo'=>'Laboratoire central','producti
   <?php if (in_array($role, ['admin','labo'], true)): ?>
   <a href="/modules/cuisines.php" class="nav-item <?= ($activePage??'')==='cuisines' ? 'active':'' ?>">
     <span class="nav-icon">🍳</span><span class="nav-text">Gestion de production</span>
+  </a>
+  <a href="/modules/catalogue_comptes.php" class="nav-item <?= ($activePage??'')==='catalogue_comptes' ? 'active':'' ?>">
+    <span class="nav-icon">🗂️</span><span class="nav-text">Famille par production</span>
   </a>
   <?php endif; ?>
   <?php endif; ?>
