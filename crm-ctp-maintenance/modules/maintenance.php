@@ -188,7 +188,10 @@ async function marquerRealisee() {
   };
   const r = await CTP.api('mp_marquer_realisee', d);
   if (r.error) return CTP.toast(r.error, 'error');
-  CTP.toast('Visite réalisée → intervention ' + r.numero); CTP.closeModal('modal-real'); load();
+  CTP.toast('Visite réalisée → intervention ' + r.numero);
+  CTP.closeModal('modal-real');
+  if (r.intervention_id) window.open('/modules/intervention_print.php?id=' + r.intervention_id, '_blank');
+  load();
 }
 // Reporter
 function openReport(id) {

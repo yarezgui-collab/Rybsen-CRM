@@ -181,15 +181,18 @@ CREATE TABLE IF NOT EXISTS maintenances_planifiees (
   date_realisee DATE NULL,
   intervention_id INT NULL,
   statut ENUM('planifiee','realisee','reportee','annulee') NOT NULL DEFAULT 'planifiee',
+  technicien_id INT NULL,              -- technicien affecté (planning / tournées)
   notes VARCHAR(255) NULL,
   created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
   CONSTRAINT fk_mp_contrat FOREIGN KEY (contrat_id) REFERENCES contrats(id) ON DELETE SET NULL,
   CONSTRAINT fk_mp_machine FOREIGN KEY (machine_id) REFERENCES machines(id) ON DELETE CASCADE,
   CONSTRAINT fk_mp_client FOREIGN KEY (client_id) REFERENCES clients(id) ON DELETE CASCADE,
   CONSTRAINT fk_mp_intervention FOREIGN KEY (intervention_id) REFERENCES interventions(id) ON DELETE SET NULL,
+  CONSTRAINT fk_mp_tech FOREIGN KEY (technicien_id) REFERENCES users(id) ON DELETE SET NULL,
   UNIQUE KEY uq_mp (machine_id, date_prevue, type),
   INDEX idx_mp_date (date_prevue),
-  INDEX idx_mp_statut (statut)
+  INDEX idx_mp_statut (statut),
+  INDEX idx_mp_tech (technicien_id)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
 -- ============================================================
@@ -264,15 +267,8 @@ CREATE OR REPLACE VIEW v_interventions_ouvertes AS
   LEFT JOIN users u ON u.id = i.technicien_id
   WHERE i.statut NOT IN ('cloturee','annulee');
 
-CREATE OR REPLACE VIEW v_maintenances_planifiees AS
-  SELECT mp.*, m.modele, m.n_serie, cl.raison_sociale,
-         ct.numero AS contrat_numero,
-         DATEDIFF(mp.date_prevue, CURDATE()) AS jours_restants
-  FROM maintenances_planifiees mp
-  JOIN machines m ON m.id = mp.machine_id
-  JOIN clients cl ON cl.id = mp.client_id
-  LEFT JOIN contrats ct ON ct.id = mp.contrat_id
-  WHERE mp.statut = 'planifiee';
+-- NB : la vue v_maintenances_planifiees est (re)créée plus bas, APRÈS la mise à
+-- niveau des colonnes, pour inclure technicien_id sur les bases déjà existantes.
 
 -- ============================================================
 -- MISE À NIVEAU CONDITIONNELLE DES COLONNES (idempotent)
@@ -295,8 +291,23 @@ DELIMITER ;
 -- Exemples de futures évolutions (déjà présentes ci-dessus, servent de gabarit) :
 CALL ctp_add_col('machines', 'gamme', "gamme VARCHAR(80) NULL AFTER modele");
 CALL ctp_add_col('users', 'telephone', "telephone VARCHAR(50) NULL AFTER client_id");
+-- Affectation technicien sur une visite préventive (planning / tournées) :
+CALL ctp_add_col('maintenances_planifiees', 'technicien_id', "technicien_id INT NULL AFTER statut");
 
 DROP PROCEDURE IF EXISTS ctp_add_col;
+
+-- Vue calendrier des visites planifiées (avec technicien + ville pour les tournées).
+-- Recréée ici pour prendre en compte technicien_id même sur une base préexistante.
+CREATE OR REPLACE VIEW v_maintenances_planifiees AS
+  SELECT mp.*, m.modele, m.n_serie, cl.raison_sociale, cl.ville,
+         ct.numero AS contrat_numero, u.nom AS technicien_nom,
+         DATEDIFF(mp.date_prevue, CURDATE()) AS jours_restants
+  FROM maintenances_planifiees mp
+  JOIN machines m ON m.id = mp.machine_id
+  JOIN clients cl ON cl.id = mp.client_id
+  LEFT JOIN contrats ct ON ct.id = mp.contrat_id
+  LEFT JOIN users u ON u.id = mp.technicien_id
+  WHERE mp.statut = 'planifiee';
 
 -- ============================================================
 -- SEED : compte administrateur par défaut (créé si absent)

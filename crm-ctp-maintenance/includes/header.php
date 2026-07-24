@@ -45,6 +45,9 @@ $interne = in_array($role, ['admin','technicien','magasinier'], true);
   <a href="/modules/maintenance.php" class="nav-item <?= ($activePage??'')==='maintenance' ? 'active':'' ?>">
     <span class="nav-icon">📅</span><span class="nav-text">Calendrier préventif</span>
   </a>
+  <a href="/modules/planning.php" class="nav-item <?= ($activePage??'')==='planning' ? 'active':'' ?>">
+    <span class="nav-icon">🗓️</span><span class="nav-text">Planning &amp; tournées</span>
+  </a>
   <?php endif; ?>
   <a href="/modules/interventions.php" class="nav-item <?= ($activePage??'')==='interventions' ? 'active':'' ?>">
     <span class="nav-icon">🔧</span><span class="nav-text">Interventions</span>

@@ -51,6 +51,21 @@ extrait du fichier Excel fourni :
 Ré-exécuter la migration ne crée jamais de doublon : seules les entités absentes sont
 insérées. Les fiches existantes ne sont jamais écrasées.
 
+### Planning & tournées (`modules/planning.php`)
+Pilotage terrain du calendrier de visites : **vue calendrier mensuelle** (grille visuelle,
+clic sur une visite → affectation), **vue par technicien** et **vue par région/ville**
+(regroupement pour construire des tournées géographiques cohérentes plutôt que de
+zigzaguer entre villes). Affectation d'un technicien (`mp_assigner`) et bouton
+« Générer les cycles suivants » (`mp_generer_tous`) qui reconduit d'un an le dernier
+cycle de chaque contrat actif — idempotent (contrainte `UNIQUE(machine, date, type)`),
+aucune visite en double même rejoué plusieurs fois.
+
+### Bon d'intervention imprimable (`modules/intervention_print.php`)
+Page A4 autonome (même patron que `facturation_print.php` dans crm-rybsen) : fiche
+client + machine, diagnostic/résolution, pièces consommées avec total, cases signature
+technicien/client. Accessible depuis le détail d'une intervention et automatiquement à
+l'ouverture d'une visite marquée réalisée.
+
 ### Règles métier importantes
 1. Le stock des pièces ne se modifie **jamais** directement : il passe toujours par un
    mouvement tracé (`moveStock()`) — consommation en intervention, réception de commande,
@@ -80,20 +95,22 @@ Fichier : `.github/workflows/deploy-crm-ctp-maintenance.yml` — déclenché sur
 SFTP, puis applique `install.sql` via `run_migration.php` (idempotent, bloque le déploiement
 si une requête échoue).
 
-Secrets GitHub à créer (Settings → Secrets and variables → Actions) :
+**Provisionné côté Hostinger** : sous-domaine `CTP.rybsen.fr` + base MySQL
+`u293743867_Ctp` (même compte d'hébergement que `rybsen.fr`, comme
+`tby.rybsen.fr` pour crm-labo-benyedder).
 
-| Secret | Exemple |
-|--------|---------|
-| `CTP_SFTP_HOST` | `194.36.184.184` |
-| `CTP_SFTP_PORT` | `65002` |
-| `CTP_SFTP_USER` | utilisateur SFTP du sous-domaine |
-| `CTP_SFTP_PASSWORD` | mot de passe SFTP |
-| `CTP_REMOTE_PATH` | `domains/rybsen.fr/public_html/ctp` |
-| `CTP_URL` | `https://ctp.rybsen.fr` |
-| `CTP_DB_NAME` | nom de la base = utilisateur MySQL |
-| `CTP_DB_PASSWORD` | mot de passe MySQL |
-| `CTP_MIGRATION_TOKEN` | jeton aléatoire long |
+Le workflow réutilise **automatiquement** le compte SFTP déjà configuré pour ce
+domaine (`PATISSERIE_SFTP_*`, mêmes paramètres que crm-labo-benyedder — chemin
+distant fixe `domains/rybsen.fr/public_html/ctp`). Un compte SFTP dédié
+(`CTP_SFTP_HOST/PORT/USER/PASSWORD`) prend la priorité s'il est un jour créé.
 
-> Provisionner d'abord le sous-domaine + la base MySQL côté Hostinger, puis créer les
-> secrets ci-dessus. `install.sql` est déployé (nécessaire à `run_migration.php`) mais
-> reste non téléchargeable publiquement (`.htaccess`).
+Secrets GitHub **dédiés à créer** (Settings → Secrets and variables → Actions) :
+
+| Secret | Valeur |
+|--------|--------|
+| `CTP_DB_NAME` | `u293743867_Ctp` |
+| `CTP_DB_PASSWORD` | mot de passe MySQL de `u293743867_Ctp` |
+| `CTP_MIGRATION_TOKEN` | jeton aléatoire long (protège `run_migration.php`) |
+
+> `install.sql` est déployé (nécessaire à `run_migration.php`) mais reste non
+> téléchargeable publiquement (`.htaccess`). URL prod : `https://ctp.rybsen.fr`.

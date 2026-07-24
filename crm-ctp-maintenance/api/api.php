@@ -45,6 +45,31 @@ function moveStock($db, int $pieceId, int $delta, string $type, ?string $motif, 
     $st->execute([$pieceId, $type, $delta, $stockApres, $motif, $refType, $refId, $userId]);
 }
 
+// Reconduit le dernier cycle de 12 mois d'un contrat en le décalant d'un an.
+// Idempotent : la contrainte UNIQUE (machine, date, type) empêche tout doublon.
+function mpGenererCycle($db, int $contratId): array {
+    $st = $db->prepare("SELECT MAX(date_prevue) FROM maintenances_planifiees WHERE contrat_id=? AND statut<>'annulee'");
+    $st->execute([$contratId]);
+    $maxDate = $st->fetchColumn();
+    if (!$maxDate) return ['ok'=>true, 'crees'=>0, 'message'=>'Aucune visite de référence sur ce contrat'];
+    // Fenêtre source = les 12 mois précédant la dernière visite du contrat.
+    $src = $db->prepare("SELECT machine_id, client_id, type, rang, date_prevue, technicien_id
+        FROM maintenances_planifiees
+        WHERE contrat_id=? AND statut<>'annulee'
+          AND date_prevue > DATE_SUB(?, INTERVAL 1 YEAR)");
+    $src->execute([$contratId, $maxDate]);
+    $rows = $src->fetchAll();
+    $ins = $db->prepare("INSERT IGNORE INTO maintenances_planifiees
+        (contrat_id,machine_id,client_id,type,rang,date_prevue,statut,technicien_id)
+        VALUES (?,?,?,?,?,DATE_ADD(?, INTERVAL 1 YEAR),'planifiee',?)");
+    $crees = 0;
+    foreach ($rows as $r) {
+        $ins->execute([$contratId, $r['machine_id'], $r['client_id'], $r['type'], $r['rang'], $r['date_prevue'], $r['technicien_id']]);
+        $crees += $ins->rowCount();
+    }
+    return ['ok'=>true, 'crees'=>$crees, 'annee'=>(int)date('Y', strtotime($maxDate)) + 1];
+}
+
 // ──────────────────────────────────────────
 // DASHBOARD (interne)
 // ──────────────────────────────────────────
@@ -381,8 +406,40 @@ if ($action === 'mp_marquer_realisee') {
         $db->prepare("UPDATE maintenances_planifiees SET statut='realisee', date_realisee=?, intervention_id=? WHERE id=?")
            ->execute([$dateReal, $intId, $id]);
         $db->commit();
-        respond(['ok'=>true, 'numero'=>$num]);
+        respond(['ok'=>true, 'numero'=>$num, 'intervention_id'=>$intId]);
     } catch (Exception $e) { $db->rollBack(); error400('Échec : '.$e->getMessage()); }
+}
+
+// Affecte un technicien à une (ou plusieurs) visite(s) — planning / tournées.
+if ($action === 'mp_assigner') {
+    apiRequireRole(['admin','technicien']);
+    $tech = ($body['technicien_id'] ?? '') !== '' ? (int)$body['technicien_id'] : null;
+    $ids = $body['ids'] ?? (isset($body['id']) ? [$body['id']] : []);
+    if (!is_array($ids) || !count($ids)) error400('Aucune visite sélectionnée');
+    $ids = array_values(array_filter(array_map('intval', $ids)));
+    if (!count($ids)) error400('Aucune visite valide');
+    $in = implode(',', array_fill(0, count($ids), '?'));
+    $st = $db->prepare("UPDATE maintenances_planifiees SET technicien_id=? WHERE id IN ($in)");
+    $st->execute(array_merge([$tech], $ids));
+    respond(['ok'=>true, 'count'=>count($ids)]);
+}
+// Génère le cycle de visites suivant (par reconduction du dernier cycle de 12 mois, +1 an).
+// Idempotent : ne recrée pas une visite déjà présente (machine + date + type).
+if ($action === 'mp_generer_cycle') {
+    apiRequireRole(['admin','technicien']);
+    $ctrId = (int)($body['contrat_id'] ?? 0);
+    if (!$ctrId) error400('Contrat requis');
+    respond(mpGenererCycle($db, $ctrId));
+}
+if ($action === 'mp_generer_tous') {
+    apiRequireRole(['admin','technicien']);
+    $ctrs = $db->query("SELECT id FROM contrats WHERE statut='actif'")->fetchAll(PDO::FETCH_COLUMN);
+    $totalVisites = 0; $totalContrats = 0;
+    foreach ($ctrs as $cid) {
+        $r = mpGenererCycle($db, (int)$cid);
+        if (($r['crees'] ?? 0) > 0) { $totalContrats++; $totalVisites += $r['crees']; }
+    }
+    respond(['ok'=>true, 'contrats'=>$totalContrats, 'visites'=>$totalVisites]);
 }
 
 // ──────────────────────────────────────────

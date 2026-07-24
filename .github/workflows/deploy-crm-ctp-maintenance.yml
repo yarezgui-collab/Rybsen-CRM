@@ -1,9 +1,10 @@
 name: Deploy crm-ctp-maintenance to Hostinger
 
-# Déploiement SFTP + application idempotente du schéma, sur le même patron que les
-# autres CRM du dépôt. Nécessite les secrets CTP_* décrits dans
-# crm-ctp-maintenance/README.md. Tant que le sous-domaine et les secrets ne sont pas
-# provisionnés, ce workflow échoue proprement avec un message explicite.
+# Déploiement SFTP + application idempotente du schéma, sur le même patron que
+# crm-labo-benyedder : le sous-domaine CTP.rybsen.fr vit sur le même compte
+# d'hébergement rybsen.fr, donc on réutilise le compte SFTP existant
+# (PATISSERIE_SFTP_*) — un compte SFTP dédié (CTP_SFTP_*) reste possible et
+# sera utilisé en priorité s'il est renseigné.
 
 on:
   push:
@@ -100,13 +101,10 @@ jobs:
           PHPCONFIG
 
       - name: Build SFTP batch file
-        env:
-          REMOTE_PATH: ${{ secrets.CTP_REMOTE_PATH }}
         run: |
-          if [ -z "$REMOTE_PATH" ]; then
-            echo "::error::Secret CTP_REMOTE_PATH manquant (ex : domains/rybsen.fr/public_html/ctp)"
-            exit 1
-          fi
+          # CTP.rybsen.fr vit sous le même compte d'hébergement que rybsen.fr
+          # (comme tby.rybsen.fr pour crm-labo-benyedder) : chemin fixe, non sensible.
+          REMOTE_PATH="domains/rybsen.fr/public_html/ctp"
           printf 'cd %s\n' "$REMOTE_PATH" > /tmp/sftp_batch.txt
           printf -- '-mkdir api\n-mkdir assets\n-mkdir includes\n-mkdir modules\n' >> /tmp/sftp_batch.txt
           # Déploie tous les fichiers SAUF les dumps SQL — mais on GARDE install.sql,
@@ -125,13 +123,15 @@ jobs:
 
       - name: Deploy via SFTP
         env:
-          SFTP_HOST: ${{ secrets.CTP_SFTP_HOST }}
-          SFTP_PORT: ${{ secrets.CTP_SFTP_PORT }}
-          SFTP_USER: ${{ secrets.CTP_SFTP_USER }}
-          SFTP_PASS: ${{ secrets.CTP_SFTP_PASSWORD }}
+          # Priorité à un compte SFTP dédié (CTP_SFTP_*) s'il existe, sinon réutilise
+          # le compte du domaine rybsen.fr déjà utilisé par crm-labo-benyedder.
+          SFTP_HOST: ${{ secrets.CTP_SFTP_HOST || secrets.PATISSERIE_SFTP_HOST }}
+          SFTP_PORT: ${{ secrets.CTP_SFTP_PORT || secrets.PATISSERIE_SFTP_PORT }}
+          SFTP_USER: ${{ secrets.CTP_SFTP_USER || secrets.PATISSERIE_SFTP_USER }}
+          SFTP_PASS: ${{ secrets.CTP_SFTP_PASSWORD || secrets.PATISSERIE_SFTP_PASSWORD }}
         run: |
           if [ -z "$SFTP_HOST" ] || [ -z "$SFTP_USER" ] || [ -z "$SFTP_PASS" ]; then
-            echo "::error::Secrets CTP_SFTP_HOST / CTP_SFTP_USER / CTP_SFTP_PASSWORD manquants"
+            echo "::error::Aucun compte SFTP disponible (ni CTP_SFTP_*, ni PATISSERIE_SFTP_*) — voir Settings > Secrets and variables > Actions"
             exit 1
           fi
           sshpass -p "$SFTP_PASS" sftp \
@@ -146,14 +146,9 @@ jobs:
       - name: Appliquer le schéma de base de données (install.sql, idempotent)
         env:
           MIGRATION_TOKEN: ${{ secrets.CTP_MIGRATION_TOKEN }}
-          CTP_URL: ${{ secrets.CTP_URL }}
         run: |
-          if [ -z "$CTP_URL" ]; then
-            echo "::error::Secret CTP_URL manquant (ex : https://ctp.rybsen.fr)"
-            exit 1
-          fi
           # Idempotent : n'ajoute que ce qui manque, n'écrase jamais les données existantes.
-          response=$(curl -sS -X POST "${CTP_URL%/}/run_migration.php" \
+          response=$(curl -sS -X POST "https://ctp.rybsen.fr/run_migration.php" \
             -H "X-Migration-Token: $MIGRATION_TOKEN" \
             -w "\n%{http_code}")
           http_code=$(echo "$response" | tail -n1)

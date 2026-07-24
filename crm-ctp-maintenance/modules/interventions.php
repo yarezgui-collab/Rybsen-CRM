@@ -90,7 +90,10 @@ require_once '../includes/header.php';
   <div class="modal" style="max-width:780px">
     <div class="modal-header"><div class="modal-title" id="detail-title">Détail</div><button class="modal-close" onclick="CTP.closeModal('modal-detail')">✕</button></div>
     <div class="modal-body" id="detail-body"></div>
-    <div class="modal-footer"><button class="btn btn-outline" onclick="CTP.closeModal('modal-detail')">Fermer</button></div>
+    <div class="modal-footer">
+      <button class="btn btn-outline" onclick="CTP.closeModal('modal-detail')">Fermer</button>
+      <a class="btn btn-primary" id="btn-print-int" href="#" target="_blank">🖨️ Bon d'intervention</a>
+    </div>
   </div>
 </div>
 
@@ -195,6 +198,7 @@ async function detail(id) {
   const totalPieces = pieces.reduce((s,p) => s + p.quantite * parseFloat(p.prix_unitaire), 0);
   const totalGlobal = totalPieces + parseFloat(i.cout_main_oeuvre || 0);
   document.getElementById('detail-title').textContent = i.numero + ' — ' + i.modele;
+  document.getElementById('btn-print-int').href = '/modules/intervention_print.php?id=' + i.id;
 
   const statutBtns = peutEditer ? statutFlow.filter(s => s !== i.statut).map(s =>
     `<button class="btn btn-outline btn-sm" onclick="changeStatut(${i.id},'${s}')">${lbl(s)}</button>`).join(' ') : '';
