@@ -1,5 +1,6 @@
 <?php
 require_once 'config.php';
+require_once 'mailer.php';
 if (isLoggedIn()) { header('Location: dashboard.php'); exit; }
 
 $error = '';
@@ -79,16 +80,23 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['submit_final'])) {
 
             // Generate 6-digit verification code, store hashed with 30-min expiry
             $code    = str_pad((string)random_int(0, 999999), 6, '0', STR_PAD_LEFT);
-            $expires = date('Y-m-d H:i:s', time() + 1800);
+            $sent_at = time();
+            $expires = date('Y-m-d H:i:s', $sent_at + 1800);
             $db->prepare('UPDATE fm_users SET email_verif_code=?, email_verif_expires=? WHERE id=?')
                ->execute([hash('sha256', $code), $expires, $new_uid]);
 
-            sendVerificationEmail($email, $code);
-            auditLog('register', 'user', $new_uid, $email);
+            // L'envoi ne doit jamais bloquer l'inscription : stn_* n'échoue jamais
+            // fatalement (il retourne false au pire). On mémorise le résultat
+            // pour informer l'utilisateur sur la page de vérification.
+            $mail_ok = stn_send_verification_code($email, $code);
+            auditLog('register', 'user', $new_uid, $email . ($mail_ok ? '' : ' [email KO]'));
 
             // Pass uid to verify.php via session
             $_SESSION['pending_verify_uid']   = $new_uid;
             $_SESSION['pending_verify_email'] = $email;
+            $_SESSION['pending_verify_sent']  = $mail_ok ? 1 : 0;
+            $_SESSION['pending_verify_time']  = $sent_at;
+            $_SESSION['verify_attempts']      = 0;
             header('Location: verify.php');
             exit;
         }

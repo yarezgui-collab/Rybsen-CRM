@@ -1,5 +1,6 @@
 <?php
 require_once 'config.php';
+require_once 'mailer.php';
 requireLogin();
 requireAdmin();
 $page_title = 'Administration';
@@ -69,7 +70,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $owner->execute([$s['user_id']]);
             $owner = $owner->fetch();
             if ($owner) {
-                sendSubmissionResultEmail($owner['email'], $owner['startup_name'], $s['name'], $status === 'approved');
+                stn_send_submission_result($owner['email'], $owner['startup_name'], $s['name'], $status === 'approved');
             }
         }
 

@@ -597,6 +597,7 @@ tr:hover td { background: rgba(255,255,255,.02); }
     <a class="nav-link <?= $current_page==='admin'?'active':'' ?>" href="admin.php">
       <span class="badge-admin-nav">Admin</span>
     </a>
+    <a class="nav-link <?= $current_page==='mail_diag'?'active':'' ?>" href="mail_diag.php" title="Diagnostic email">&#9993;</a>
     <?php endif; ?>
   </div>
   <div class="nav-right">
