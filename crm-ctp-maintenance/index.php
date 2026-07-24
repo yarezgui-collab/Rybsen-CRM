@@ -30,8 +30,8 @@ require_once 'includes/header.php';
     <div class="section-header"><div class="section-title">📅 Prochaines maintenances préventives</div>
       <div class="section-actions"><a href="/modules/maintenance.php" class="btn btn-outline btn-sm">Calendrier</a></div></div>
     <div class="table-wrap"><table>
-      <thead><tr><th>Contrat</th><th>Client</th><th>Échéance</th><th>Reste</th></tr></thead>
-      <tbody id="tb-maint"><tr><td colspan="4" style="text-align:center;padding:24px;color:var(--text-muted)">Chargement…</td></tr></tbody>
+      <thead><tr><th>Échéance</th><th>Client</th><th>Machine</th><th>Type</th><th>Reste</th></tr></thead>
+      <tbody id="tb-maint"><tr><td colspan="5" style="text-align:center;padding:24px;color:var(--text-muted)">Chargement…</td></tr></tbody>
     </table></div>
   </div>
 </div>
@@ -63,16 +63,19 @@ require_once 'includes/header.php';
 
   const md = await CTP.api('dashboard_maintenance');
   const tbm = document.getElementById('tb-maint');
+  const typeLabel = t => t === 'preventive' ? 'Préventive' : 'Prévisionnelle';
   if (Array.isArray(md) && md.length) {
     tbm.innerHTML = md.map(r => {
       const j = parseInt(r.jours_restants, 10);
       const cls = j < 0 ? 'badge-red' : (j <= 7 ? 'badge-gold' : 'badge-green');
       const txt = j < 0 ? `En retard ${-j}j` : (j === 0 ? "Aujourd'hui" : `${j} j`);
-      return `<tr><td>${e(r.numero)}</td><td>${e(r.raison_sociale)}</td>
-        <td>${CTP.formatDate(r.prochaine_maintenance)}</td>
+      return `<tr><td>${CTP.formatDate(r.prochaine_maintenance)}</td>
+        <td>${e(r.raison_sociale)}</td>
+        <td>${e(r.modele)} <span style="color:var(--text-muted)">${e(r.n_serie)}</span></td>
+        <td><span class="badge ${r.type==='preventive'?'badge-teal':'badge-gold'}">${typeLabel(r.type)}</span></td>
         <td><span class="badge ${cls}">${txt}</span></td></tr>`;
     }).join('');
-  } else { tbm.innerHTML = '<tr><td colspan="4" style="text-align:center;padding:24px;color:var(--text-muted)">Aucune échéance proche</td></tr>'; }
+  } else { tbm.innerHTML = '<tr><td colspan="5" style="text-align:center;padding:24px;color:var(--text-muted)">Aucune échéance proche</td></tr>'; }
 })();
 </script>
 

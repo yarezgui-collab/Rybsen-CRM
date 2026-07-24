@@ -30,12 +30,26 @@ action `mes_*` doit suivre ce pattern.
 - `users`, `clients`
 - `machines` — parc CTP (modèle, n° série, technologie, compteur plaques, garantie, statut)
 - `contrats` — préventif / full service / garantie, fréquence + prochaine échéance, SLA
+- `maintenances_planifiees` — **calendrier de visites préventives par machine sous contrat**
+  (type *préventive* PM / *prévisionnelle*, date prévue → réalisée). Cœur du SAV Kodak CTP.
 - `interventions` — préventive / corrective / installation / mise à jour, workflow de statuts
 - `pieces` — catalogue + stock + seuil d'alerte
 - `intervention_pieces` — pièces consommées par intervention
 - `commandes_pieces` / `commande_lignes` — commandes fournisseur, réception (partielle)
 - `mouvements_stock` — **traçabilité complète** de tout mouvement de stock
-- Vues : `v_pieces_stock_bas`, `v_maintenance_due`, `v_interventions_ouvertes`
+- Vues : `v_pieces_stock_bas`, `v_maintenance_due`, `v_maintenances_planifiees`, `v_interventions_ouvertes`
+
+### Données réelles pré-chargées (parc Kodak CTP)
+`install.sql` importe, **de façon idempotente** (insert-if-missing sur `code_client` /
+`n_serie` / `numero` de contrat / (machine+date+type) de visite), le référentiel réel
+extrait du fichier Excel fourni :
+- **24 clients** (imprimeries), **25 machines** CTP (Trendsetter / Achieve / Magnus / TS Q1600)
+- **10 contrats** préventifs actifs + **46 visites préventives planifiées** (calendrier 2026)
+- Clients inactifs et statuts métier (sous contrôle juridique, contrat en validation)
+- Interventions historiques (dernières interventions connues, changement filtre à air)
+
+Ré-exécuter la migration ne crée jamais de doublon : seules les entités absentes sont
+insérées. Les fiches existantes ne sont jamais écrasées.
 
 ### Règles métier importantes
 1. Le stock des pièces ne se modifie **jamais** directement : il passe toujours par un

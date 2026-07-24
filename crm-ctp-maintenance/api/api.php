@@ -54,7 +54,7 @@ if ($action === 'dashboard_stats') {
     $s['machines_en_service'] = (int)$db->query("SELECT COUNT(*) FROM machines WHERE statut='en_service'")->fetchColumn();
     $s['machines_en_panne']   = (int)$db->query("SELECT COUNT(*) FROM machines WHERE statut='en_panne'")->fetchColumn();
     $s['interventions_ouvertes'] = (int)$db->query("SELECT COUNT(*) FROM interventions WHERE statut NOT IN ('cloturee','annulee')")->fetchColumn();
-    $s['maintenances_dues']   = (int)$db->query("SELECT COUNT(*) FROM v_maintenance_due WHERE jours_restants <= 30")->fetchColumn();
+    $s['maintenances_dues']   = (int)$db->query("SELECT COUNT(*) FROM v_maintenances_planifiees WHERE jours_restants <= 30")->fetchColumn();
     $s['pieces_stock_bas']    = (int)$db->query("SELECT COUNT(*) FROM v_pieces_stock_bas")->fetchColumn();
     $s['commandes_en_cours']  = (int)$db->query("SELECT COUNT(*) FROM commandes_pieces WHERE statut IN ('commandee','partielle')")->fetchColumn();
     respond($s);
@@ -68,7 +68,10 @@ if ($action === 'dashboard_interventions') {
 }
 if ($action === 'dashboard_maintenance') {
     apiRequireRole(['admin','technicien','magasinier']);
-    $rows = $db->query("SELECT * FROM v_maintenance_due WHERE jours_restants <= 30 ORDER BY jours_restants ASC LIMIT 8")->fetchAll();
+    // Calendrier réel : prochaines visites préventives planifiées (contrats Kodak).
+    $rows = $db->query("SELECT mp.*, mp.date_prevue AS prochaine_maintenance
+        FROM v_maintenances_planifiees mp
+        WHERE mp.jours_restants <= 45 ORDER BY mp.jours_restants ASC LIMIT 8")->fetchAll();
     respond($rows);
 }
 if ($action === 'mes_dashboard_stats') {
@@ -288,6 +291,98 @@ if ($action === 'maint_planifier') {
         $db->commit();
         respond(['ok'=>true, 'numero'=>$num]);
     } catch (Exception $e) { $db->rollBack(); error400('Échec de la planification : '.$e->getMessage()); }
+}
+
+// ──────────────────────────────────────────
+// MAINTENANCES PRÉVENTIVES PLANIFIÉES (calendrier contractuel Kodak)
+// ──────────────────────────────────────────
+if ($action === 'mp_list') {
+    apiRequireRole(['admin','technicien']);
+    // Visites planifiées à venir (+ celles en retard). Option : réalisées récentes.
+    $rows = $db->query("SELECT * FROM v_maintenances_planifiees ORDER BY date_prevue ASC")->fetchAll();
+    respond($rows);
+}
+if ($action === 'mp_historique') {
+    apiRequireRole(['admin','technicien']);
+    $rows = $db->query("SELECT mp.*, m.modele, m.n_serie, cl.raison_sociale
+        FROM maintenances_planifiees mp
+        JOIN machines m ON m.id=mp.machine_id JOIN clients cl ON cl.id=mp.client_id
+        WHERE mp.statut='realisee' ORDER BY mp.date_realisee DESC LIMIT 100")->fetchAll();
+    respond($rows);
+}
+if ($action === 'mp_options') {
+    apiRequireRole(['admin','technicien']);
+    respond([
+        // machines rattachées à un contrat (visites préventives)
+        'machines' => $db->query("SELECT m.id, m.modele, m.n_serie, c.raison_sociale,
+                (SELECT ct.id FROM contrats ct WHERE ct.machine_id=m.id OR (ct.machine_id IS NULL AND ct.client_id=m.client_id) ORDER BY ct.machine_id IS NULL LIMIT 1) AS contrat_id
+            FROM machines m JOIN clients c ON c.id=m.client_id
+            WHERE m.statut<>'retire' ORDER BY c.raison_sociale, m.modele")->fetchAll(),
+        'techniciens' => $db->query("SELECT id, nom FROM users WHERE role IN ('technicien','admin') AND actif=1 ORDER BY nom")->fetchAll(),
+    ]);
+}
+if ($action === 'mp_add') {
+    apiRequireRole(['admin','technicien']);
+    $machineId = (int)($body['machine_id'] ?? 0);
+    $date = $body['date_prevue'] ?? '';
+    if (!$machineId || !$date) error400('Machine et date requises');
+    $mst = $db->prepare("SELECT client_id FROM machines WHERE id=?"); $mst->execute([$machineId]);
+    $clientId = $mst->fetchColumn(); if (!$clientId) error400('Machine introuvable');
+    $type = in_array($body['type'] ?? '', ['preventive','previsionnelle'], true) ? $body['type'] : 'preventive';
+    // contrat rattaché (machine directe, sinon contrat "tout le parc" du client)
+    $cst = $db->prepare("SELECT id FROM contrats WHERE (machine_id=? OR (machine_id IS NULL AND client_id=?)) ORDER BY machine_id IS NULL LIMIT 1");
+    $cst->execute([$machineId, $clientId]);
+    $contratId = $cst->fetchColumn() ?: null;
+    try {
+        $db->prepare("INSERT INTO maintenances_planifiees (contrat_id,machine_id,client_id,type,rang,date_prevue,statut,notes)
+                      VALUES (?,?,?,?,?,?,'planifiee',?)")
+           ->execute([$contratId, $machineId, $clientId, $type, ($body['rang']??null)?:null, $date, $body['notes']??null]);
+        respond(['ok'=>true]);
+    } catch (Exception $e) { error400('Une visite existe déjà pour cette machine à cette date et ce type'); }
+}
+if ($action === 'mp_reporter') {
+    apiRequireRole(['admin','technicien']);
+    $id = (int)($body['id'] ?? 0);
+    $date = $body['date_prevue'] ?? '';
+    if (!$date) error400('Nouvelle date requise');
+    $db->prepare("UPDATE maintenances_planifiees SET date_prevue=?, statut='planifiee' WHERE id=?")->execute([$date, $id]);
+    respond(['ok'=>true]);
+}
+if ($action === 'mp_annuler') {
+    apiRequireRole(['admin','technicien']);
+    $db->prepare("UPDATE maintenances_planifiees SET statut='annulee' WHERE id=?")->execute([(int)($body['id'] ?? 0)]);
+    respond(['ok'=>true]);
+}
+if ($action === 'mp_delete') {
+    apiRequireRole(['admin']);
+    $db->prepare("DELETE FROM maintenances_planifiees WHERE id=?")->execute([(int)($body['id'] ?? 0)]);
+    respond(['ok'=>true]);
+}
+// Marque une visite comme réalisée → crée une intervention préventive clôturée et la rattache.
+if ($action === 'mp_marquer_realisee') {
+    apiRequireRole(['admin','technicien']);
+    $id = (int)($body['id'] ?? 0);
+    $st = $db->prepare("SELECT * FROM maintenances_planifiees WHERE id=?"); $st->execute([$id]);
+    $mp = $st->fetch(); if (!$mp) error400('Visite introuvable');
+    if ($mp['statut'] === 'realisee') error400('Visite déjà marquée réalisée');
+    $dateReal = $body['date_realisee'] ?: date('Y-m-d');
+    $tech = ($body['technicien_id'] ?? '') !== '' ? (int)$body['technicien_id'] : null;
+    $db->beginTransaction();
+    try {
+        $num = nextDocNumero($db, 'interventions', 'INT');
+        $typeLabel = $mp['type'] === 'preventive' ? 'Maintenance préventive' : 'Visite prévisionnelle';
+        $ins = $db->prepare("INSERT INTO interventions
+            (numero,machine_id,client_id,contrat_id,type,origine,priorite,statut,technicien_id,date_debut,date_fin,description,resolution,temps_passe_h)
+            VALUES (?,?,?,?,'preventive','preventif','normale','cloturee',?,?,?,?,?,?)");
+        $desc = $typeLabel . ' planifiée (visite #' . ($mp['rang'] ?: '-') . ')';
+        $ins->execute([$num, $mp['machine_id'], $mp['client_id'], $mp['contrat_id'], $tech, $dateReal, $dateReal,
+            $desc, $body['resolution'] ?? $typeLabel . ' effectuée', $body['temps_passe_h'] ?? 0]);
+        $intId = (int)$db->lastInsertId();
+        $db->prepare("UPDATE maintenances_planifiees SET statut='realisee', date_realisee=?, intervention_id=? WHERE id=?")
+           ->execute([$dateReal, $intId, $id]);
+        $db->commit();
+        respond(['ok'=>true, 'numero'=>$num]);
+    } catch (Exception $e) { $db->rollBack(); error400('Échec : '.$e->getMessage()); }
 }
 
 // ──────────────────────────────────────────
