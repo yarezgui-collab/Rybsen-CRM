@@ -1,5 +1,6 @@
 <?php
 require_once 'config.php';
+require_once 'mailer.php';
 if (isLoggedIn()) { header('Location: dashboard.php'); exit; }
 
 $db    = getDB();
@@ -66,7 +67,7 @@ if (!$reset_mode && $_SERVER['REQUEST_METHOD'] === 'POST') {
                 // Stocker uniquement le hash : une fuite de BDD n'expose pas le lien
                 $db->prepare('UPDATE fm_users SET reset_token=?, reset_token_expires=? WHERE id=?')
                    ->execute([hash('sha256', $tok), $expires, $row['id']]);
-                sendResetEmail($email, $tok);
+                stn_send_reset_link($email, $tok);
                 auditLog('password_reset_request', 'user', $row['id'], $email);
             }
             // Always show same message to prevent user enumeration
