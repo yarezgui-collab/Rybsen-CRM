@@ -1,0 +1,164 @@
+name: Deploy crm-ctp-maintenance to Hostinger
+
+# Déploiement SFTP + application idempotente du schéma, sur le même patron que
+# crm-labo-benyedder : le sous-domaine CTP.rybsen.fr vit sur le même compte
+# d'hébergement rybsen.fr, donc on réutilise le compte SFTP existant
+# (PATISSERIE_SFTP_*) — un compte SFTP dédié (CTP_SFTP_*) reste possible et
+# sera utilisé en priorité s'il est renseigné.
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - 'crm-ctp-maintenance/**'
+  workflow_dispatch:
+
+jobs:
+  deploy:
+    name: SFTP → CTP Maintenance
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Install sshpass
+        run: sudo apt-get install -y sshpass
+
+      - name: Generate config.php from secrets
+        env:
+          DB_NAME: ${{ secrets.CTP_DB_NAME }}
+          DB_PASS: ${{ secrets.CTP_DB_PASSWORD }}
+          MIGRATION_TOKEN: ${{ secrets.CTP_MIGRATION_TOKEN }}
+        run: |
+          if [ -z "$DB_NAME" ] || [ -z "$DB_PASS" ]; then
+            echo "::error::Secrets CTP_DB_NAME et/ou CTP_DB_PASSWORD manquants — voir Settings > Secrets and variables > Actions"
+            exit 1
+          fi
+          if [ -z "$MIGRATION_TOKEN" ]; then
+            echo "::error::Secret CTP_MIGRATION_TOKEN manquant — voir Settings > Secrets and variables > Actions"
+            exit 1
+          fi
+          DB_NAME_ESC=$(printf '%s' "$DB_NAME" | sed "s/[\\\\']/\\\\&/g")
+          DB_PASS_ESC=$(printf '%s' "$DB_PASS" | sed "s/[\\\\']/\\\\&/g")
+          TOKEN_ESC=$(printf '%s' "$MIGRATION_TOKEN" | sed "s/[\\\\']/\\\\&/g")
+          cat > crm-ctp-maintenance/config.php << PHPCONFIG
+          <?php
+          define('DB_HOST', 'localhost');
+          define('DB_NAME', '${DB_NAME_ESC}');
+          define('DB_USER', '${DB_NAME_ESC}');
+          define('DB_PASS', '${DB_PASS_ESC}');
+          define('DB_CHARSET', 'utf8mb4');
+          define('MIGRATION_TOKEN', '${TOKEN_ESC}');
+
+          function getDB() {
+              static \$pdo = null;
+              if (\$pdo === null) {
+                  try {
+                      \$dsn = "mysql:host=" . DB_HOST . ";dbname=" . DB_NAME . ";charset=" . DB_CHARSET;
+                      \$pdo = new PDO(\$dsn, DB_USER, DB_PASS, [
+                          PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION,
+                          PDO::ATTR_DEFAULT_FETCH_MODE => PDO::FETCH_ASSOC,
+                          PDO::ATTR_EMULATE_PREPARES => false,
+                      ]);
+                  } catch (PDOException \$e) {
+                      http_response_code(500);
+                      die(json_encode(['error' => 'Connexion échouée: ' . \$e->getMessage()]));
+                  }
+              }
+              return \$pdo;
+          }
+
+          function requireLogin() {
+              if (session_status() === PHP_SESSION_NONE) session_start();
+              if (!isset(\$_SESSION['user_id'])) {
+                  if (!empty(\$_SERVER['HTTP_X_REQUESTED_WITH'])) {
+                      http_response_code(401);
+                      die(json_encode(['error' => 'Non authentifié']));
+                  }
+                  header('Location: /login.php');
+                  exit;
+              }
+          }
+
+          function currentUser() {
+              if (session_status() === PHP_SESSION_NONE) session_start();
+              return \$_SESSION['user'] ?? null;
+          }
+
+          function requireRole(array \$roles) {
+              \$u = currentUser();
+              if (!\$u || !in_array(\$u['role'], \$roles, true)) {
+                  if (!empty(\$_SERVER['HTTP_X_REQUESTED_WITH'])) {
+                      http_response_code(403);
+                      die(json_encode(['error' => 'Accès refusé pour ce rôle']));
+                  }
+                  header('Location: /index.php');
+                  exit;
+              }
+          }
+          PHPCONFIG
+
+      - name: Build SFTP batch file
+        run: |
+          # CTP.rybsen.fr vit sous le même compte d'hébergement que rybsen.fr
+          # (comme tby.rybsen.fr pour crm-labo-benyedder) : chemin fixe, non sensible.
+          REMOTE_PATH="domains/rybsen.fr/public_html/ctp"
+          printf 'cd %s\n' "$REMOTE_PATH" > /tmp/sftp_batch.txt
+          printf -- '-mkdir api\n-mkdir assets\n-mkdir includes\n-mkdir modules\n' >> /tmp/sftp_batch.txt
+          # Déploie tous les fichiers SAUF les dumps SQL — mais on GARDE install.sql,
+          # nécessaire à run_migration.php pour appliquer le schéma côté serveur.
+          find crm-ctp-maintenance -type f \
+            ! \( -name '*.sql' ! -name 'install.sql' \) \
+            ! -name 'config.example.php' \
+            ! -path '*/.git/*' \
+            ! -name '.gitignore' \
+            | sort | while read f; do
+              remote="${f#crm-ctp-maintenance/}"
+              printf 'put %s %s\n' "$f" "$remote"
+            done >> /tmp/sftp_batch.txt
+          printf 'bye\n' >> /tmp/sftp_batch.txt
+          echo "=== Batch file (config.php content hidden) ===" && grep -v config.php /tmp/sftp_batch.txt
+
+      - name: Deploy via SFTP
+        env:
+          # Priorité à un compte SFTP dédié (CTP_SFTP_*) s'il existe, sinon réutilise
+          # le compte du domaine rybsen.fr déjà utilisé par crm-labo-benyedder.
+          SFTP_HOST: ${{ secrets.CTP_SFTP_HOST || secrets.PATISSERIE_SFTP_HOST }}
+          SFTP_PORT: ${{ secrets.CTP_SFTP_PORT || secrets.PATISSERIE_SFTP_PORT }}
+          SFTP_USER: ${{ secrets.CTP_SFTP_USER || secrets.PATISSERIE_SFTP_USER }}
+          SFTP_PASS: ${{ secrets.CTP_SFTP_PASSWORD || secrets.PATISSERIE_SFTP_PASSWORD }}
+        run: |
+          if [ -z "$SFTP_HOST" ] || [ -z "$SFTP_USER" ] || [ -z "$SFTP_PASS" ]; then
+            echo "::error::Aucun compte SFTP disponible (ni CTP_SFTP_*, ni PATISSERIE_SFTP_*) — voir Settings > Secrets and variables > Actions"
+            exit 1
+          fi
+          sshpass -p "$SFTP_PASS" sftp \
+            -oBatchMode=no \
+            -oStrictHostKeyChecking=no \
+            -oPasswordAuthentication=yes \
+            -oConnectTimeout=30 \
+            -P "${SFTP_PORT:-65002}" \
+            -b /tmp/sftp_batch.txt \
+            "$SFTP_USER@$SFTP_HOST"
+
+      - name: Appliquer le schéma de base de données (install.sql, idempotent)
+        env:
+          MIGRATION_TOKEN: ${{ secrets.CTP_MIGRATION_TOKEN }}
+        run: |
+          # Idempotent : n'ajoute que ce qui manque, n'écrase jamais les données existantes.
+          response=$(curl -sS -X POST "https://ctp.rybsen.fr/run_migration.php" \
+            -H "X-Migration-Token: $MIGRATION_TOKEN" \
+            -w "\n%{http_code}")
+          http_code=$(echo "$response" | tail -n1)
+          body=$(echo "$response" | sed '$d')
+          echo "$body"
+          if [ "$http_code" != "200" ]; then
+            echo "::error::Échec de l'application du schéma (HTTP $http_code)"
+            exit 1
+          fi
+          if echo "$body" | grep -q '"ok":false'; then
+            echo "::error::Des requêtes du schéma ont échoué — voir la sortie ci-dessus"
+            exit 1
+          fi
